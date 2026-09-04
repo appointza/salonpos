@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CrudPage } from "@/components/CrudPage";
-import { CrmSubnav } from "@/components/CrmSubnav";
+import { GoogleReviewsPanel } from "@/components/GoogleReviewsPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { modules } from "@/lib/modules";
 
@@ -24,17 +25,27 @@ function Page() {
   const isStylist = user?.role === "STYLIST";
   return (
     <div className="space-y-6">
-      {!isStylist && <CrmSubnav />}
-      <CrudPage
-        module={{
-          ...modules.feedback,
-          subtitle: isStylist ? "Ratings left on your services only." : modules.feedback.subtitle,
-        }}
-        readOnly={isStylist}
-        canCreate={!isStylist}
-        canDelete={!isStylist}
-        canEdit={!isStylist}
-      />
+      <Tabs defaultValue="salon">
+        <TabsList>
+          <TabsTrigger value="salon">In salon</TabsTrigger>
+          <TabsTrigger value="google">Google Maps</TabsTrigger>
+        </TabsList>
+        <TabsContent value="salon" className="mt-6">
+          <CrudPage
+            module={{
+              ...modules.feedback,
+              subtitle: isStylist ? "Ratings left on your services only." : modules.feedback.subtitle,
+            }}
+            readOnly={isStylist}
+            canCreate={!isStylist}
+            canDelete={!isStylist}
+            canEdit={!isStylist}
+          />
+        </TabsContent>
+        <TabsContent value="google" className="mt-6">
+          <GoogleReviewsPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

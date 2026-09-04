@@ -276,7 +276,6 @@ export const ROLE_NAV: Record<Role, string[] | "all"> = {
   STAFF: [
     "/dashboard",
     "/customers",
-    "/crm",
     "/appointments",
     "/pos",
     "/services",

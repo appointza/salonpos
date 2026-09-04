@@ -268,7 +268,11 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
                 </p>
                 <a
                   className="mt-2 inline-flex items-center gap-1 text-xs text-primary"
-                  href={`https://www.google.com/maps/search/?api=1&query=${l.lat},${l.lng}`}
+                  href={
+                    l.placeId
+                      ? `https://www.google.com/maps/search/?api=1&query_place_id=${encodeURIComponent(l.placeId)}`
+                      : `https://www.google.com/maps/search/?api=1&query=${l.lat},${l.lng}`
+                  }
                   target="_blank"
                   rel="noreferrer"
                   onClick={(e) => e.stopPropagation()}

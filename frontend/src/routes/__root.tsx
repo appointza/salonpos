@@ -128,7 +128,7 @@ const APP_PATHS = [
   "/dashboard","/customers","/appointments","/pos","/services","/feedback","/inventory","/expenses",
   "/staff","/shifts","/attendance","/leaves","/payroll","/commissions","/loyalty","/memberships",
   "/campaigns","/franchises","/brand-apps","/users","/roles","/settings","/subscription",
-  "/crm","/nearby",
+  "/nearby",
 ];
 
 function RootComponent() {

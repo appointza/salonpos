@@ -7,10 +7,6 @@ export const PERMISSION_SCREENS = navSections.flatMap((section) =>
   section.items.map((item) => ({ ...item, group: section.label })),
 );
 
-const PATH_ALIASES: Record<string, string[]> = {
-  "/crm": ["/customers", "/memberships", "/loyalty", "/campaigns", "/feedback"],
-};
-
 export const COLLECTION_WRITE_SCREENS: Record<string, string[]> = {
   appointments: ["/appointments"],
   customers: ["/customers"],
@@ -35,6 +31,7 @@ export const COLLECTION_WRITE_SCREENS: Record<string, string[]> = {
   whatsappMessages: ["/campaigns", "/settings"],
   whatsappTemplates: ["/campaigns"],
   feedback: ["/feedback"],
+  googleReviews: ["/feedback"],
   franchises: ["/franchises"],
   brandApps: ["/brand-apps"],
   users: ["/users"],
@@ -55,9 +52,7 @@ export function joinPaths(paths: string[], isAll: boolean) {
 }
 
 export function hasPath(list: "all" | string[], path: string) {
-  if (list === "all") return true;
-  if (list.includes(path)) return true;
-  return (PATH_ALIASES[path] ?? []).some((alias) => list.includes(alias));
+  return list === "all" || list.includes(path);
 }
 
 export function canMutateCollection(edit: "all" | string[], collection: string) {
@@ -73,7 +68,7 @@ export function firstAllowedPath(view: "all" | string[]) {
 }
 
 export function isPermissionScreen(path: string) {
-  return PERMISSION_SCREENS.some((s) => s.to === path) || path === "/crm";
+  return PERMISSION_SCREENS.some((s) => s.to === path);
 }
 
 export function permissionSummary(row: PermRow) {

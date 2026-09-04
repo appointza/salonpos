@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { CheckCircle2, Gift, PlugZap } from "lucide-react";
+import { CheckCircle2, Gift, MapPin, PlugZap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,11 +41,18 @@ function Page() {
   const { settings: loyalty, save: saveLoyalty } = useLoyaltySettings();
   const { org, scopeLabel } = useTenant();
   const { rows: messages } = useCollection("whatsappMessages");
+  const { rows: locationRows, update: updateLocation } = useCollection("locations");
+  const [placeIds, setPlaceIds] = useState<Record<string, string>>({});
   const [form, setForm] = useState(settings);
   const [loyaltyForm, setLoyaltyForm] = useState(loyalty);
 
   useEffect(() => setForm(settings), [settings]);
   useEffect(() => setLoyaltyForm(loyalty), [loyalty]);
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    for (const loc of locationRows) next[String(loc.id)] = String(loc["placeId"] ?? "");
+    setPlaceIds(next);
+  }, [locationRows]);
 
   const previewSpend = 1000;
   const previewEarn = earnPoints(previewSpend, loyaltyForm);
@@ -139,6 +146,53 @@ function Page() {
           }}
         >
           <CheckCircle2 /> Save loyalty rates
+        </Button>
+      </section>
+
+      <section className="max-w-3xl rounded-xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <MapPin className="size-5 text-primary" />
+          <h2 className="font-display text-lg">Google Maps listings</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          After the outlet is published on Google Maps, paste its Place ID. Feedback stores those comments and
+          refreshes from Google when stale or when you click Refresh. Find a Place ID with Google&apos;s{" "}
+          <a
+            className="text-primary underline-offset-4 hover:underline"
+            href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Place ID finder
+          </a>
+          . Live pull needs <code className="text-xs">VITE_GOOGLE_MAPS_API_KEY</code>.
+        </p>
+        <Separator className="my-4" />
+        <div className="space-y-4">
+          {locationRows.map((loc) => (
+            <div key={String(loc.id)}>
+              <Label htmlFor={`place-${loc.id}`} className="mb-1.5">
+                {String(loc["name"])} — Place ID
+              </Label>
+              <Input
+                id={`place-${loc.id}`}
+                value={placeIds[String(loc.id)] ?? ""}
+                placeholder="ChIJ…"
+                onChange={(e) => setPlaceIds((p) => ({ ...p, [String(loc.id)]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </div>
+        <Button
+          className="mt-5"
+          onClick={() => {
+            for (const loc of locationRows) {
+              updateLocation(String(loc.id), { ...loc, placeId: placeIds[String(loc.id)] ?? "" });
+            }
+            toast.success("Google Place IDs saved");
+          }}
+        >
+          <CheckCircle2 /> Save Place IDs
         </Button>
       </section>
 

@@ -35,6 +35,7 @@ type Ctx = {
   create: (collection: string, row: Row, orgOverride?: string) => void;
   update: (collection: string, id: string, row: Row) => void;
   remove: (collection: string, id: string) => void;
+  replaceGoogleReviews: (locationId: string, reviews: Row[], meta: Record<string, string | number>) => void;
   reset: () => void;
 };
 
@@ -139,6 +140,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
           return {
             ...prev,
             [collection]: (prev[collection] ?? []).filter((r) => !(String(r.id) === id && String(r["orgId"]) === orgId)),
+          };
+        }),
+      replaceGoogleReviews: (targetLocationId, reviews, meta) =>
+        persist((prev) => {
+          const stamped = reviews.map((row) =>
+            stamp({
+              ...row,
+              locationId: targetLocationId,
+              source: String(row["source"] ?? "Google"),
+            }),
+          );
+          return {
+            ...prev,
+            googleReviews: [
+              ...(prev["googleReviews"] ?? []).filter(
+                (r) => !(String(r["orgId"]) === orgId && String(r["locationId"]) === targetLocationId),
+              ),
+              ...stamped,
+            ],
+            locations: (prev["locations"] ?? []).map((loc) =>
+              String(loc["orgId"]) === orgId && String(loc["locationId"] ?? loc.id) === targetLocationId
+                ? stamp({ ...loc, ...meta, locationId: targetLocationId })
+                : loc,
+            ),
           };
         }),
       reset: () => persist(() => structuredClone(seed) as Db),

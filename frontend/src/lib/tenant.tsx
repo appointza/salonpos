@@ -14,6 +14,7 @@ export type OrgLocation = {
   status: string;
   lat: number;
   lng: number;
+  placeId?: string;
 };
 
 export type Tenant = {
@@ -51,6 +52,7 @@ function locFromRow(l: (typeof seed.locations)[number]): OrgLocation {
     status: l.status,
     lat: l.lat,
     lng: l.lng,
+    placeId: "placeId" in l ? String(l.placeId ?? "") : "",
   };
 }
 

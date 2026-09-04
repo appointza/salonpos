@@ -17,7 +17,6 @@ import { Route as BookRouteImport } from './routes/book'
 import { Route as BrandAppsRouteImport } from './routes/brand-apps'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as CommissionsRouteImport } from './routes/commissions'
-import { Route as CrmRouteImport } from './routes/crm'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ExpensesRouteImport } from './routes/expenses'
@@ -79,11 +78,6 @@ const CampaignsRoute = CampaignsRouteImport.update({
 const CommissionsRoute = CommissionsRouteImport.update({
   id: '/commissions',
   path: '/commissions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CrmRoute = CrmRouteImport.update({
-  id: '/crm',
-  path: '/crm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CustomersRoute = CustomersRouteImport.update({
@@ -206,7 +200,6 @@ export interface FileRoutesByFullPath {
   '/brand-apps': typeof BrandAppsRoute
   '/campaigns': typeof CampaignsRoute
   '/commissions': typeof CommissionsRoute
-  '/crm': typeof CrmRoute
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/expenses': typeof ExpensesRoute
@@ -239,7 +232,6 @@ export interface FileRoutesByTo {
   '/brand-apps': typeof BrandAppsRoute
   '/campaigns': typeof CampaignsRoute
   '/commissions': typeof CommissionsRoute
-  '/crm': typeof CrmRoute
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/expenses': typeof ExpensesRoute
@@ -273,7 +265,6 @@ export interface FileRoutesById {
   '/brand-apps': typeof BrandAppsRoute
   '/campaigns': typeof CampaignsRoute
   '/commissions': typeof CommissionsRoute
-  '/crm': typeof CrmRoute
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/expenses': typeof ExpensesRoute
@@ -308,7 +299,6 @@ export interface FileRouteTypes {
     | '/brand-apps'
     | '/campaigns'
     | '/commissions'
-    | '/crm'
     | '/customers'
     | '/dashboard'
     | '/expenses'
@@ -341,7 +331,6 @@ export interface FileRouteTypes {
     | '/brand-apps'
     | '/campaigns'
     | '/commissions'
-    | '/crm'
     | '/customers'
     | '/dashboard'
     | '/expenses'
@@ -374,7 +363,6 @@ export interface FileRouteTypes {
     | '/brand-apps'
     | '/campaigns'
     | '/commissions'
-    | '/crm'
     | '/customers'
     | '/dashboard'
     | '/expenses'
@@ -408,7 +396,6 @@ export interface RootRouteChildren {
   BrandAppsRoute: typeof BrandAppsRoute
   CampaignsRoute: typeof CampaignsRoute
   CommissionsRoute: typeof CommissionsRoute
-  CrmRoute: typeof CrmRoute
   CustomersRoute: typeof CustomersRoute
   DashboardRoute: typeof DashboardRoute
   ExpensesRoute: typeof ExpensesRoute
@@ -489,13 +476,6 @@ declare module '@tanstack/react-router' {
       path: '/commissions'
       fullPath: '/commissions'
       preLoaderRoute: typeof CommissionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/crm': {
-      id: '/crm'
-      path: '/crm'
-      fullPath: '/crm'
-      preLoaderRoute: typeof CrmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/customers': {
@@ -664,7 +644,6 @@ const rootRouteChildren: RootRouteChildren = {
   BrandAppsRoute: BrandAppsRoute,
   CampaignsRoute: CampaignsRoute,
   CommissionsRoute: CommissionsRoute,
-  CrmRoute: CrmRoute,
   CustomersRoute: CustomersRoute,
   DashboardRoute: DashboardRoute,
   ExpensesRoute: ExpensesRoute,

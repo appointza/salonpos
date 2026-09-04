@@ -374,6 +374,7 @@ function RegisterPage() {
           status: org.outlet["status"] || "Active",
           lat: Number(org.address["lat"] ?? 0),
           lng: Number(org.address["lng"] ?? 0),
+          placeId: "",
         },
       ],
     });
