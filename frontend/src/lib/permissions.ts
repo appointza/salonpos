@@ -20,7 +20,8 @@ export function joinPaths(paths: string[], isAll: boolean) {
 }
 
 export function hasPath(list: "all" | string[], path: string) {
-  return list === "all" || list.includes(path);
+  if (list === "all") return true;
+  return list.some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
 }
 
 export function permissionSummary(row: Row) {

@@ -11,15 +11,31 @@ import { useData, type Row } from "@/lib/store";
 import { useTenant } from "@/lib/tenant";
 import { isSlotFree, slotList } from "@/lib/booking";
 import { addCalendarMonths } from "@/lib/membership";
+import { SpinWheel } from "@/components/SpinWheel";
+import { findCustomerByPhone, normalizePhone, WHEEL_SEGMENTS } from "@/lib/qr-loyalty";
+import { upsertCustomerByPhone, isValidPhone } from "@/lib/customers/customer-service";
+import { buildAppointmentRow } from "@/lib/appointments/appointment-resolve";
+import { customerSpunToday, getTodayWheelSpin, processWheelSpinResult } from "@/lib/wheel/wheel-service";
+import { getCustomerLoyaltyBalance } from "@/lib/loyalty/loyalty-service";
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean }) {
+export function PublicBooking({
+  showSwitcher = true,
+  initialLocationId,
+}: {
+  showSwitcher?: boolean;
+  initialLocationId?: string;
+}) {
   const { tenants, org, setOrgId } = useTenant();
   const { allRows, create, update } = useData();
 
-  const [locationId, setLocationId] = useState(org.locations[0]?.locationId ?? "");
+  const [locationId, setLocationId] = useState(
+    initialLocationId && org.locations.some((l) => l.locationId === initialLocationId)
+      ? initialLocationId
+      : (org.locations[0]?.locationId ?? ""),
+  );
   const [serviceId, setServiceId] = useState("");
   const [staffName, setStaffName] = useState("");
   const [date, setDate] = useState(today());
@@ -30,6 +46,7 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
   const [planId, setPlanId] = useState("");
   const [payment, setPayment] = useState("UPI");
   const [purchased, setPurchased] = useState<Row | null>(null);
+  const [wheelPrize, setWheelPrize] = useState("");
 
   const location = org.locations.find((l) => l.locationId === locationId) ?? org.locations[0] ?? null;
 
@@ -57,6 +74,24 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
   );
   const appointments = (allRows["appointments"] ?? []).filter((a) => String(a["orgId"]) === org.orgId);
 
+  const matchedCustomer = useMemo(
+    () => findCustomerByPhone((allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === org.orgId), phone),
+    [allRows, org.orgId, phone],
+  );
+  const wheelSegments = useMemo(() => {
+    const loc = location?.locationId ?? "";
+    const all = (allRows[WHEEL_SEGMENTS] ?? []).filter((s) => String(s["orgId"]) === org.orgId);
+    const here = all.filter((s) => String(s["locationId"]) === loc);
+    return here.length ? here : all;
+  }, [allRows, org.orgId, location?.locationId]);
+  const alreadySpunToday = useMemo(() => {
+    if (!matchedCustomer) return "";
+    if (customerSpunToday(allRows, String(matchedCustomer.id))) {
+      const spin = getTodayWheelSpin(allRows, String(matchedCustomer.id));
+      return String(spin?.["label"] ?? matchedCustomer["lastWheelPrize"] ?? "today");
+    }
+    return "";
+  }, [allRows, matchedCustomer]);
   const service = services.find((s) => String(s.id) === serviceId) ?? null;
   const plan = membershipPlans.find((p) => String(p.id) === planId) ?? null;
   const duration = Number(service?.["duration"] ?? 60);
@@ -65,36 +100,19 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
   const planTax = Math.round(planPrice * (gstRate / 100));
   const planTotal = planPrice + planTax;
 
-  function findCustomer() {
-    const digits = phone.replace(/\D/g, "");
-    return (
-      (allRows["customers"] ?? []).find(
-        (c) => String(c["orgId"]) === org.orgId && String(c["phone"]).replace(/\D/g, "") === digits,
-      ) ?? null
-    );
-  }
-
   function upsertCustomer(membershipId: string): Row {
-    const existing = findCustomer();
-    if (existing) {
-      const next = { ...existing, name: name || String(existing["name"]), membershipId, lastVisit: today() };
-      update("customers", String(existing.id), next);
-      return next;
-    }
-    const row: Row = {
-      id: `C-${Math.floor(1000 + Math.random() * 8999)}`,
-      name,
-      phone,
-      tier: "Silver",
-      points: 0,
-      walletBalance: 0,
-      membershipId,
-      outlet: location?.name ?? "",
-      lastVisit: today(),
-      locationId: location?.locationId ?? "",
-    };
-    create("customers", row);
-    return row;
+    return upsertCustomerByPhone(
+      { db: allRows, create, update },
+      {
+        orgId: org.orgId,
+        name,
+        phone,
+        locationId: location?.locationId ?? "",
+        outlet: location?.name ?? "",
+        membershipId,
+        lastVisit: today(),
+      },
+    );
   }
 
   const slots = useMemo(() => {
@@ -119,26 +137,24 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
       return void toast.error("That slot was just taken — pick another time");
 
     setOrgId(org.orgId);
-    const existing = findCustomer();
-    if (!existing) {
-      create("customers", {
-        id: `C-${Math.floor(1000 + Math.random() * 8999)}`,
+    const customer = upsertCustomerByPhone(
+      { db: allRows, create, update },
+      {
+        orgId: org.orgId,
         name,
         phone,
-        tier: "Silver",
-        points: 0,
-        walletBalance: 0,
-        membershipId: "",
+        locationId: location.locationId,
         outlet: location.name,
         lastVisit: date,
-        locationId: location.locationId,
-      });
-    }
-    const appt: Row = {
-      id: `A-${Math.floor(5000 + Math.random() * 4999)}`,
-      customer: name,
-      service: String(service["name"]),
-      staff: staffName,
+      },
+    );
+    const staffRow = staff.find((s) => String(s["name"]) === staffName) ?? null;
+    const appt = buildAppointmentRow({
+      customer,
+      service,
+      staffName,
+      staff: staffRow,
+      locationId: location.locationId,
       outlet: location.name,
       date,
       time,
@@ -146,11 +162,34 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
       status: "Confirmed",
       source: "Website",
       notes: `Online booking · ${phone}`,
-      locationId: location.locationId,
-    };
+    });
     create("appointments", appt);
     setBooked(appt);
     toast.success("Appointment confirmed", { description: `${date} ${time} · ${staffName}` });
+  }
+
+  function ensureGuest(): Row | null {
+    if (!isValidPhone(phone)) {
+      toast.error("Enter your mobile so the wheel is saved against your account");
+      return null;
+    }
+    const guestName = name.trim() || String(matchedCustomer?.["name"] ?? "");
+    if (!guestName) {
+      toast.error("Enter your name to spin");
+      return null;
+    }
+    setOrgId(org.orgId);
+    return upsertCustomerByPhone(
+      { db: allRows, create, update },
+      {
+        orgId: org.orgId,
+        name: guestName,
+        phone,
+        locationId: location?.locationId ?? "",
+        outlet: location?.name ?? "",
+        lastVisit: today(),
+      },
+    );
   }
 
   function buyMembership() {
@@ -177,6 +216,7 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
     create("memberships", enrollment);
     create("invoices", {
       id: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      customerId: String(customer.id),
       customer: String(customer["name"]),
       customerPhone: String(customer["phone"] ?? phone),
       outlet: location.name,
@@ -239,7 +279,8 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
         <section className="rounded-2xl border border-border bg-card p-8 shadow-sm">
           <h1 className="font-display text-3xl font-semibold">Book your next appointment</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            {org.businessType} · Book a service, or buy a membership online. Both sync into the salon workspace.
+            {org.businessType} · Book a service, spin the prize wheel against your mobile, or buy a membership. All of
+            it syncs to the salon workspace.
           </p>
         </section>
 
@@ -284,11 +325,91 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
           </div>
         </section>
 
+        <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="font-display text-xl">Your details</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Enter once. This name and mobile are used for the prize wheel, booking and membership.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="guest-name" className="mb-1.5">
+                Your name
+              </Label>
+              <Input id="guest-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="As on your profile" />
+            </div>
+            <div>
+              <Label htmlFor="guest-phone" className="mb-1.5">
+                Mobile number
+              </Label>
+              <Input
+                id="guest-phone"
+                inputMode="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="98765 43210"
+              />
+            </div>
+          </div>
+          {matchedCustomer ? (
+            <p className="mt-3 text-sm">
+              Recognised as <strong>{String(matchedCustomer["name"])}</strong>
+              {" · "}
+              {String(matchedCustomer["tier"] ?? "Silver")} · {getCustomerLoyaltyBalance(allRows, String(matchedCustomer.id))} pts
+            </p>
+          ) : null}
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="font-display text-xl">Prize wheel for you</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            One spin per person per day, saved on the mobile number above.
+          </p>
+          {matchedCustomer && alreadySpunToday ? (
+            <p className="mt-3 text-sm text-muted-foreground">Already won {alreadySpunToday} today.</p>
+          ) : null}
+          <div className="mt-5">
+            {alreadySpunToday || wheelPrize ? (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
+                Prize for {name || String(matchedCustomer?.["name"] ?? "you")}:{" "}
+                <strong>{wheelPrize || alreadySpunToday}</strong>
+              </div>
+            ) : (
+              <SpinWheel
+                segments={wheelSegments}
+                disabled={normalizePhone(phone).length < 10 || (!name.trim() && !matchedCustomer)}
+                onResult={(seg) => {
+                  const guest = ensureGuest();
+                  if (!guest || !location) return;
+                  const store = { db: allRows, create, update };
+                  const result = processWheelSpinResult(store, {
+                    customerId: String(guest.id),
+                    segment: seg,
+                    locationId: location.locationId,
+                    orgId: org.orgId,
+                    source: "public",
+                  });
+                  if (result.duplicate) {
+                    toast.message("You already spun today", { description: result.label });
+                    setWheelPrize(result.label);
+                    return;
+                  }
+                  if (!result.ok) {
+                    toast.error(result.error ?? "Could not save spin");
+                    return;
+                  }
+                  setWheelPrize(result.label);
+                  toast.success(`Prize saved to ${guest["name"]}`, { description: result.label });
+                }}
+              />
+            )}
+          </div>
+        </section>
+
         {membershipPlans.length > 0 && (
           <section>
             <h2 className="font-display text-xl">Buy a membership</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Pick a plan, enter your name and mobile, and pay online. Your membership is linked to this number at checkout.
+              Pick a plan and pay. It is linked to the name and mobile you entered above.
             </p>
             <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
               {membershipPlans.map((m) => (
@@ -315,19 +436,7 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
               ))}
             </div>
             {plan && (
-              <div className="mt-4 grid gap-3 rounded-xl border border-border bg-card p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <Label htmlFor="mem-name" className="mb-1.5">
-                    Your name
-                  </Label>
-                  <Input id="mem-name" value={name} onChange={(e) => setName(e.target.value)} />
-                </div>
-                <div>
-                  <Label htmlFor="mem-phone" className="mb-1.5">
-                    Mobile number
-                  </Label>
-                  <Input id="mem-phone" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                </div>
+              <div className="mt-4 grid gap-3 rounded-xl border border-border bg-card p-5 shadow-sm sm:grid-cols-2">
                 <div>
                   <Label className="mb-1.5">Payment</Label>
                   <Select value={payment} onValueChange={setPayment}>
@@ -346,7 +455,7 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
                     <CreditCard /> Pay {money(planTotal)}
                   </Button>
                   <p className="mt-1 text-center text-[11px] text-muted-foreground">
-                    {money(planPrice)} + {gstRate}% GST
+                    {money(planPrice)} + {gstRate}% GST · {name || "Name"} · {phone || "mobile"}
                   </p>
                 </div>
               </div>
@@ -443,20 +552,9 @@ export function PublicBooking({ showSwitcher = true }: { showSwitcher?: boolean 
                 </div>
               )}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="bk-name" className="mb-1.5">
-                  Your name
-                </Label>
-                <Input id="bk-name" value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="bk-phone" className="mb-1.5">
-                  Mobile number
-                </Label>
-                <Input id="bk-phone" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Booking as {name.trim() || "—"} · {phone.trim() || "add mobile above"}
+            </p>
             <Button className="w-full" onClick={book}>
               <CalendarCheck /> Confirm booking
             </Button>

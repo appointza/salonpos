@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/lib/auth";
 import { modules } from "@/lib/modules";
 import { resolveStaffForUser } from "@/lib/staff-scope";
+import { enrichAppointmentRow } from "@/lib/appointments/appointment-resolve";
 import { useCollection, useData, type Row } from "@/lib/store";
 
 const title = "Appointments — Luxe Salon CRM";
@@ -40,6 +41,13 @@ function Page() {
     user,
   );
   const myName = String(me?.["name"] ?? user?.name ?? "");
+  const customers = (allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === orgId);
+  const services = (allRows["services"] ?? []).filter((c) => String(c["orgId"]) === orgId);
+  const staffRows = (allRows["staff"] ?? []).filter((c) => String(c["orgId"]) === orgId);
+
+  function withAppointmentIds(row: Row) {
+    return enrichAppointmentRow(row, customers, services, staffRows);
+  }
 
   function setStatus(row: Row, status: string) {
     if (status === String(row["status"] ?? "")) return;
@@ -58,28 +66,30 @@ function Page() {
       canCreate={!isStylist}
       canEdit={!isStylist}
       canDelete={!isStylist}
-      prepareNew={(row) =>
-        isStylist && me
+      prepareNew={(row) => {
+        const next = withAppointmentIds(row);
+        return isStylist && me
           ? {
-              ...row,
+              ...next,
               staff: myName,
               staffId: String(me.id),
-              locationId: String(me["locationId"] ?? row["locationId"]),
-              outlet: String(me["outlet"] ?? row["outlet"]),
+              locationId: String(me["locationId"] ?? next["locationId"]),
+              outlet: String(me["outlet"] ?? next["outlet"]),
             }
-          : row
-      }
-      prepareSave={(row) =>
-        isStylist && me
+          : next;
+      }}
+      prepareSave={(row) => {
+        const next = withAppointmentIds(row);
+        return isStylist && me
           ? {
-              ...row,
+              ...next,
               staff: myName,
               staffId: String(me.id),
-              locationId: String(me["locationId"] ?? row["locationId"]),
-              outlet: String(me["outlet"] ?? row["outlet"]),
+              locationId: String(me["locationId"] ?? next["locationId"]),
+              outlet: String(me["outlet"] ?? next["outlet"]),
             }
-          : row
-      }
+          : next;
+      }}
       selectOptions={(field) =>
         field.name === "staff" && isStylist && myName ? [{ value: myName, label: myName }] : undefined
       }

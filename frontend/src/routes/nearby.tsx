@@ -11,6 +11,9 @@ import { useData, type Row } from "@/lib/store";
 import { useTenant, type OrgLocation, type Tenant } from "@/lib/tenant";
 import { isSlotFree, slotList } from "@/lib/booking";
 import { distanceKm, useCustomerSession } from "@/lib/customer";
+import { upsertCustomerByPhone } from "@/lib/customers/customer-service";
+import { buildAppointmentRow } from "@/lib/appointments/appointment-resolve";
+import { findCustomerByPhone } from "@/lib/customers/customer-lookup";
 
 const title = "Salons near you — Book instantly";
 const description = "Find salon studios near your location, compare services and stylists, and book an appointment directly.";
@@ -37,7 +40,7 @@ type Studio = { org: Tenant; loc: OrgLocation; km: number };
 function NearbyPage() {
   const navigate = useNavigate();
   const { tenants } = useTenant();
-  const { allRows, create } = useData();
+  const { allRows, create, update } = useData();
   const { customer, ready, signOut } = useCustomerSession();
 
   const [pos, setPos] = useState(DEFAULT_POS);
@@ -125,34 +128,27 @@ function NearbyPage() {
     )
       return void toast.error("That slot was just taken — pick another time");
 
-    const exists = (allRows["customers"] ?? []).some(
-      (c) =>
-        String(c["orgId"]) === picked.org.orgId &&
-        String(c["phone"]).replace(/\D/g, "") === customer.phone.replace(/\D/g, ""),
-    );
-    if (!exists) {
-      create(
-        "customers",
+    const orgCustomers = (allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === picked.org.orgId);
+    const customerRow =
+      findCustomerByPhone(orgCustomers, customer.phone) ??
+      upsertCustomerByPhone(
+        { db: allRows, create, update },
         {
-          id: `C-${Math.floor(1000 + Math.random() * 8999)}`,
+          orgId: picked.org.orgId,
           name: customer.name,
           phone: customer.phone,
-          tier: "Silver",
-          points: 0,
-          walletBalance: 0,
-          membershipId: "",
+          locationId: picked.loc.locationId,
           outlet: picked.loc.name,
           lastVisit: date,
-          locationId: picked.loc.locationId,
         },
-        picked.org.orgId,
       );
-    }
-    const appt: Row = {
-      id: `A-${Math.floor(5000 + Math.random() * 4999)}`,
-      customer: customer.name,
-      service: String(service["name"]),
-      staff: staffName,
+    const staffRow = staff.find((s) => String(s["name"]) === staffName) ?? null;
+    const appt = buildAppointmentRow({
+      customer: customerRow,
+      service,
+      staffName,
+      staff: staffRow,
+      locationId: picked.loc.locationId,
       outlet: picked.loc.name,
       date,
       time,
@@ -160,8 +156,7 @@ function NearbyPage() {
       status: "Confirmed",
       source: "Customer app",
       notes: `Nearby booking · ${customer.phone}`,
-      locationId: picked.loc.locationId,
-    };
+    });
     create("appointments", appt, picked.org.orgId);
     setTime("");
     toast.success("Appointment confirmed", { description: `${picked.loc.name} · ${date} ${time}` });

@@ -1,7 +1,12 @@
 import { useCallback } from "react";
 import { useData, type Row } from "@/lib/store";
 import { useTenant } from "@/lib/tenant";
-import { addExpiry, earnPoints, pointsToRupees, resolveLoyaltyRule, type LoyaltyRule } from "@/lib/loyalty-rules";
+import { earnPoints, pointsToRupees, resolveLoyaltyRule, type LoyaltyRule } from "@/lib/loyalty-rules";
+import { addExpiry, postLoyaltyTransaction, postLoyaltyReversal, LOYALTY_TX } from "@/lib/loyalty/loyalty-service";
+import { redeemOfferAtPos } from "@/lib/offers/offer-redemption-service";
+import { redeemPartnerCouponAtPos } from "@/lib/partners/partner-coupon-service";
+import { redeemWheelSpinAtPos } from "@/lib/wheel/wheel-service";
+import { computeRewardDiscounts, type RewardRefs } from "@/lib/rewards/reward-quote";
 import {
   applyMembershipBenefits,
   findLiveMembership,
@@ -29,11 +34,14 @@ export type SaleInput = {
   pointsRedeemed: number;
   payment: string;
   appointmentId?: string;
+  rewards?: RewardRefs;
 };
 
 export type CartQuote = {
   subtotal: number;
   membershipDiscount: number;
+  rewardDiscount: number;
+  rewardLines: { label: string; amount: number }[];
   otherDiscount: number;
   loyaltyValue: number;
   taxable: number;
@@ -46,9 +54,15 @@ export type CartQuote = {
   rule: LoyaltyRule;
 };
 
-export function billTotals(lines: BillLine[], discount: number, membershipDiscount: number, pointsValue: number) {
+export function billTotals(
+  lines: BillLine[],
+  discount: number,
+  membershipDiscount: number,
+  rewardDiscount: number,
+  pointsValue: number,
+) {
   const subtotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
-  const deductions = Math.min(discount + membershipDiscount + pointsValue, subtotal);
+  const deductions = Math.min(discount + membershipDiscount + rewardDiscount + pointsValue, subtotal);
   const taxable = Math.max(subtotal - deductions, 0);
   const tax = lines.reduce((s, l) => {
     const share = subtotal ? (l.price * l.qty) / subtotal : 0;
@@ -63,6 +77,7 @@ export function quoteSale(
     lines: BillLine[];
     discount: number;
     pointsRedeemed: number;
+    rewards?: RewardRefs;
   },
   db: Record<string, Row[]>,
   ctx: { orgId: string; locationId: string },
@@ -84,15 +99,21 @@ export function quoteSale(
   const benefit = applyMembershipBenefits(membership, input.lines, services, plans, usage);
   const otherDiscount = Math.max(0, Number(input.discount) || 0);
   const afterMember = Math.max(0, input.lines.reduce((s, l) => s + l.price * l.qty, 0) - benefit.amount - otherDiscount);
-  const maxPts = rule.rupeesPerPoint > 0 ? Math.floor(afterMember / rule.rupeesPerPoint) : 0;
+  const rewardQuote = input.customer
+    ? computeRewardDiscounts(db, input.rewards ?? {}, afterMember)
+    : { total: 0, lines: [] as { label: string; amount: number }[] };
+  const afterRewards = Math.max(0, afterMember - rewardQuote.total);
+  const maxPts = rule.rupeesPerPoint > 0 ? Math.floor(afterRewards / rule.rupeesPerPoint) : 0;
   const available = Number(input.customer?.["points"] ?? 0);
   const redeem = Math.max(0, Math.min(input.pointsRedeemed, available, maxPts));
   const loyaltyValue = pointsToRupees(redeem, rule);
-  const t = billTotals(input.lines, otherDiscount, benefit.amount, loyaltyValue);
+  const t = billTotals(input.lines, otherDiscount, benefit.amount, rewardQuote.total, loyaltyValue);
   const pointsToEarn = earnPoints(t.taxable, rule);
   return {
     subtotal: t.subtotal,
     membershipDiscount: benefit.amount,
+    rewardDiscount: rewardQuote.total,
+    rewardLines: rewardQuote.lines.map((l) => ({ label: l.label, amount: l.amount })),
     otherDiscount,
     loyaltyValue,
     taxable: t.taxable,
@@ -107,7 +128,7 @@ export function quoteSale(
 }
 
 export const AUDIT = "auditLog";
-export const LOYALTY_TX = "loyaltyTransactions";
+export { LOYALTY_TX };
 export const MEMBERSHIP_USAGE = "membershipUsage";
 
 export function usePostSale() {
@@ -117,9 +138,9 @@ export function usePostSale() {
 
   return useCallback(
     (input: SaleInput) => {
-      const { customer, lines, discount, pointsRedeemed, payment, appointmentId } = input;
+      const { customer, lines, discount, pointsRedeemed, payment, appointmentId, rewards } = input;
       const quote = quoteSale(
-        { customer, lines, discount, pointsRedeemed },
+        { customer, lines, discount, pointsRedeemed, rewards },
         allRows,
         { orgId: org.orgId, locationId },
       );
@@ -131,7 +152,7 @@ export function usePostSale() {
       const planId = quote.plan ? String(quote.plan.id) : "";
 
       const afterMember = Math.max(0, quote.subtotal - quote.membershipDiscount - quote.otherDiscount);
-      const maxPts = quote.rule.rupeesPerPoint > 0 ? Math.floor(afterMember / quote.rule.rupeesPerPoint) : 0;
+      const maxPts = quote.rule.rupeesPerPoint > 0 ? Math.floor(Math.max(afterMember - quote.rewardDiscount, 0) / quote.rule.rupeesPerPoint) : 0;
       const redeem = Math.max(0, Math.min(pointsRedeemed, Number(customer["points"] ?? 0), maxPts));
 
       const stockErr = stock.assertCanIssue(lines);
@@ -149,6 +170,10 @@ export function usePostSale() {
         subtotal: Math.round(quote.subtotal),
         discount: Math.round(quote.otherDiscount),
         membershipDiscount: Math.round(quote.membershipDiscount),
+        rewardDiscount: Math.round(quote.rewardDiscount),
+        wheelSpinId: rewards?.wheelSpinId ?? "",
+        offerRedemptionId: rewards?.offerRedemptionId ?? "",
+        partnerCouponId: rewards?.partnerCouponId ?? "",
         pointsRedeemed: redeem,
         pointsValue: Math.round(quote.loyaltyValue),
         pointsEarned: quote.pointsToEarn,
@@ -157,10 +182,38 @@ export function usePostSale() {
         total: Math.round(quote.total),
         payment,
         appointment: appointmentId ?? "",
+        appointmentId: appointmentId ?? "",
         status: "Paid",
         locationId: effLocation,
       };
       create("invoices", invoice);
+
+      const store = { db: allRows, create, update };
+      for (const line of quote.rewardLines) {
+        if (line.label.startsWith("Wheel") && rewards?.wheelSpinId) {
+          redeemWheelSpinAtPos(store, {
+            spinId: rewards.wheelSpinId,
+            invoiceId: String(invoice.id),
+            discountAmount: line.amount,
+          });
+        }
+        if (line.label.startsWith("Offer") && rewards?.offerRedemptionId) {
+          redeemOfferAtPos(store, {
+            redemptionId: rewards.offerRedemptionId,
+            invoiceId: String(invoice.id),
+            discountAmount: line.amount,
+            orgId: org.orgId,
+          });
+        }
+        if (line.label.startsWith("Partner") && rewards?.partnerCouponId) {
+          redeemPartnerCouponAtPos(store, {
+            couponId: rewards.partnerCouponId,
+            invoiceId: String(invoice.id),
+            discountAmount: line.amount,
+            orgId: org.orgId,
+          });
+        }
+      }
 
       stock.issueForCustomer(lines, {
         customerId: String(customer.id),
@@ -215,49 +268,43 @@ export function usePostSale() {
         });
       }
 
-      const before = Number(customer["points"] ?? 0);
-      let running = before;
+      let running = Number(customer["points"] ?? 0);
       if (redeem > 0) {
-        const afterRedeem = running - redeem;
-        create(LOYALTY_TX, {
-          id: `LT-${Date.now().toString().slice(-8)}r`,
+        const redeemed = postLoyaltyTransaction(store, {
           customerId: String(customer.id),
-          invoiceId: String(invoice.id),
-          programId: quote.rule.programId,
           type: "Redeem",
           points: redeem,
-          balanceBefore: running,
-          balanceAfter: afterRedeem,
-          reason: "POS redemption",
-          status: "Posted",
+          source: "invoice",
+          referenceId: String(invoice.id),
+          programId: quote.rule.programId,
           locationId: effLocation,
+          reason: "POS redemption",
+          orgId: org.orgId,
         });
-        running = afterRedeem;
+        if (redeemed.ok) running = redeemed.balanceAfter;
       }
       if (quote.pointsToEarn > 0) {
-        const afterEarn = running + quote.pointsToEarn;
-        create(LOYALTY_TX, {
-          id: `LT-${Date.now().toString().slice(-8)}e`,
+        const earned = postLoyaltyTransaction(store, {
           customerId: String(customer.id),
-          invoiceId: String(invoice.id),
-          programId: quote.rule.programId,
           type: "Earn",
           points: quote.pointsToEarn,
-          balanceBefore: running,
-          balanceAfter: afterEarn,
-          reason: "POS purchase",
-          expiresOn: addExpiry(today, quote.rule.expiryMonths),
-          status: "Posted",
+          source: "invoice",
+          referenceId: String(invoice.id),
+          programId: quote.rule.programId,
           locationId: effLocation,
+          expiresOn: addExpiry(today, quote.rule.expiryMonths),
+          reason: "POS purchase",
+          orgId: org.orgId,
         });
-        running = afterEarn;
+        if (earned.ok) running = earned.balanceAfter;
       }
 
+      const visitCount = Number(customer["totalVisits"] ?? customer["visits"] ?? 0) + 1;
       update("customers", String(customer.id), {
         ...customer,
-        points: running,
         lastVisit: today,
-        visits: Number(customer["visits"] ?? 0) + 1,
+        totalVisits: visitCount,
+        visits: visitCount,
         lifetimeValue: Number(customer["lifetimeValue"] ?? 0) + Math.round(quote.total),
       });
 
@@ -280,4 +327,38 @@ export function usePostSale() {
     },
     [db, allRows, create, update, org, location, locationId, stock],
   );
+}
+
+/** Refund a paid invoice — reverses loyalty and marks invoice refunded (audit trail preserved). */
+export function postInvoiceRefund(
+  store: { db: Record<string, Row[]>; create: (c: string, r: Row, o?: string) => void; update: (c: string, id: string, r: Row) => void },
+  input: { invoiceId: string; orgId: string; reason?: string },
+) {
+  const invoice = (store.db["invoices"] ?? []).find((i) => String(i.id) === input.invoiceId);
+  if (!invoice) return { ok: false, error: "Invoice not found" };
+  if (String(invoice["status"]) === "Refunded") return { ok: false, duplicate: true, error: "Already refunded" };
+
+  const customerId = String(invoice["customerId"] ?? "");
+  const locationId = String(invoice["locationId"] ?? "");
+  postLoyaltyReversal(store, {
+    customerId,
+    originalSource: "invoice",
+    originalReferenceId: input.invoiceId,
+    orgId: input.orgId,
+    locationId,
+    reason: input.reason ?? `Refund · ${input.invoiceId}`,
+  });
+
+  store.update("invoices", input.invoiceId, { ...invoice, status: "Refunded" });
+  store.create(AUDIT, {
+    id: `AU-${Date.now()}`,
+    at: new Date().toISOString().slice(0, 16).replace("T", " "),
+    entity: "Invoice",
+    reference: input.invoiceId,
+    action: "Refunded",
+    detail: input.reason ?? "Invoice refunded — loyalty reversed",
+    locationId,
+  });
+
+  return { ok: true };
 }

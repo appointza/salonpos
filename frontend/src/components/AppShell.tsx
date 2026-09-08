@@ -38,7 +38,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     }))
     .filter((section) => section.items.length > 0);
 
-  const current = navSections.flatMap((s) => s.items).find((i) => i.to === pathname);
+  const current = navSections
+    .flatMap((s) => s.items)
+    .find((i) => pathname === i.to || pathname.startsWith(`${i.to}/`));
 
   return (
     <div className="min-h-screen bg-background">
@@ -83,7 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </p>
               <ul className="space-y-0.5">
                 {section.items.map((item) => {
-                  const active = pathname === item.to;
+                  const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
                   return (
                     <li key={item.to}>
                       <Link

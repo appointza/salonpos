@@ -126,7 +126,7 @@ const PUBLIC_PATHS = ["/", "/login", "/register", "/platform", "/book", "/nearby
 /** Every in-app (dashboard) route. Anything else with a single segment is a public org booking page. */
 const APP_PATHS = [
   "/dashboard","/customers","/appointments","/pos","/services","/feedback","/inventory","/expenses",
-  "/staff","/shifts","/attendance","/leaves","/payroll","/commissions","/loyalty","/memberships",
+  "/staff","/shifts","/attendance","/leaves","/payroll","/commissions","/loyalty","/offers","/memberships",
   "/campaigns","/franchises","/brand-apps","/users","/roles","/settings","/subscription",
   "/nearby",
 ];
@@ -136,7 +136,9 @@ function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const segments = pathname.split("/").filter(Boolean);
   const isPublic =
-    PUBLIC_PATHS.includes(pathname) || (segments.length === 1 && !APP_PATHS.includes(pathname));
+    PUBLIC_PATHS.includes(pathname) ||
+    pathname.startsWith("/qr/") ||
+    (segments.length === 1 && !APP_PATHS.includes(pathname));
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -24,6 +24,12 @@ export const COLLECTION_WRITE_SCREENS: Record<string, string[]> = {
   commissions: ["/commissions", "/pos"],
   loyalty: ["/loyalty"],
   loyaltyTransactions: ["/loyalty", "/pos"],
+  qrCheckins: ["/loyalty"],
+  wheelSegments: ["/loyalty"],
+  qrOffers: ["/offers"],
+  qrOfferRedemptions: ["/offers", "/pos"],
+  partnerships: ["/loyalty"],
+  partnerCoupons: ["/loyalty", "/pos"],
   memberships: ["/memberships"],
   membershipPlans: ["/memberships"],
   membershipUsage: ["/memberships", "/pos"],
@@ -52,7 +58,8 @@ export function joinPaths(paths: string[], isAll: boolean) {
 }
 
 export function hasPath(list: "all" | string[], path: string) {
-  return list === "all" || list.includes(path);
+  if (list === "all") return true;
+  return list.some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
 }
 
 export function canMutateCollection(edit: "all" | string[], collection: string) {

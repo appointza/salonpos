@@ -6,6 +6,7 @@ import { CrudPage } from "@/components/CrudPage";
 import { PlanInfoButton } from "@/components/PlanInfoButton";
 import { modules } from "@/lib/modules";
 import { useCollection, useData } from "@/lib/store";
+import { customerName } from "@/lib/customers/customer-lookup";
 import { planForEnrollment, includedVisitProgress } from "@/lib/membership";
 import { useListView } from "@/lib/list-view";
 
@@ -91,8 +92,8 @@ function Page() {
 function UsageLedger() {
   const { view } = useListView();
   const { rows: usage } = useCollection("membershipUsage");
-  const { rows: customers } = useCollection("customers");
-  const nameOf = (id: string) => customers.find((c) => String(c.id) === id)?.["name"] ?? id;
+  const { allRows } = useData();
+  const nameOf = (id: string) => customerName(allRows, id);
 
   if (usage.length === 0) {
     return <p className="text-sm text-muted-foreground">No membership usage yet. Complete a POS sale with included services.</p>;

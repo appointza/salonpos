@@ -32,7 +32,7 @@ import { useTenant } from "@/lib/tenant";
 const CHECKLIST = [
   { key: "services", label: "Add your services", to: "/services" },
   { key: "staff", label: "Configure staff schedules", to: "/staff" },
-  { key: "qr", label: "Create your first QR code", to: "/campaigns" },
+  { key: "qr", label: "Create your first QR code", to: "/loyalty" },
   { key: "menu", label: "Import your digital menu", to: "/services" },
   { key: "loyalty", label: "Set up loyalty program", to: "/loyalty" },
   { key: "rewards", label: "Create a reward", to: "/memberships" },
@@ -67,7 +67,16 @@ export function AdminDashboard() {
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
   const bookingUrl = `${origin || "https://app.luxesalon.in"}/${tenant.slug}`;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=10&data=${encodeUrl(bookingUrl)}`;
+  const checkinLoc = location?.locationId ?? tenant.locations[0]?.locationId ?? "loc-bandra";
+  const checkinUrl = `${origin || "https://app.luxesalon.in"}/${tenant.slug}${location ? `?loc=${checkinLoc}` : ""}`;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=10&data=${encodeUrl(checkinUrl)}`;
+  const today = new Date().toISOString().slice(0, 10);
+  const todayCheckins = (db["qrCheckins"] ?? []).filter((c) => String(c["visitAt"] ?? "").startsWith(today)).length;
+  const approvedVisits = (db["qrCheckins"] ?? []).filter((c) => String(c["status"]) === "Approved");
+  const returning = approvedVisits.filter((c) => {
+    const cust = (db["customers"] ?? []).find((x) => String(x.id) === String(c["customerId"]));
+    return Number(cust?.["totalVisits"] ?? 0) >= 2;
+  }).length;
 
   const services = db["services"] ?? [];
   const activeItems = services.filter((s) => String(s["active"] ?? "Yes") !== "No").length;
@@ -89,13 +98,13 @@ export function AdminDashboard() {
   async function downloadQr() {
     try {
       const res = await fetch(
-        `https://api.qrserver.com/v1/create-qr-code/?size=1200x1200&margin=40&data=${encodeUrl(bookingUrl)}`,
+        `https://api.qrserver.com/v1/create-qr-code/?size=1200x1200&margin=40&data=${encodeUrl(checkinUrl)}`,
       );
       const blob = await res.blob();
       const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = href;
-      a.download = `${tenant.slug}-menu-qr.png`;
+      a.download = `${tenant.slug}-checkin-qr.png`;
       a.click();
       URL.revokeObjectURL(href);
       toast.success("Print file downloaded");
@@ -156,19 +165,28 @@ export function AdminDashboard() {
       <section className="grid gap-6 lg:grid-cols-[minmax(260px,22rem)_1fr]">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-tight">Live Menu Access</h2>
+            <h2 className="text-base font-semibold tracking-tight">Outlet check-in QR</h2>
             <QrCode className="size-5 text-muted-foreground" />
           </div>
           <div className="mt-5 flex justify-center">
             <div className="rounded-xl border border-border bg-background p-3">
-              <img src={qrSrc} alt={`QR code for ${bookingUrl}`} width={220} height={220} className="size-[220px]" />
+              <img src={qrSrc} alt={`QR code for ${checkinUrl}`} width={220} height={220} className="size-[220px]" />
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
-            <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" title={bookingUrl}>
-              {bookingUrl}
+            <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" title={checkinUrl}>
+              {checkinUrl}
             </p>
-            <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={() => void copyBookingUrl()} aria-label="Copy booking link">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0"
+              onClick={() => {
+                void navigator.clipboard.writeText(checkinUrl);
+                toast.success("Check-in link copied");
+              }}
+              aria-label="Copy check-in link"
+            >
               <Copy className="size-4" />
             </Button>
           </div>
@@ -195,10 +213,11 @@ export function AdminDashboard() {
             </div>
             <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-center justify-between">
-                <p className="text-[11px] tracking-[0.16em] text-muted-foreground uppercase">Scans (30D)</p>
+                <p className="text-[11px] tracking-[0.16em] text-muted-foreground uppercase">Today's check-ins</p>
                 <Eye className="size-4 text-muted-foreground" />
               </div>
-              <p className="font-display mt-4 text-4xl tracking-tight">0</p>
+              <p className="font-display mt-4 text-4xl tracking-tight">{todayCheckins}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{returning} returning on approved visits</p>
             </div>
           </div>
 
@@ -209,6 +228,7 @@ export function AdminDashboard() {
                 { to: "/services", icon: ClipboardList, color: "bg-orange-100 text-orange-600", title: "Manage Menu", text: "Add, edit, or remove items across categories." },
                 { to: "/settings", icon: Palette, color: "bg-blue-100 text-blue-600", title: "Change Style", text: "Modify colors, logo, and branding globally." },
                 { to: "/services", icon: Upload, color: "bg-muted text-muted-foreground", title: "Import Menu", text: "Upload CSV or PDF to generate items automatically." },
+                { to: "/loyalty", icon: QrCode, color: "bg-violet-100 text-violet-700", title: "Loyalty & QR", text: "Programs, wheel prizes, and outlet QR codes." },
                 { to: "/campaigns", icon: MessageCircle, color: "bg-emerald-100 text-emerald-700", title: "WA Ordering", text: "Customers order directly via WhatsApp.", badge: waOn ? "ON" : "OFF" },
               ].map((action) => (
                 <Link

@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,25 +46,38 @@ export const Route = createFileRoute("/customers")({
       { property: "og:description", content: description },
     ],
   }),
-  component: Page,
+  component: CustomersLayout,
 });
+
+function CustomersLayout() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const onDetail = /^\/customers\/[^/]+$/.test(pathname);
+  if (onDetail) return <Outlet />;
+  return <CustomersListPage />;
+}
 
 type ListRow = Row & { membershipLabel: string };
 
 const CustomerRow = memo(function CustomerRow({
   row,
   allowEdit,
+  onView,
   onEdit,
   onDelete,
 }: {
   row: ListRow;
   allowEdit: boolean;
+  onView: (id: string) => void;
   onEdit: (row: Row) => void;
   onDelete: (id: string) => void;
 }) {
   return (
-    <TableRow>
-      <TableCell className="font-medium">{String(row["name"] ?? "—")}</TableCell>
+    <TableRow className="cursor-pointer hover:bg-muted/40" onClick={() => onView(String(row.id))}>
+      <TableCell className="font-medium">
+        <Link to="/customers/$customerId" params={{ customerId: String(row.id) }} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+          {String(row["name"] ?? "—")}
+        </Link>
+      </TableCell>
       <TableCell>{String(row["phone"] ?? "—")}</TableCell>
       <TableCell>
         <Badge variant="secondary">{String(row["tier"] ?? "—")}</Badge>
@@ -74,21 +87,29 @@ const CustomerRow = memo(function CustomerRow({
       <TableCell>{row.membershipLabel}</TableCell>
       <TableCell>{String(row["outlet"] ?? "—")}</TableCell>
       <TableCell>{String(row["lastVisit"] ?? "—")}</TableCell>
-      {allowEdit ? (
-        <TableCell className="whitespace-nowrap text-right">
-          <Button variant="ghost" size="icon" aria-label={`Edit ${String(row.id)}`} onClick={() => onEdit(row)}>
-            <Pencil className="size-4" />
-          </Button>
-          <Button variant="ghost" size="icon" aria-label={`Delete ${String(row.id)}`} onClick={() => onDelete(String(row.id))}>
-            <Trash2 className="size-4" />
-          </Button>
-        </TableCell>
-      ) : null}
+      <TableCell className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+        <Button variant="ghost" size="icon" aria-label={`View ${String(row.id)}`} asChild>
+          <Link to="/customers/$customerId" params={{ customerId: String(row.id) }}>
+            <Eye className="size-4" />
+          </Link>
+        </Button>
+        {allowEdit ? (
+          <>
+            <Button variant="ghost" size="icon" aria-label={`Edit ${String(row.id)}`} onClick={() => onEdit(row)}>
+              <Pencil className="size-4" />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label={`Delete ${String(row.id)}`} onClick={() => onDelete(String(row.id))}>
+              <Trash2 className="size-4" />
+            </Button>
+          </>
+        ) : null}
+      </TableCell>
     </TableRow>
   );
 });
 
-function Page() {
+function CustomersListPage() {
+  const navigate = useNavigate();
   const { rows, create, update, remove } = useCollection("customers");
   const { db, allRows, orgId } = useData();
   const { org, location, locationId, scopeLabel } = useTenant();
@@ -186,6 +207,13 @@ function Page() {
     };
   }, [editing, membershipMap, planMap, memberships, db]);
 
+  const onView = useCallback(
+    (id: string) => {
+      void navigate({ to: "/customers/$customerId", params: { customerId: id } });
+    },
+    [navigate],
+  );
+
   const onEdit = useCallback((row: Row) => {
     setIsNew(false);
     setEditing({ ...row });
@@ -280,12 +308,12 @@ function Page() {
                   <TableHead>Membership</TableHead>
                   <TableHead>Outlet</TableHead>
                   <TableHead>Last visit</TableHead>
-                  {allowEdit ? <TableHead className="w-24 text-right">Actions</TableHead> : null}
+                  <TableHead className="w-28 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedRows.map((row) => (
-                  <CustomerRow key={String(row.id)} row={row} allowEdit={allowEdit} onEdit={onEdit} onDelete={onDelete} />
+                  <CustomerRow key={String(row.id)} row={row} allowEdit={allowEdit} onView={onView} onEdit={onEdit} onDelete={onDelete} />
                 ))}
               </TableBody>
             </Table>

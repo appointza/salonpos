@@ -395,7 +395,7 @@ export const modules = {
         name: "type",
         label: "Type",
         type: "select",
-        options: ["Points", "Family Offer", "Promotional QR", "Wallet"],
+        options: ["Points", "Stamp Card", "Spin the Wheel", "Tiered", "Family Offer", "Promotional QR", "Wallet"],
         table: true,
         badge: true,
       },
@@ -407,6 +407,8 @@ export const modules = {
       { name: "tier", label: "Applies to tier", type: "select", options: ["All", "Silver", "Gold", "Platinum"] },
       { name: "minSpend", label: "Min spend", type: "number", money: true },
       { name: "expiryMonths", label: "Points expiry (months)", type: "number" },
+      { name: "stampsRequired", label: "Stamps required", type: "number" },
+      { name: "rewardDescription", label: "Stamp / wheel reward" },
       { name: "qrEnabled", label: "QR enabled", type: "select", options: ["Yes", "No"], table: true },
       {
         name: "status",
@@ -641,10 +643,14 @@ export const navSections: { label: string; items: { to: string; label: string; i
     label: "Growth",
     items: [
       { to: "/loyalty", label: "Loyalty", icon: "Gift" },
+      { to: "/offers", label: "Offers", icon: "TicketPercent" },
       { to: "/memberships", label: "Memberships", icon: "CreditCard" },
-      { to: "/campaigns", label: "Campaigns", icon: "Megaphone" },
       { to: "/book", label: "Public booking site", icon: "Globe" },
     ],
+  },
+  {
+    label: "CRM",
+    items: [{ to: "/campaigns", label: "Campaigns", icon: "Megaphone" }],
   },
   {
     label: "Network",

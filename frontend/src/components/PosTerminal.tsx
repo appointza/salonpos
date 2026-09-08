@@ -19,6 +19,9 @@ import { useCollection, useData, type Row } from "@/lib/store";
 import { useTenant } from "@/lib/tenant";
 import { useWhatsAppSender } from "@/lib/whatsapp";
 import { quoteSale, usePostSale, type BillLine } from "@/lib/pos";
+import type { RewardRefs } from "@/lib/rewards/reward-quote";
+import { getCustomerRewardOptions } from "@/lib/rewards/reward-quote";
+import { resolveCustomerRow, resolveServiceRow } from "@/lib/appointments/appointment-resolve";
 import { includedVisitProgress } from "@/lib/membership";
 import { useStockService } from "@/lib/stock";
 import { missingProducts, recipesForService } from "@/lib/service-recipe";
@@ -38,10 +41,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const { send, isConfigured } = useWhatsAppSender();
 
   const [phone, setPhone] = useState("");
-  const prefillCustomer = prefill
-    ? customers.find((c) => String(c.id) === String(prefill["customerId"] ?? "")) ??
-      customers.find((c) => String(c["name"]) === String(prefill["customer"]))
-    : null;
+  const prefillCustomer = prefill ? resolveCustomerRow(prefill, customers) : null;
   const [customer, setCustomer] = useState<Row | null>(prefillCustomer ?? null);
   const [stylist, setStylist] = useState(
     prefill ? String(staffIdFromName(staff, String(prefill["staff"] ?? "")) ?? "") : "",
@@ -50,7 +50,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const [tab, setTab] = useState<"services" | "products">("services");
   const [cart, setCart] = useState<BillLine[]>(() => {
     if (!prefill) return [];
-    const s = services.find((x) => String(x["name"]) === String(prefill["service"]));
+    const s = resolveServiceRow(prefill, services);
     if (!s) return [];
     return [
       {
@@ -68,6 +68,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   });
   const [discount, setDiscount] = useState(0);
   const [redeem, setRedeem] = useState(0);
+  const [rewards, setRewards] = useState<RewardRefs>({});
   const [payment, setPayment] = useState("UPI");
   const [bill, setBill] = useState<Row | null>(null);
   const [waOpen, setWaOpen] = useState(false);
@@ -97,11 +98,15 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const quote = useMemo(
     () =>
       quoteSale(
-        { customer, lines: cart, discount, pointsRedeemed: redeem },
+        { customer, lines: cart, discount, pointsRedeemed: redeem, rewards },
         allRows,
         { orgId: org.orgId, locationId },
       ),
-    [customer, cart, discount, redeem, allRows, org.orgId, locationId],
+    [customer, cart, discount, redeem, rewards, allRows, org.orgId, locationId],
+  );
+  const rewardOptions = useMemo(
+    () => (customer ? getCustomerRewardOptions(allRows, String(customer.id)) : { wheelSpins: [], offers: [], partners: [] }),
+    [customer, allRows],
   );
   const membership = quote.membership;
   const membershipPlan = quote.plan;
@@ -171,7 +176,9 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       redeem,
       availablePts,
       loyalty.rupeesPerPoint > 0
-        ? Math.floor(Math.max(quote.subtotal - discount - membershipDiscount, 0) / loyalty.rupeesPerPoint)
+        ? Math.floor(
+            Math.max(quote.subtotal - discount - membershipDiscount - quote.rewardDiscount, 0) / loyalty.rupeesPerPoint,
+          )
         : 0,
     ),
   );
@@ -180,7 +187,9 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
     loyalty.rupeesPerPoint > 0
       ? Math.min(
           availablePts,
-          Math.floor(Math.max(quote.subtotal - discount - membershipDiscount, 0) / loyalty.rupeesPerPoint),
+          Math.floor(
+            Math.max(quote.subtotal - discount - membershipDiscount - quote.rewardDiscount, 0) / loyalty.rupeesPerPoint,
+          ),
         )
       : 0;
   const t = {
@@ -227,6 +236,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       discount,
       pointsRedeemed,
       payment,
+      rewards,
       ...(prefill ? { appointmentId: String(prefill.id) } : {}),
     });
     if (result.error || !result.invoice) return void toast.error(result.error ?? "Checkout blocked");
@@ -262,6 +272,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
     setPhone("");
     setDiscount(0);
     setRedeem(0);
+    setRewards({});
   }
 
   return (
@@ -519,6 +530,50 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
           </div>
         )}
 
+        {(rewardOptions.wheelSpins.length > 0 || rewardOptions.offers.length > 0 || rewardOptions.partners.length > 0) && (
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-medium tracking-wide uppercase text-muted-foreground">Apply reward</p>
+            {rewardOptions.wheelSpins.map((spin) => (
+              <label key={String(spin.id)} className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="pos-reward"
+                  checked={rewards.wheelSpinId === String(spin.id)}
+                  onChange={() => setRewards({ wheelSpinId: String(spin.id) })}
+                />
+                Wheel · {String(spin["label"])}
+              </label>
+            ))}
+            {rewardOptions.offers.map((offer) => (
+              <label key={String(offer.id)} className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="pos-reward"
+                  checked={rewards.offerRedemptionId === String(offer.id)}
+                  onChange={() => setRewards({ offerRedemptionId: String(offer.id) })}
+                />
+                Offer · {String(offer["offerTitle"] ?? offer.id)}
+              </label>
+            ))}
+            {rewardOptions.partners.map((coupon) => (
+              <label key={String(coupon.id)} className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="pos-reward"
+                  checked={rewards.partnerCouponId === String(coupon.id)}
+                  onChange={() => setRewards({ partnerCouponId: String(coupon.id) })}
+                />
+                Partner · {String(coupon["couponCode"])} — {String(coupon["offer"] ?? "").slice(0, 40)}
+              </label>
+            ))}
+            {Object.keys(rewards).length > 0 ? (
+              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setRewards({})}>
+                Clear reward
+              </Button>
+            ) : null}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="pos-discount" className="mb-1.5">
@@ -569,6 +624,12 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
             <dt className="text-muted-foreground">Membership benefit</dt>
             <dd>-{money(membershipDiscount)}</dd>
           </div>
+          {quote.rewardLines.map((line) => (
+            <div key={line.label} className="flex justify-between">
+              <dt className="text-muted-foreground">{line.label}</dt>
+              <dd>-{money(line.amount)}</dd>
+            </div>
+          ))}
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Points redeemed</dt>
             <dd>−{money(pointsValue)}</dd>

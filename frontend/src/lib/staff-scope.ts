@@ -4,7 +4,7 @@ import type { Row } from "@/lib/store";
 const STAFF_ID_COLLECTIONS = new Set(["shifts", "attendance", "leaves", "payroll", "commissions"]);
 const STAFF_NAME_COLLECTIONS = new Set(["appointments", "feedback"]);
 const CUSTOMER_ID_COLLECTIONS = new Set(["memberships", "loyaltyTransactions", "membershipUsage"]);
-const STYLIST_WRITABLE = new Set(["appointments", "customers", "attendance", "leaves"]);
+const STYLIST_WRITABLE = new Set(["appointments", "customers", "attendance", "leaves", "qrCheckins"]);
 
 export function resolveStaffForUser(
   staff: Row[],
@@ -79,6 +79,6 @@ export function stampStylistRow(collection: string, row: Row, me: Row): Row {
 
 export function stylistMayMutate(collection: string, row: Row, me: Row) {
   if (!STYLIST_WRITABLE.has(collection)) return false;
-  if (collection === "customers") return true;
+  if (collection === "customers" || collection === "qrCheckins") return true;
   return isAssignedToStaff(row, me);
 }

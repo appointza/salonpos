@@ -8,6 +8,9 @@ const title = "Book online — Salon booking page";
 const description = "Public salon booking page: pick a location, service and stylist, then confirm your appointment online.";
 
 export const Route = createFileRoute("/$orgSlug")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    loc: typeof search.loc === "string" ? search.loc : undefined,
+  }),
   head: ({ params }) => ({
     meta: [
       { title },
@@ -23,6 +26,7 @@ export const Route = createFileRoute("/$orgSlug")({
 
 function Page() {
   const { orgSlug } = Route.useParams();
+  const { loc } = Route.useSearch();
   const { tenants, org, setOrgId } = useTenant();
   const match = tenants.find((t) => t.slug === orgSlug);
 
@@ -46,5 +50,5 @@ function Page() {
     );
   }
 
-  return <PublicBooking showSwitcher={false} />;
+  return <PublicBooking showSwitcher={false} initialLocationId={loc} />;
 }

@@ -282,6 +282,7 @@ export const ROLE_NAV: Record<Role, string[] | "all"> = {
     "/feedback",
     "/memberships",
     "/loyalty",
+    "/offers",
     "/campaigns",
     "/inventory",
   ],
