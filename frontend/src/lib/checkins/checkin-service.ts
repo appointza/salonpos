@@ -34,7 +34,8 @@ export type CheckinApprovalResult = {
 function computeTier(visits: number, points: number) {
   if (visits >= 20 || points >= 3000) return "Platinum";
   if (visits >= 8 || points >= 1000) return "Gold";
-  return "Silver";
+  if (visits >= 3 || points >= 300) return "Silver";
+  return "Bronze";
 }
 
 export function hasApprovedCheckinToday(db: CheckinStore["db"], customerId: string, day?: string) {

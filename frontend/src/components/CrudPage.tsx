@@ -63,6 +63,7 @@ export function CrudPage({
   canDelete = true,
   readOnly = false,
   lockedFields = [],
+  inlineEditable = true,
 }: {
   module: ModuleDef;
   extraFields?: (ctx: {
@@ -85,6 +86,8 @@ export function CrudPage({
   canDelete?: boolean;
   readOnly?: boolean;
   lockedFields?: string[];
+  /** Enable click-to-edit cells in table view. true = all table fields; or pass field names. */
+  inlineEditable?: boolean | string[];
 }) {
   const { rows, create, update, remove } = useCollection(module.key);
   const { org, location, locationId, scopeLabel } = useTenant();
@@ -149,6 +152,68 @@ export function CrudPage({
 
   function exportJson() {
     toast.info("Exported to JSON (demo)", { description: `${filtered.length} rows` });
+  }
+
+  const inlineFields = useMemo(() => {
+    if (!inlineEditable) return new Set<string>();
+    if (inlineEditable === true) return new Set(tableFields.map((f) => f.name));
+    return new Set(inlineEditable);
+  }, [inlineEditable, tableFields]);
+
+  function patchRow(row: Row, field: Field, value: string | number) {
+    if (!canEditHereRow || readOnly || lockedFields.includes(field.name)) return;
+    const next = { ...row, [field.name]: field.type === "number" ? Number(value) : value };
+    update(String(row.id), next);
+  }
+
+  function renderInlineCell(field: Field, row: Row, text: string) {
+    if (!inlineFields.has(field.name) || view !== "table" || !canEditHereRow || readOnly) return null;
+    if (lockedFields.includes(field.name)) return null;
+    const custom = renderCell?.(field, row, text);
+    if (custom) return custom;
+    const opts = selectOptions?.(field) ?? field.options?.map((o) => ({ value: o, label: o }));
+    if (field.type === "select" && opts?.length) {
+      return (
+        <Select value={String(row[field.name] ?? "")} onValueChange={(v) => patchRow(row, field, v)}>
+          <SelectTrigger className="h-8 min-w-[7rem]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {opts.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    if (field.type === "number") {
+      return (
+        <Input
+          type="number"
+          className="h-8 min-w-[5rem]"
+          value={Number(row[field.name] ?? 0)}
+          onChange={(e) => patchRow(row, field, e.target.value)}
+        />
+      );
+    }
+    if (field.type === "date" || field.type === "time") {
+      return (
+        <Input
+          type={field.type}
+          className="h-8"
+          value={String(row[field.name] ?? "")}
+          onChange={(e) => patchRow(row, field, e.target.value)}
+        />
+      );
+    }
+    return (
+      <Input
+        className="h-8 min-w-[8rem]"
+        value={String(row[field.name] ?? "")}
+        onChange={(e) => patchRow(row, field, e.target.value)}
+        onBlur={(e) => patchRow(row, field, e.target.value)}
+      />
+    );
   }
 
   return (
@@ -281,7 +346,8 @@ export function CrudPage({
                     <TableCell className="text-sm text-muted-foreground">{locName(row["locationId"])}</TableCell>
                     {tableFields.map((f) => {
                       const text = cellText(f, row);
-                      const custom = renderCell?.(f, row, text);
+                      const inline = renderInlineCell(f, row, text);
+                      const custom = inline ?? renderCell?.(f, row, text);
                       return (
                         <TableCell key={f.name} className={custom ? "max-w-[18rem]" : "max-w-[16rem] truncate"}>
                           {custom ??

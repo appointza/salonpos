@@ -93,7 +93,7 @@ export const DEMO_ROLE_GROUPS: { role: Role | "CUSTOMER"; label: string; hint: s
       {
         id: "U-SA",
         name: "Priya Mehta",
-        email: "platform@luxesalon.in",
+        email: "platform@kriosapp.com",
         role: "SUPER_ADMIN",
         kind: "workspace",
         title: "Platform operator",

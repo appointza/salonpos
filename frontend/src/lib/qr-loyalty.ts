@@ -6,10 +6,11 @@ export { normalizePhone, findCustomerByPhone } from "@/lib/customers/customer-lo
 export const DEMO_OTP = "123456";
 export const QR_CHECKINS = "qrCheckins";
 export const WHEEL_SEGMENTS = "wheelSegments";
+export const SCRATCH_PRIZES = "scratchPrizes";
 export const QR_OFFERS = "qrOffers";
 
 export function referralCodeFor(name: string, phone: string) {
-  const stem = name.replace(/[^a-zA-Z]/g, "").slice(0, 4).toUpperCase() || "LUXE";
+  const stem = name.replace(/[^a-zA-Z]/g, "").slice(0, 4).toUpperCase() || "KRIOS";
   return `${stem}${normalizePhone(phone).slice(-4)}`;
 }
 

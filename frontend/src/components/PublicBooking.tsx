@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { MapPin, Clock, Scissors, CalendarCheck, ExternalLink, CreditCard, Gift } from "lucide-react";
+import { MapPin, Clock, Scissors, CalendarCheck, ExternalLink, CreditCard, Gift, TicketPercent, Layers, Sparkles } from "lucide-react";
+import { BRAND_LOGO } from "@/lib/brand";
+import { OfferCard } from "@/components/OfferCard";
+import { ScratchCard } from "@/components/ScratchCard";
+import { listOffersForPublicGuest, QR_OFFERS } from "@/lib/offers/offer-redemption-service";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,12 +14,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useData, type Row } from "@/lib/store";
 import { useTenant } from "@/lib/tenant";
 import { isSlotFree, slotList } from "@/lib/booking";
+import { validateAppointmentBooking } from "@/lib/business/appointment-service";
 import { addCalendarMonths } from "@/lib/membership";
 import { SpinWheel } from "@/components/SpinWheel";
-import { findCustomerByPhone, normalizePhone, WHEEL_SEGMENTS } from "@/lib/qr-loyalty";
+import { findCustomerByPhone, normalizePhone, SCRATCH_PRIZES, WHEEL_SEGMENTS } from "@/lib/qr-loyalty";
 import { upsertCustomerByPhone, isValidPhone } from "@/lib/customers/customer-service";
 import { buildAppointmentRow } from "@/lib/appointments/appointment-resolve";
 import { customerSpunToday, getTodayWheelSpin, processWheelSpinResult } from "@/lib/wheel/wheel-service";
+import {
+  customerScratchedToday,
+  getTodayScratchPlay,
+  processScratchResult,
+  selectScratchPrize,
+} from "@/lib/scratch/scratch-service";
+import { publicBookingSettingsForOrg } from "@/lib/public-booking-settings";
+import { useRewardDistribution } from "@/lib/reward-distribution";
 import { getCustomerLoyaltyBalance } from "@/lib/loyalty/loyalty-service";
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
@@ -24,17 +37,39 @@ const today = () => new Date().toISOString().slice(0, 10);
 export function PublicBooking({
   showSwitcher = true,
   initialLocationId,
+  bookingOrgId,
 }: {
   showSwitcher?: boolean;
   initialLocationId?: string;
+  /** When set (public slug page), always scope data to this org. */
+  bookingOrgId?: string;
 }) {
   const { tenants, org, setOrgId } = useTenant();
   const { allRows, create, update } = useData();
+  const { config: rewardDist } = useRewardDistribution();
+
+  const activeOrg = useMemo(
+    () => tenants.find((t) => t.orgId === bookingOrgId) ?? org,
+    [tenants, bookingOrgId, org],
+  );
+  const activeOrgId = activeOrg.orgId;
+
+  const bookingFeatures = useMemo(
+    () => publicBookingSettingsForOrg(allRows, activeOrgId),
+    [allRows, activeOrgId],
+  );
+  const guestRewardBlurb = useMemo(() => {
+    const parts = ["Book a service"];
+    if (bookingFeatures.showScratchCard) parts.push("scratch a daily reward card");
+    if (bookingFeatures.showPrizeWheel) parts.push("spin the prize wheel");
+    parts.push("buy a membership");
+    return parts.join(", ").replace(/, ([^,]*)$/, ", or $1") + ". All of it syncs to the salon workspace.";
+  }, [bookingFeatures]);
 
   const [locationId, setLocationId] = useState(
-    initialLocationId && org.locations.some((l) => l.locationId === initialLocationId)
+    initialLocationId && activeOrg.locations.some((l) => l.locationId === initialLocationId)
       ? initialLocationId
-      : (org.locations[0]?.locationId ?? ""),
+      : (activeOrg.locations[0]?.locationId ?? ""),
   );
   const [serviceId, setServiceId] = useState("");
   const [staffName, setStaffName] = useState("");
@@ -47,43 +82,78 @@ export function PublicBooking({
   const [payment, setPayment] = useState("UPI");
   const [purchased, setPurchased] = useState<Row | null>(null);
   const [wheelPrize, setWheelPrize] = useState("");
+  const [scratchPrize, setScratchPrize] = useState("");
 
-  const location = org.locations.find((l) => l.locationId === locationId) ?? org.locations[0] ?? null;
+  const location = activeOrg.locations.find((l) => l.locationId === locationId) ?? activeOrg.locations[0] ?? null;
 
   const scoped = (key: string) =>
     (allRows[key] ?? []).filter(
-      (r) => String(r["orgId"]) === org.orgId && (!location || String(r["locationId"]) === location.locationId),
+      (r) => String(r["orgId"]) === activeOrgId && (!location || String(r["locationId"]) === location.locationId),
     );
 
   const services = useMemo(
     () => scoped("services").filter((s) => String(s["active"] ?? "Yes") !== "No"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allRows, org.orgId, location?.locationId],
+    [allRows, activeOrgId, location?.locationId],
   );
   const staff = useMemo(
     () => scoped("staff").filter((s) => String(s["status"] ?? "Active") === "Active"),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allRows, org.orgId, location?.locationId],
+    [allRows, activeOrgId, location?.locationId],
   );
   const membershipPlans = useMemo(
     () =>
       (allRows["membershipPlans"] ?? []).filter(
-        (p) => String(p["orgId"]) === org.orgId && String(p["status"] ?? "Active") === "Active",
+        (p) => String(p["orgId"]) === activeOrgId && String(p["status"] ?? "Active") === "Active",
       ),
-    [allRows, org.orgId],
+    [allRows, activeOrgId],
   );
-  const appointments = (allRows["appointments"] ?? []).filter((a) => String(a["orgId"]) === org.orgId);
+  const appointments = (allRows["appointments"] ?? []).filter((a) => String(a["orgId"]) === activeOrgId);
 
   const matchedCustomer = useMemo(
-    () => findCustomerByPhone((allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === org.orgId), phone),
-    [allRows, org.orgId, phone],
+    () => findCustomerByPhone((allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === activeOrgId), phone),
+    [allRows, activeOrgId, phone],
+  );
+  const phoneReady = isValidPhone(phone);
+  const eligibleOffers = useMemo(() => {
+    if (!location || !phoneReady) return [];
+    return listOffersForPublicGuest(allRows, {
+      orgId: activeOrgId,
+      locationId: location.locationId,
+      customer: matchedCustomer,
+      treatAsNewGuest: !matchedCustomer,
+    });
+  }, [allRows, activeOrgId, location?.locationId, phoneReady, matchedCustomer]);
+  const locationOfferCount = useMemo(
+    () =>
+      (allRows[QR_OFFERS] ?? []).filter(
+        (o) =>
+          String(o["orgId"]) === activeOrgId &&
+          String(o["status"]) === "Active" &&
+          (!o["locationId"] || String(o["locationId"]) === location?.locationId),
+      ).length,
+    [allRows, activeOrgId, location?.locationId],
   );
   const wheelSegments = useMemo(() => {
     const loc = location?.locationId ?? "";
-    const all = (allRows[WHEEL_SEGMENTS] ?? []).filter((s) => String(s["orgId"]) === org.orgId);
+    const all = (allRows[WHEEL_SEGMENTS] ?? []).filter((s) => String(s["orgId"]) === activeOrgId);
     const here = all.filter((s) => String(s["locationId"]) === loc);
     return here.length ? here : all;
-  }, [allRows, org.orgId, location?.locationId]);
+  }, [allRows, activeOrgId, location?.locationId]);
+  const scratchPrizes = useMemo(() => {
+    const loc = location?.locationId ?? "";
+    const all = (allRows[SCRATCH_PRIZES] ?? []).filter((s) => String(s["orgId"]) === activeOrgId);
+    const here = all.filter((s) => String(s["locationId"]) === loc);
+    return (here.length ? here : all).filter((s) => String(s["active"] ?? "Yes") !== "No");
+  }, [allRows, activeOrgId, location?.locationId]);
+  const alreadyScratchedToday = useMemo(() => {
+    if (!matchedCustomer) return "";
+    if (customerScratchedToday(allRows, String(matchedCustomer.id))) {
+      const play = getTodayScratchPlay(allRows, String(matchedCustomer.id));
+      return String(play?.["label"] ?? matchedCustomer["lastScratchPrize"] ?? "today");
+    }
+    return "";
+  }, [allRows, matchedCustomer]);
   const alreadySpunToday = useMemo(() => {
     if (!matchedCustomer) return "";
     if (customerSpunToday(allRows, String(matchedCustomer.id))) {
@@ -104,7 +174,7 @@ export function PublicBooking({
     return upsertCustomerByPhone(
       { db: allRows, create, update },
       {
-        orgId: org.orgId,
+        orgId: activeOrgId,
         name,
         phone,
         locationId: location?.locationId ?? "",
@@ -133,14 +203,22 @@ export function PublicBooking({
   function book() {
     if (!service || !staffName || !time || !name || !phone || !location)
       return void toast.error("Fill every field to confirm the booking");
-    if (!isSlotFree(appointments, { staff: staffName, date, time, duration, locationId: location.locationId }))
-      return void toast.error("That slot was just taken — pick another time");
+    const availability = validateAppointmentBooking(allRows, {
+      orgId: activeOrgId,
+      locationId: location.locationId,
+      staffName,
+      date,
+      time,
+      duration,
+      serviceId,
+    });
+    if (!availability.ok) return void toast.error(availability.error);
 
-    setOrgId(org.orgId);
+    setOrgId(activeOrgId);
     const customer = upsertCustomerByPhone(
       { db: allRows, create, update },
       {
-        orgId: org.orgId,
+        orgId: activeOrgId,
         name,
         phone,
         locationId: location.locationId,
@@ -178,11 +256,11 @@ export function PublicBooking({
       toast.error("Enter your name to spin");
       return null;
     }
-    setOrgId(org.orgId);
+    setOrgId(activeOrgId);
     return upsertCustomerByPhone(
       { db: allRows, create, update },
       {
-        orgId: org.orgId,
+        orgId: activeOrgId,
         name: guestName,
         phone,
         locationId: location?.locationId ?? "",
@@ -197,7 +275,7 @@ export function PublicBooking({
       return void toast.error("Enter your name and mobile, then pick a membership");
     if (phone.replace(/\D/g, "").length < 10) return void toast.error("Enter a valid 10-digit mobile number");
 
-    setOrgId(org.orgId);
+    setOrgId(activeOrgId);
     const start = today();
     const months = Math.max(1, Number(plan["validityMonths"] ?? 12));
     const memId = `MP-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -242,20 +320,15 @@ export function PublicBooking({
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div className="flex items-center gap-3">
-            <span
-              className="grid size-9 place-items-center rounded-lg text-sm font-bold text-white"
-              style={{ backgroundColor: org.brandColor }}
-            >
-              {org.name.slice(0, 1)}
-            </span>
+            <img src={BRAND_LOGO} alt="Krios" width={40} height={40} className="size-10 shrink-0 object-contain" />
             <div>
-              <p className="font-display text-lg leading-tight font-semibold">{org.name}</p>
-              <p className="text-xs text-muted-foreground">{org.domain}</p>
+              <p className="font-display text-lg leading-tight font-semibold">{activeOrg.name}</p>
+              <p className="text-xs text-muted-foreground">{activeOrg.domain} · Powered by Krios</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {showSwitcher && (
-            <Select value={org.orgId} onValueChange={(v) => setOrgId(v)}>
+            <Select value={activeOrgId} onValueChange={(v) => setOrgId(v)}>
               <SelectTrigger className="w-52">
                 <SelectValue />
               </SelectTrigger>
@@ -279,15 +352,14 @@ export function PublicBooking({
         <section className="rounded-2xl border border-border bg-card p-8 shadow-sm">
           <h1 className="font-display text-3xl font-semibold">Book your next appointment</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            {org.businessType} · Book a service, spin the prize wheel against your mobile, or buy a membership. All of
-            it syncs to the salon workspace.
+            {activeOrg.businessType} · {guestRewardBlurb}
           </p>
         </section>
 
         <section>
           <h2 className="font-display text-xl">Our locations</h2>
           <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {org.locations.map((l) => (
+            {activeOrg.locations.map((l) => (
               <button
                 key={l.locationId}
                 type="button"
@@ -328,7 +400,16 @@ export function PublicBooking({
         <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <h2 className="font-display text-xl">Your details</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Enter once. This name and mobile are used for the prize wheel, booking and membership.
+            Enter once. This name and mobile are used for
+            {bookingFeatures.showPrizeWheel || bookingFeatures.showScratchCard
+              ? ` ${[
+                  bookingFeatures.showScratchCard ? "scratch card" : "",
+                  bookingFeatures.showPrizeWheel ? "prize wheel" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" and ")},`
+              : ""}{" "}
+            booking and membership.
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div>
@@ -356,26 +437,139 @@ export function PublicBooking({
               {" · "}
               {String(matchedCustomer["tier"] ?? "Silver")} · {getCustomerLoyaltyBalance(allRows, String(matchedCustomer.id))} pts
             </p>
+          ) : phoneReady ? (
+            <p className="mt-3 text-sm text-muted-foreground">New guest — we&apos;ll show welcome offers for this outlet.</p>
           ) : null}
         </section>
 
-        <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h2 className="font-display text-xl">Prize wheel for you</h2>
+        {phoneReady && location ? (
+          <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-display text-xl flex items-center gap-2">
+                  <TicketPercent className="size-5 text-primary" />
+                  Offers for you
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  At <strong>{location.name}</strong>
+                  {matchedCustomer ? ` · personalised for ${String(matchedCustomer["name"])}` : " · welcome deals for new guests"}
+                </p>
+              </div>
+              {eligibleOffers.length > 0 ? (
+                <Badge variant="secondary" className="font-normal">
+                  {eligibleOffers.length} active
+                </Badge>
+              ) : null}
+            </div>
+
+            {eligibleOffers.length > 0 ? (
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {eligibleOffers.map((offer) => (
+                  <OfferCard key={String(offer.id)} offer={offer} outletName={location.name} readOnly />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                {locationOfferCount > 0
+                  ? "No offers match your profile at this outlet right now. Try another location or visit during your birthday week."
+                  : "No live offers at this outlet yet. Check back soon or pick another location."}
+              </p>
+            )}
+          </section>
+        ) : null}
+
+        {bookingFeatures.showScratchCard && phoneReady && location && scratchPrizes.length > 0 ? (
+          <section className="overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-b from-card via-card to-amber-500/5 p-5 shadow-sm">
+            <h2 className="font-display text-xl flex items-center gap-2">
+              <Layers className="size-5 text-amber-500" />
+              Scratch & win
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              One scratch card per mobile per day at <strong>{location.name}</strong>. Rub the silver foil to reveal your prize.
+            </p>
+            {matchedCustomer && alreadyScratchedToday ? (
+              <p className="mt-3 text-sm text-muted-foreground">You already scratched today.</p>
+            ) : null}
+            <div className="mt-5">
+              {alreadyScratchedToday || scratchPrize ? (
+                <div className="space-y-4">
+                  <ScratchCard
+                    prizeLabel={scratchPrize || alreadyScratchedToday}
+                    brandName={activeOrg.name}
+                    completed
+                    onBegin={() => scratchPrize || alreadyScratchedToday}
+                  />
+                  <p className="text-center text-sm text-muted-foreground">
+                    Today&apos;s prize for {name || String(matchedCustomer?.["name"] ?? "you")}:{" "}
+                    <strong>{scratchPrize || alreadyScratchedToday}</strong>
+                  </p>
+                </div>
+              ) : (
+                <ScratchCard
+                  prizeLabel={scratchPrize}
+                  brandName={activeOrg.name}
+                  disabled={!phoneReady || (!name.trim() && !matchedCustomer) || scratchPrizes.length === 0}
+                  onBegin={() => {
+                    const guest = ensureGuest();
+                    if (!guest || !location) return null;
+                    const prize = selectScratchPrize(scratchPrizes, rewardDist.scratch);
+                    if (!prize) {
+                      toast.error("No scratch prizes configured");
+                      return null;
+                    }
+                    const store = { db: allRows, create, update };
+                    const result = processScratchResult(store, {
+                      customerId: String(guest.id),
+                      prize,
+                      locationId: location.locationId,
+                      orgId: activeOrgId,
+                      source: "public",
+                    });
+                    if (result.duplicate) {
+                      toast.message("You already scratched today", { description: result.label });
+                      setScratchPrize(result.label);
+                      return result.label;
+                    }
+                    if (!result.ok) {
+                      toast.error(result.error ?? "Could not save scratch card");
+                      return null;
+                    }
+                    setScratchPrize(result.label);
+                    toast.success(`Prize saved to ${guest["name"]}`, { description: result.label });
+                    return result.label;
+                  }}
+                  onRevealed={(label) => setScratchPrize(label)}
+                />
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {bookingFeatures.showPrizeWheel ? (
+        <section className="overflow-hidden rounded-2xl bg-card p-5">
+          <h2 className="font-display text-xl flex items-center gap-2">
+            <Sparkles className="size-5 text-violet-500" />
+            Prize wheel
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             One spin per person per day, saved on the mobile number above.
           </p>
           {matchedCustomer && alreadySpunToday ? (
             <p className="mt-3 text-sm text-muted-foreground">Already won {alreadySpunToday} today.</p>
           ) : null}
-          <div className="mt-5">
+          <div className="mt-4">
             {alreadySpunToday || wheelPrize ? (
-              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
-                Prize for {name || String(matchedCustomer?.["name"] ?? "you")}:{" "}
-                <strong>{wheelPrize || alreadySpunToday}</strong>
+              <div className="mx-auto max-w-md rounded-2xl bg-gradient-to-br from-amber-500/10 via-card to-violet-500/10 p-6 text-center">
+                <p className="text-xs font-semibold tracking-[0.2em] text-amber-600 uppercase">Today&apos;s prize</p>
+                <p className="mt-2 font-display text-2xl font-semibold text-foreground">{wheelPrize || alreadySpunToday}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  For {name || String(matchedCustomer?.["name"] ?? "you")} · show at checkout
+                </p>
               </div>
             ) : (
               <SpinWheel
                 segments={wheelSegments}
+                tierWeights={rewardDist.wheel}
                 disabled={normalizePhone(phone).length < 10 || (!name.trim() && !matchedCustomer)}
                 onResult={(seg) => {
                   const guest = ensureGuest();
@@ -385,7 +579,7 @@ export function PublicBooking({
                     customerId: String(guest.id),
                     segment: seg,
                     locationId: location.locationId,
-                    orgId: org.orgId,
+                    orgId: activeOrgId,
                     source: "public",
                   });
                   if (result.duplicate) {
@@ -404,6 +598,7 @@ export function PublicBooking({
             )}
           </div>
         </section>
+        ) : null}
 
         {membershipPlans.length > 0 && (
           <section>

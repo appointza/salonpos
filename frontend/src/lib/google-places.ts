@@ -176,7 +176,7 @@ function loadPlacesLibrary(apiKey: string) {
   if (window.google?.maps?.places) return Promise.resolve(window.google.maps.places);
   if (!mapsLoader) {
     mapsLoader = new Promise((resolve, reject) => {
-      const existing = document.querySelector<HTMLScriptElement>("script[data-luxe-maps]");
+      const existing = document.querySelector<HTMLScriptElement>("script[data-krios-maps]");
       const done = () => {
         const places = window.google?.maps?.places;
         if (places) resolve(places);
@@ -190,7 +190,7 @@ function loadPlacesLibrary(apiKey: string) {
       const script = document.createElement("script");
       script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places`;
       script.async = true;
-      script.dataset.luxeMaps = "1";
+      script.dataset.kriosMaps = "1";
       script.onload = done;
       script.onerror = () => reject(new Error("Google Maps script failed"));
       document.head.appendChild(script);

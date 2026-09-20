@@ -25,11 +25,16 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DashHeader, DashStat } from "@/components/dashboards/shared";
+import { listLowStockAlerts } from "@/lib/business/inventory-service";
+import { paidInvoices, periodRange, summarizeSales, type ReportPeriod } from "@/lib/reports/sales-analytics";
 import { useData } from "@/lib/store";
 import { generateSlots, useAuth } from "@/lib/auth";
 import { useTenant } from "@/lib/tenant";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PERIOD_OPTIONS } from "@/lib/reports/sales-analytics";
 
 const CHECKLIST = [
+  { key: "setup", label: "Complete easy setup", to: "/setup" },
   { key: "services", label: "Add your services", to: "/services" },
   { key: "staff", label: "Configure staff schedules", to: "/staff" },
   { key: "qr", label: "Create your first QR code", to: "/loyalty" },
@@ -40,22 +45,30 @@ const CHECKLIST = [
 ] as const;
 
 export function AdminDashboard() {
+  const [period, setPeriod] = useState<ReportPeriod>("month");
   const { db, reset } = useData();
   const { org, user, toggleChecklist } = useAuth();
-  const { org: tenant, location, scopeLabel } = useTenant();
-  const invoices = db["invoices"] ?? [];
-  const revenue = invoices
-    .filter((i) => i["status"] === "Paid")
-    .reduce((sum, i) => sum + Number(i["total"] ?? 0), 0);
+  const { org: tenant, location, locationId, scopeLabel } = useTenant();
+  const range = useMemo(() => periodRange(period), [period]);
+  const paid = useMemo(
+    () => paidInvoices(db["invoices"] ?? [], range, tenant.orgId, location?.locationId ?? locationId),
+    [db, range, tenant.orgId, location, locationId],
+  );
+  const sales = useMemo(() => summarizeSales(paid), [paid]);
+  const revenue = sales.revenue;
   const upcoming = (db["appointments"] ?? []).filter((a) => a["status"] === "Confirmed" || a["status"] === "Pending");
-  const lowStock = (db["inventory"] ?? []).filter((i) => Number(i["stock"]) <= Number(i["reorderLevel"]));
+  const lowStock = listLowStockAlerts(
+    db,
+    tenant.orgId,
+    location?.locationId ?? (locationId === "all" ? undefined : locationId),
+  );
   const ratings = db["feedback"] ?? [];
   const avgRating = ratings.length
     ? (ratings.reduce((s, f) => s + Number(f["rating"] ?? 0), 0) / ratings.length).toFixed(1)
     : "—";
 
   const byOutlet = Object.values(
-    invoices.reduce<Record<string, { outlet: string; revenue: number }>>((acc, inv) => {
+    paid.reduce<Record<string, { outlet: string; revenue: number }>>((acc, inv) => {
       const key = String(inv["outlet"]);
       acc[key] = { outlet: key, revenue: (acc[key]?.revenue ?? 0) + Number(inv["total"] ?? 0) };
       return acc;
@@ -66,9 +79,9 @@ export function AdminDashboard() {
 
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
-  const bookingUrl = `${origin || "https://app.luxesalon.in"}/${tenant.slug}`;
+  const bookingUrl = `${origin || "https://kriosapp.com"}/${tenant.slug}`;
   const checkinLoc = location?.locationId ?? tenant.locations[0]?.locationId ?? "loc-bandra";
-  const checkinUrl = `${origin || "https://app.luxesalon.in"}/${tenant.slug}${location ? `?loc=${checkinLoc}` : ""}`;
+  const checkinUrl = `${origin || "https://kriosapp.com"}/${tenant.slug}${location ? `?loc=${checkinLoc}` : ""}`;
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=10&data=${encodeUrl(checkinUrl)}`;
   const today = new Date().toISOString().slice(0, 10);
   const todayCheckins = (db["qrCheckins"] ?? []).filter((c) => String(c["visitAt"] ?? "").startsWith(today)).length;
@@ -285,8 +298,22 @@ export function AdminDashboard() {
         </section>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Select value={period} onValueChange={(v) => setPeriod(v as ReportPeriod)}>
+          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PERIOD_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Link to="/reports" className="text-sm text-primary hover:underline inline-flex items-center gap-1">
+          Full reports & export <ArrowRight className="size-3.5" />
+        </Link>
+      </div>
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <DashStat icon={IndianRupee} label="Collected revenue" value={`₹${revenue.toLocaleString("en-IN")}`} hint="Paid invoices in this organisation" />
+        <DashStat icon={IndianRupee} label="Collected revenue" value={`₹${revenue.toLocaleString("en-IN")}`} hint={`${range.label} · ${sales.invoices} invoices`} />
         <DashStat icon={CalendarDays} label="Open bookings" value={String(upcoming.length)} hint="Pending + confirmed" />
         <DashStat icon={Users} label="Customers" value={String((db["customers"] ?? []).length)} hint="Across outlets in view" />
         <DashStat icon={Star} label="Avg. rating" value={String(avgRating)} hint={`${ratings.length} feedback entries`} />
@@ -294,7 +321,10 @@ export function AdminDashboard() {
 
       <section className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm lg:col-span-2">
-          <h2 className="text-sm font-semibold tracking-wide">Revenue by outlet</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold tracking-wide">Revenue by outlet</h2>
+            <span className="text-xs text-muted-foreground">{range.label}</span>
+          </div>
           <div className="mt-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byOutlet}>
@@ -317,9 +347,9 @@ export function AdminDashboard() {
             <ul className="mt-3 space-y-2 text-sm">
               {lowStock.length === 0 && <li className="text-muted-foreground">All items above reorder level.</li>}
               {lowStock.map((i) => (
-                <li key={String(i.id)} className="flex items-center justify-between gap-3">
-                  <span className="truncate">{String(i["name"])}</span>
-                  <Badge variant="secondary">{String(i["stock"])} left</Badge>
+                <li key={i.skuId} className="flex items-center justify-between gap-3">
+                  <span className="truncate">{i.name}</span>
+                  <Badge variant={i.expired ? "destructive" : "secondary"}>{i.remaining} left</Badge>
                 </li>
               ))}
             </ul>

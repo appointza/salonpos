@@ -22,12 +22,17 @@ export function isNewCustomer(db: Db, customerId: string) {
   return visits <= 1 && priorCheckins <= 1;
 }
 
-export function isOfferEligible(offer: Row, customer: Row, db: Db, onDate = today()) {
-  if (String(offer["status"] ?? "") !== "Active") return false;
+function isOfferInValidityWindow(offer: Row, onDate = today()) {
   const start = String(offer["validityStart"] ?? "");
   const end = String(offer["validityEnd"] ?? "");
   if (start && onDate < start) return false;
   if (end && onDate > end) return false;
+  return true;
+}
+
+export function isOfferEligible(offer: Row, customer: Row, db: Db, onDate = today()) {
+  if (String(offer["status"] ?? "") !== "Active") return false;
+  if (!isOfferInValidityWindow(offer, onDate)) return false;
 
   const segment = String(offer["eligibleSegment"] ?? "All");
   if (segment === "All") return true;
@@ -35,6 +40,38 @@ export function isOfferEligible(offer: Row, customer: Row, db: Db, onDate = toda
   if (segment === "New customer") return isNewCustomer(db, String(customer.id));
   if (segment === "Gold" || segment === "Platinum") return String(customer["tier"] ?? "") === segment;
   return false;
+}
+
+/** Active offers at an outlet, filtered for a guest on the public booking page. */
+export function listOffersForPublicGuest(
+  db: Db,
+  input: {
+    orgId: string;
+    locationId: string;
+    customer?: Row | null;
+    treatAsNewGuest?: boolean;
+    onDate?: string;
+  },
+) {
+  const day = input.onDate ?? today();
+  const pool = (db[QR_OFFERS] ?? []).filter((offer) => {
+    if (String(offer["orgId"] ?? "") !== input.orgId) return false;
+    if (String(offer["status"] ?? "") !== "Active") return false;
+    const loc = String(offer["locationId"] ?? "");
+    if (loc && loc !== input.locationId) return false;
+    return isOfferInValidityWindow(offer, day);
+  });
+
+  if (input.customer) {
+    return pool.filter((offer) => isOfferEligible(offer, input.customer!, db, day));
+  }
+
+  return pool.filter((offer) => {
+    const segment = String(offer["eligibleSegment"] ?? "All");
+    if (segment === "All") return true;
+    if (input.treatAsNewGuest && segment === "New customer") return true;
+    return false;
+  });
 }
 
 export function offerDiscountAmount(offer: Row, subtotal: number) {

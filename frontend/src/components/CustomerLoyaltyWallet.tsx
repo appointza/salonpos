@@ -48,7 +48,13 @@ export function CustomerLoyaltyWallet({
         <div className="rounded-2xl border border-border bg-card p-4">
           <p className="mb-1 text-center text-sm font-semibold">Spin & Win</p>
           <p className="mb-3 text-center text-xs text-muted-foreground">One spin per check-in</p>
-          <SpinWheel segments={segments} disabled={!spinAvailable} onSpinStart={onSpinStart} onResult={onSpinComplete} />
+          <SpinWheel
+            segments={segments}
+            disabled={!spinAvailable}
+            showFrame={false}
+            onSpinStart={onSpinStart}
+            onResult={onSpinComplete}
+          />
         </div>
       ) : null}
 

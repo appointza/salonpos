@@ -1,5 +1,5 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useTenant } from "@/lib/tenant";
+import { createFileRoute } from "@tanstack/react-router";
+import { Page } from "@/pages/Book/Book";
 
 const title = "Book or buy a membership — Luxe Salon";
 const description = "Book an appointment or purchase a salon membership online.";
@@ -16,8 +16,3 @@ export const Route = createFileRoute("/book")({
   }),
   component: Page,
 });
-
-function Page() {
-  const { org } = useTenant();
-  return <Navigate to="/$orgSlug" params={{ orgSlug: org.slug || "luxe-salon-group" }} replace />;
-}

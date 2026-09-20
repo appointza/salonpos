@@ -1,0 +1,1 @@
+var Kriosapp = angular.module('Kriosapp', []);

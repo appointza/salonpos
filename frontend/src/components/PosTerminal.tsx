@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, UserCheck, Plus, Minus, Trash2, Receipt, Send, X, CalendarCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ import { includedVisitProgress } from "@/lib/membership";
 import { useStockService } from "@/lib/stock";
 import { missingProducts, recipesForService } from "@/lib/service-recipe";
 import { staffIdFromName } from "@/lib/hr";
+import { PosCouponInput } from "@/components/PosCouponInput";
+import { validateCouponCodeAtPos } from "@/lib/coupons/coupon-pos";
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
@@ -69,6 +71,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const [discount, setDiscount] = useState(0);
   const [redeem, setRedeem] = useState(0);
   const [rewards, setRewards] = useState<RewardRefs>({});
+  const [couponCodes, setCouponCodes] = useState<string[]>([]);
   const [payment, setPayment] = useState("UPI");
   const [bill, setBill] = useState<Row | null>(null);
   const [waOpen, setWaOpen] = useState(false);
@@ -98,12 +101,46 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const quote = useMemo(
     () =>
       quoteSale(
-        { customer, lines: cart, discount, pointsRedeemed: redeem, rewards },
+        {
+          customer,
+          lines: cart,
+          discount,
+          pointsRedeemed: redeem,
+          rewards,
+          couponCodes,
+          paymentMethod: payment,
+          staffId: stylist,
+        },
         allRows,
         { orgId: org.orgId, locationId },
       ),
-    [customer, cart, discount, redeem, rewards, allRows, org.orgId, locationId],
+    [customer, cart, discount, redeem, rewards, couponCodes, payment, stylist, allRows, org.orgId, locationId],
   );
+
+  useEffect(() => {
+    if (!customer || couponCodes.length === 0) return;
+    const stillValid = couponCodes.filter((code) => {
+      const status = validateCouponCodeAtPos({
+        db: allRows,
+        customer,
+        lines: cart,
+        orgId: org.orgId,
+        locationId,
+        paymentMethod: payment,
+        otherDiscount: discount,
+        membershipDiscount: quote.membershipDiscount,
+        staffId: stylist,
+        code,
+        alreadyAppliedCodes: couponCodes.filter((c) => c !== code),
+        at: new Date(),
+      });
+      return status.ok;
+    });
+    if (stillValid.length !== couponCodes.length) {
+      setCouponCodes(stillValid);
+      toast.message("Coupon removed — cart or payment no longer qualifies");
+    }
+  }, [cart, discount, payment, stylist, customer, allRows, org.orgId, locationId, quote.membershipDiscount]);
   const rewardOptions = useMemo(
     () => (customer ? getCustomerRewardOptions(allRows, String(customer.id)) : { wheelSpins: [], offers: [], partners: [] }),
     [customer, allRows],
@@ -123,8 +160,9 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         recipes: stock.recipes,
         skus: stock.skus,
         movements: stock.movements,
+        locationId,
       }),
-    [cart, stock.services, stock.recipes, stock.skus, stock.movements],
+    [cart, stock.services, stock.recipes, stock.skus, stock.movements, locationId],
   );
 
   function addLine(item: Row, kind: "service" | "product") {
@@ -144,6 +182,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         recipes: stock.recipes,
         skus: stock.skus,
         movements: stock.movements,
+        locationId,
       });
       if (short.length) toast.warning(short.map((m) => `${m.name} is missing. Need ${m.need}, have ${m.have}.`).join(" "));
     }
@@ -177,7 +216,10 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       availablePts,
       loyalty.rupeesPerPoint > 0
         ? Math.floor(
-            Math.max(quote.subtotal - discount - membershipDiscount - quote.rewardDiscount, 0) / loyalty.rupeesPerPoint,
+            Math.max(
+              quote.subtotal - discount - membershipDiscount - quote.rewardDiscount - quote.couponDiscount,
+              0,
+            ) / loyalty.rupeesPerPoint,
           )
         : 0,
     ),
@@ -188,7 +230,10 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       ? Math.min(
           availablePts,
           Math.floor(
-            Math.max(quote.subtotal - discount - membershipDiscount - quote.rewardDiscount, 0) / loyalty.rupeesPerPoint,
+            Math.max(
+              quote.subtotal - discount - membershipDiscount - quote.rewardDiscount - quote.couponDiscount,
+              0,
+            ) / loyalty.rupeesPerPoint,
           ),
         )
       : 0;
@@ -209,6 +254,8 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       `Subtotal: ${money(t.subtotal)}`,
       discount ? `Discount: -${money(discount)}` : "",
       membershipDiscount ? `Membership benefit: -${money(membershipDiscount)}` : "",
+      ...quote.couponLines.map((l) => `Coupon ${l.code}: -${money(l.amount)}`),
+      ...quote.rewardLines.map((l) => `${l.label}: -${money(l.amount)}`),
       pointsRedeemed ? `Points redeemed: ${pointsRedeemed} pts (−${money(pointsValue)})` : "",
       `GST: ${money(t.tax)}`,
       `*Total: ${money(t.total)}*`,
@@ -237,6 +284,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       pointsRedeemed,
       payment,
       rewards,
+      couponCodes,
       ...(prefill ? { appointmentId: String(prefill.id) } : {}),
     });
     if (result.error || !result.invoice) return void toast.error(result.error ?? "Checkout blocked");
@@ -273,6 +321,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
     setDiscount(0);
     setRedeem(0);
     setRewards({});
+    setCouponCodes([]);
   }
 
   return (
@@ -530,6 +579,21 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
           </div>
         )}
 
+        <PosCouponInput
+          customer={customer}
+          cart={cart}
+          orgId={org.orgId}
+          locationId={locationId}
+          payment={payment}
+          staffId={stylist}
+          discount={discount}
+          membershipDiscount={membershipDiscount}
+          allRows={allRows}
+          appliedCodes={couponCodes}
+          appliedLines={quote.couponLines}
+          onChange={setCouponCodes}
+        />
+
         {(rewardOptions.wheelSpins.length > 0 || rewardOptions.offers.length > 0 || rewardOptions.partners.length > 0) && (
           <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
             <p className="text-xs font-medium tracking-wide uppercase text-muted-foreground">Apply reward</p>
@@ -624,6 +688,12 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
             <dt className="text-muted-foreground">Membership benefit</dt>
             <dd>-{money(membershipDiscount)}</dd>
           </div>
+          {quote.couponLines.map((line) => (
+            <div key={line.code} className="flex justify-between gap-2">
+              <dt className="text-muted-foreground truncate">Coupon · {line.code}</dt>
+              <dd className="shrink-0">-{money(line.amount)}</dd>
+            </div>
+          ))}
           {quote.rewardLines.map((line) => (
             <div key={line.label} className="flex justify-between">
               <dt className="text-muted-foreground">{line.label}</dt>

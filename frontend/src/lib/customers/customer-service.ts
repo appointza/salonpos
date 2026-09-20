@@ -1,5 +1,6 @@
 import type { Db, Row } from "@/lib/store";
 import { findCustomerByPhone, getCustomerById, normalizePhone } from "@/lib/customers/customer-lookup";
+import { readRewardDistribution, rollCustomerTier } from "@/lib/reward-distribution";
 
 export type CustomerStore = {
   db: Db;
@@ -34,11 +35,13 @@ export function upsertCustomerByPhone(store: CustomerStore, input: UpsertCustome
     store.update("customers", String(existing.id), next);
     return next;
   }
+  const orgRow = (store.db["organizations"] ?? []).find((o) => String(o["orgId"]) === input.orgId);
+  const tierWeights = readRewardDistribution(orgRow).customerTier;
   const row: Row = {
     id: `C-${Math.floor(1000 + Math.random() * 8999)}`,
     name: input.name.trim(),
     phone: input.phone,
-    tier: "Silver",
+    tier: rollCustomerTier(tierWeights),
     points: 0,
     walletBalance: 0,
     membershipId: input.membershipId ?? "",

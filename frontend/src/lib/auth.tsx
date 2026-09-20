@@ -97,6 +97,16 @@ function withStaffLink(user: SessionUser): SessionUser {
 
 const SESSION_KEY = "salon-crm-session-v1";
 
+/** Sync session read for route guards (beforeLoad). */
+export function getStoredSession(): SessionUser | null {
+  try {
+    const raw = window.localStorage.getItem(SESSION_KEY);
+    return raw ? withStaffLink(JSON.parse(raw) as SessionUser) : null;
+  } catch {
+    return null;
+  }
+}
+
 function orgsFromSeed(): Organization[] {
   return seed.organizations.map((o) => ({
     orgId: o.orgId,
@@ -275,19 +285,28 @@ export const ROLE_NAV: Record<Role, string[] | "all"> = {
   ADMIN: "all",
   STAFF: [
     "/dashboard",
+    "/front-desk",
     "/customers",
     "/appointments",
     "/pos",
+    "/walk-in",
     "/services",
     "/feedback",
     "/memberships",
     "/loyalty",
     "/offers",
+    "/coupons",
+    "/prize-wheel",
+    "/scratch-card",
     "/campaigns",
     "/inventory",
+    "/vendors",
+    "/reports",
+    "/setup",
   ],
   STYLIST: [
     "/dashboard",
+    "/front-desk",
     "/appointments",
     "/customers",
     "/services",

@@ -4,21 +4,14 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
-  useRouterState,
   HeadContent,
-  Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
 
-import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
-import { AppShell } from "@/components/AppShell";
 import { DataProvider } from "@/lib/store";
 import { AuthProvider } from "@/lib/auth";
 import { TenantProvider } from "@/lib/tenant";
 import { ListViewProvider } from "@/lib/list-view";
 import { Toaster } from "@/components/ui/sonner";
-
 
 function NotFoundComponent() {
   return (
@@ -45,9 +38,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -85,81 +75,33 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Luxe Salon CRM" },
-      { name: "description", content: "Salon CRM & growth platform demo UI." },
+      { title: "Krios" },
+      { name: "description", content: "Krios — salon & business growth platform." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap",
-      },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
-    ],
   }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
 
-function RootShell({ children }: { children: ReactNode }) {
-  return (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}
-
-const PUBLIC_PATHS = ["/", "/login", "/register", "/platform", "/book", "/nearby"];
-
-/** Every in-app (dashboard) route. Anything else with a single segment is a public org booking page. */
-const APP_PATHS = [
-  "/dashboard","/customers","/appointments","/pos","/services","/feedback","/inventory","/expenses",
-  "/staff","/shifts","/attendance","/leaves","/payroll","/commissions","/loyalty","/offers","/memberships",
-  "/campaigns","/franchises","/brand-apps","/users","/roles","/settings","/subscription",
-  "/nearby",
-];
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const segments = pathname.split("/").filter(Boolean);
-  const isPublic =
-    PUBLIC_PATHS.includes(pathname) ||
-    pathname.startsWith("/qr/") ||
-    (segments.length === 1 && !APP_PATHS.includes(pathname));
 
   return (
     <QueryClientProvider client={queryClient}>
+      <HeadContent />
       <AuthProvider>
         <TenantProvider>
-        <DataProvider>
-          <ListViewProvider>
-          {isPublic ? (
-            /* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */
-            <Outlet />
-          ) : (
-            <AppShell>
+          <DataProvider>
+            <ListViewProvider>
               <Outlet />
-            </AppShell>
-          )}
-          <Toaster richColors position="top-right" />
-          </ListViewProvider>
-        </DataProvider>
+              <Toaster richColors position="top-right" />
+            </ListViewProvider>
+          </DataProvider>
         </TenantProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
 }
-

@@ -1,22 +1,7 @@
 import type { Row } from "@/lib/store";
+import { remainingFor } from "@/lib/business/inventory-service";
 
 export const SERVICE_PRODUCTS = "serviceProducts";
-
-function remainingOf(skuId: string, movements: Row[]) {
-  const id = String(skuId);
-  return Math.max(
-    0,
-    movements
-      .filter((m) => String(m["skuId"] ?? m["sku"] ?? "") === id)
-      .reduce((sum, m) => {
-        const type = String(m["type"] ?? "");
-        const q = m["quantity"] !== undefined && m["quantity"] !== "" ? Math.abs(Number(m["quantity"]) || 0) : 0;
-        const signed =
-          q > 0 ? (type === "Sale" || type === "Used" ? -q : q) : Number(m["qtyIn"] ?? 0) - Number(m["qtyOut"] ?? 0);
-        return sum + signed;
-      }, 0),
-  );
-}
 
 export type RecipeNeed = { skuId: string; quantity: number };
 
@@ -95,13 +80,14 @@ export type MissingProduct = {
 
 export function missingProducts(
   lines: { id: string; kind: string; qty: number; name: string }[],
-  ctx: { services: Row[]; recipes: Row[]; skus: Row[]; movements: Row[] },
+  ctx: { services: Row[]; recipes: Row[]; skus: Row[]; movements: Row[]; locationId?: string },
 ): MissingProduct[] {
   const reserved: Record<string, number> = {};
   const missing: MissingProduct[] = [];
+  const loc = ctx.locationId && ctx.locationId !== "all" ? ctx.locationId : undefined;
 
   const consider = (skuId: string, qty: number) => {
-    const have = remainingOf(skuId, ctx.movements) - (reserved[skuId] ?? 0);
+    const have = remainingFor(skuId, ctx.movements, loc) - (reserved[skuId] ?? 0);
     if (qty > have) {
       missing.push({
         skuId,

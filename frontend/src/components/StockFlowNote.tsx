@@ -15,7 +15,7 @@ export function StockFlowNote() {
       <Link to="/pos" className="text-primary underline-offset-2 hover:underline">
         POS
       </Link>
-      . The customer record shows what was used for them.
+      . Adjustments, wastage and returns are posted on Inventory. The customer record shows what was used for them.
     </p>
   );
 }

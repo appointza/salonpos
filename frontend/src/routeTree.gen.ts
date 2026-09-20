@@ -11,50 +11,66 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OrgSlugRouteImport } from './routes/$orgSlug'
-import { Route as AppointmentsRouteImport } from './routes/appointments'
-import { Route as AttendanceRouteImport } from './routes/attendance'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as BookRouteImport } from './routes/book'
-import { Route as BrandAppsRouteImport } from './routes/brand-apps'
-import { Route as CampaignsRouteImport } from './routes/campaigns'
-import { Route as CommissionsRouteImport } from './routes/commissions'
-import { Route as CustomersRouteImport } from './routes/customers'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as ExpensesRouteImport } from './routes/expenses'
-import { Route as FeedbackRouteImport } from './routes/feedback'
-import { Route as FranchisesRouteImport } from './routes/franchises'
-import { Route as InventoryRouteImport } from './routes/inventory'
-import { Route as LeavesRouteImport } from './routes/leaves'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as LoyaltyRouteImport } from './routes/loyalty'
-import { Route as MembershipsRouteImport } from './routes/memberships'
 import { Route as NearbyRouteImport } from './routes/nearby'
-import { Route as OffersRouteImport } from './routes/offers'
-import { Route as PayrollRouteImport } from './routes/payroll'
 import { Route as PlatformRouteImport } from './routes/platform'
-import { Route as PosRouteImport } from './routes/pos'
 import { Route as RegisterRouteImport } from './routes/register'
-import { Route as RolesRouteImport } from './routes/roles'
-import { Route as ServicesRouteImport } from './routes/services'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ShiftsRouteImport } from './routes/shifts'
-import { Route as StaffRouteImport } from './routes/staff'
-import { Route as SubscriptionRouteImport } from './routes/subscription'
-import { Route as UsersRouteImport } from './routes/users'
-import { Route as CustomersCustomerIdRouteImport } from './routes/customers.$customerId'
-import { Route as LoyaltyIndexRouteImport } from './routes/loyalty/index'
-import { Route as LoyaltyCatalogRouteImport } from './routes/loyalty/catalog'
-import { Route as LoyaltyCheckinsRouteImport } from './routes/loyalty/checkins'
-import { Route as LoyaltyHistoryRouteImport } from './routes/loyalty/history'
-import { Route as LoyaltyLedgerRouteImport } from './routes/loyalty/ledger'
-import { Route as LoyaltyOffersRouteImport } from './routes/loyalty/offers'
-import { Route as LoyaltyOverviewRouteImport } from './routes/loyalty/overview'
-import { Route as LoyaltyPartnersRouteImport } from './routes/loyalty/partners'
-import { Route as LoyaltyProgramsRouteImport } from './routes/loyalty/programs'
-import { Route as LoyaltyQrRouteImport } from './routes/loyalty/qr'
-import { Route as LoyaltyRedemptionsRouteImport } from './routes/loyalty/redemptions'
-import { Route as LoyaltyRewardsRouteImport } from './routes/loyalty/rewards'
-import { Route as LoyaltyWheelRouteImport } from './routes/loyalty/wheel'
-import { Route as QrLocationIdRouteImport } from './routes/qr.$locationId'
+import { Route as WalkInRouteImport } from './routes/walk-in'
+import { Route as OrgSlugWalkInRouteImport } from './routes/$orgSlug/walk-in'
+import { Route as AppAppointmentsRouteImport } from './routes/_app/appointments'
+import { Route as AppAttendanceRouteImport } from './routes/_app/attendance'
+import { Route as AppBrandAppsRouteImport } from './routes/_app/brand-apps'
+import { Route as AppCampaignsRouteImport } from './routes/_app/campaigns'
+import { Route as AppCommissionsRouteImport } from './routes/_app/commissions'
+import { Route as AppCouponsRouteImport } from './routes/_app/coupons'
+import { Route as AppCustomersRouteImport } from './routes/_app/customers'
+import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
+import { Route as AppExpensesRouteImport } from './routes/_app/expenses'
+import { Route as AppFeedbackRouteImport } from './routes/_app/feedback'
+import { Route as AppFranchisesRouteImport } from './routes/_app/franchises'
+import { Route as AppFrontDeskRouteImport } from './routes/_app/front-desk'
+import { Route as AppGrowthRouteImport } from './routes/_app/growth'
+import { Route as AppInventoryRouteImport } from './routes/_app/inventory'
+import { Route as AppLeavesRouteImport } from './routes/_app/leaves'
+import { Route as AppLoyaltyRouteImport } from './routes/_app/loyalty'
+import { Route as AppMembershipsRouteImport } from './routes/_app/memberships'
+import { Route as AppOffersRouteImport } from './routes/_app/offers'
+import { Route as AppPayrollRouteImport } from './routes/_app/payroll'
+import { Route as AppPosRouteImport } from './routes/_app/pos'
+import { Route as AppPrizeWheelRouteImport } from './routes/_app/prize-wheel'
+import { Route as AppReportsRouteImport } from './routes/_app/reports'
+import { Route as AppRolesRouteImport } from './routes/_app/roles'
+import { Route as AppScratchCardRouteImport } from './routes/_app/scratch-card'
+import { Route as AppServicesRouteImport } from './routes/_app/services'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSetupRouteImport } from './routes/_app/setup'
+import { Route as AppShiftsRouteImport } from './routes/_app/shifts'
+import { Route as AppStaffRouteImport } from './routes/_app/staff'
+import { Route as AppSubscriptionRouteImport } from './routes/_app/subscription'
+import { Route as AppUsersRouteImport } from './routes/_app/users'
+import { Route as AppVendorsRouteImport } from './routes/_app/vendors'
+import { Route as NearbyMyShopsRouteImport } from './routes/nearby/my-shops'
+import { Route as QrLocationIdRouteImport } from './routes/qr/$locationId'
+import { Route as AppCouponsCouponIdRouteImport } from './routes/_app/coupons/$couponId'
+import { Route as AppCustomersCustomerIdRouteImport } from './routes/_app/customers/$customerId'
+import { Route as AppLoyaltyIndexRouteImport } from './routes/_app/loyalty/index'
+import { Route as AppLoyaltyCatalogRouteImport } from './routes/_app/loyalty/catalog'
+import { Route as AppLoyaltyCheckinsRouteImport } from './routes/_app/loyalty/checkins'
+import { Route as AppLoyaltyCouponsRouteImport } from './routes/_app/loyalty/coupons'
+import { Route as AppLoyaltyHistoryRouteImport } from './routes/_app/loyalty/history'
+import { Route as AppLoyaltyLedgerRouteImport } from './routes/_app/loyalty/ledger'
+import { Route as AppLoyaltyOffersRouteImport } from './routes/_app/loyalty/offers'
+import { Route as AppLoyaltyOverviewRouteImport } from './routes/_app/loyalty/overview'
+import { Route as AppLoyaltyPartnersRouteImport } from './routes/_app/loyalty/partners'
+import { Route as AppLoyaltyProgramsRouteImport } from './routes/_app/loyalty/programs'
+import { Route as AppLoyaltyQrRouteImport } from './routes/_app/loyalty/qr'
+import { Route as AppLoyaltyRedemptionsRouteImport } from './routes/_app/loyalty/redemptions'
+import { Route as AppLoyaltyRewardsRouteImport } from './routes/_app/loyalty/rewards'
+import { Route as AppLoyaltyScratchRouteImport } from './routes/_app/loyalty/scratch'
+import { Route as AppLoyaltyWheelRouteImport } from './routes/_app/loyalty/wheel'
+import { Route as AppCouponsCouponIdCodesRouteImport } from './routes/_app/coupons/$couponId.codes'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -66,14 +82,8 @@ const OrgSlugRoute = OrgSlugRouteImport.update({
   path: '/$orgSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppointmentsRoute = AppointmentsRouteImport.update({
-  id: '/appointments',
-  path: '/appointments',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AttendanceRoute = AttendanceRouteImport.update({
-  id: '/attendance',
-  path: '/attendance',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookRoute = BookRouteImport.update({
@@ -81,69 +91,9 @@ const BookRoute = BookRouteImport.update({
   path: '/book',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BrandAppsRoute = BrandAppsRouteImport.update({
-  id: '/brand-apps',
-  path: '/brand-apps',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CampaignsRoute = CampaignsRouteImport.update({
-  id: '/campaigns',
-  path: '/campaigns',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CommissionsRoute = CommissionsRouteImport.update({
-  id: '/commissions',
-  path: '/commissions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CustomersRoute = CustomersRouteImport.update({
-  id: '/customers',
-  path: '/customers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExpensesRoute = ExpensesRouteImport.update({
-  id: '/expenses',
-  path: '/expenses',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FeedbackRoute = FeedbackRouteImport.update({
-  id: '/feedback',
-  path: '/feedback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FranchisesRoute = FranchisesRouteImport.update({
-  id: '/franchises',
-  path: '/franchises',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InventoryRoute = InventoryRouteImport.update({
-  id: '/inventory',
-  path: '/inventory',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LeavesRoute = LeavesRouteImport.update({
-  id: '/leaves',
-  path: '/leaves',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoyaltyRoute = LoyaltyRouteImport.update({
-  id: '/loyalty',
-  path: '/loyalty',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MembershipsRoute = MembershipsRouteImport.update({
-  id: '/memberships',
-  path: '/memberships',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NearbyRoute = NearbyRouteImport.update({
@@ -151,24 +101,9 @@ const NearbyRoute = NearbyRouteImport.update({
   path: '/nearby',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OffersRoute = OffersRouteImport.update({
-  id: '/offers',
-  path: '/offers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PayrollRoute = PayrollRouteImport.update({
-  id: '/payroll',
-  path: '/payroll',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PlatformRoute = PlatformRouteImport.update({
   id: '/platform',
   path: '/platform',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PosRoute = PosRouteImport.update({
-  id: '/pos',
-  path: '/pos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -176,298 +111,518 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RolesRoute = RolesRouteImport.update({
-  id: '/roles',
-  path: '/roles',
+const WalkInRoute = WalkInRouteImport.update({
+  id: '/walk-in',
+  path: '/walk-in',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ServicesRoute = ServicesRouteImport.update({
-  id: '/services',
-  path: '/services',
-  getParentRoute: () => rootRouteImport,
+const OrgSlugWalkInRoute = OrgSlugWalkInRouteImport.update({
+  id: '/walk-in',
+  path: '/walk-in',
+  getParentRoute: () => OrgSlugRoute,
 } as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
+const AppAppointmentsRoute = AppAppointmentsRouteImport.update({
+  id: '/appointments',
+  path: '/appointments',
+  getParentRoute: () => AppRoute,
 } as any)
-const ShiftsRoute = ShiftsRouteImport.update({
-  id: '/shifts',
-  path: '/shifts',
-  getParentRoute: () => rootRouteImport,
+const AppAttendanceRoute = AppAttendanceRouteImport.update({
+  id: '/attendance',
+  path: '/attendance',
+  getParentRoute: () => AppRoute,
 } as any)
-const StaffRoute = StaffRouteImport.update({
-  id: '/staff',
-  path: '/staff',
-  getParentRoute: () => rootRouteImport,
+const AppBrandAppsRoute = AppBrandAppsRouteImport.update({
+  id: '/brand-apps',
+  path: '/brand-apps',
+  getParentRoute: () => AppRoute,
 } as any)
-const SubscriptionRoute = SubscriptionRouteImport.update({
-  id: '/subscription',
-  path: '/subscription',
-  getParentRoute: () => rootRouteImport,
+const AppCampaignsRoute = AppCampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
+  getParentRoute: () => AppRoute,
 } as any)
-const UsersRoute = UsersRouteImport.update({
-  id: '/users',
-  path: '/users',
-  getParentRoute: () => rootRouteImport,
+const AppCommissionsRoute = AppCommissionsRouteImport.update({
+  id: '/commissions',
+  path: '/commissions',
+  getParentRoute: () => AppRoute,
 } as any)
-const CustomersCustomerIdRoute = CustomersCustomerIdRouteImport.update({
-  id: '/$customerId',
-  path: '/$customerId',
-  getParentRoute: () => CustomersRoute,
+const AppCouponsRoute = AppCouponsRouteImport.update({
+  id: '/coupons',
+  path: '/coupons',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyIndexRoute = LoyaltyIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => LoyaltyRoute,
+const AppCustomersRoute = AppCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyCatalogRoute = LoyaltyCatalogRouteImport.update({
-  id: '/catalog',
-  path: '/catalog',
-  getParentRoute: () => LoyaltyRoute,
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyCheckinsRoute = LoyaltyCheckinsRouteImport.update({
-  id: '/checkins',
-  path: '/checkins',
-  getParentRoute: () => LoyaltyRoute,
+const AppExpensesRoute = AppExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyHistoryRoute = LoyaltyHistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
-  getParentRoute: () => LoyaltyRoute,
+const AppFeedbackRoute = AppFeedbackRouteImport.update({
+  id: '/feedback',
+  path: '/feedback',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyLedgerRoute = LoyaltyLedgerRouteImport.update({
-  id: '/ledger',
-  path: '/ledger',
-  getParentRoute: () => LoyaltyRoute,
+const AppFranchisesRoute = AppFranchisesRouteImport.update({
+  id: '/franchises',
+  path: '/franchises',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyOffersRoute = LoyaltyOffersRouteImport.update({
+const AppFrontDeskRoute = AppFrontDeskRouteImport.update({
+  id: '/front-desk',
+  path: '/front-desk',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppGrowthRoute = AppGrowthRouteImport.update({
+  id: '/growth',
+  path: '/growth',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInventoryRoute = AppInventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLeavesRoute = AppLeavesRouteImport.update({
+  id: '/leaves',
+  path: '/leaves',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLoyaltyRoute = AppLoyaltyRouteImport.update({
+  id: '/loyalty',
+  path: '/loyalty',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMembershipsRoute = AppMembershipsRouteImport.update({
+  id: '/memberships',
+  path: '/memberships',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOffersRoute = AppOffersRouteImport.update({
   id: '/offers',
   path: '/offers',
-  getParentRoute: () => LoyaltyRoute,
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyOverviewRoute = LoyaltyOverviewRouteImport.update({
-  id: '/overview',
-  path: '/overview',
-  getParentRoute: () => LoyaltyRoute,
+const AppPayrollRoute = AppPayrollRouteImport.update({
+  id: '/payroll',
+  path: '/payroll',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyPartnersRoute = LoyaltyPartnersRouteImport.update({
-  id: '/partners',
-  path: '/partners',
-  getParentRoute: () => LoyaltyRoute,
+const AppPosRoute = AppPosRouteImport.update({
+  id: '/pos',
+  path: '/pos',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyProgramsRoute = LoyaltyProgramsRouteImport.update({
-  id: '/programs',
-  path: '/programs',
-  getParentRoute: () => LoyaltyRoute,
+const AppPrizeWheelRoute = AppPrizeWheelRouteImport.update({
+  id: '/prize-wheel',
+  path: '/prize-wheel',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyQrRoute = LoyaltyQrRouteImport.update({
-  id: '/qr',
-  path: '/qr',
-  getParentRoute: () => LoyaltyRoute,
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyRedemptionsRoute = LoyaltyRedemptionsRouteImport.update({
-  id: '/redemptions',
-  path: '/redemptions',
-  getParentRoute: () => LoyaltyRoute,
+const AppRolesRoute = AppRolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyRewardsRoute = LoyaltyRewardsRouteImport.update({
-  id: '/rewards',
-  path: '/rewards',
-  getParentRoute: () => LoyaltyRoute,
+const AppScratchCardRoute = AppScratchCardRouteImport.update({
+  id: '/scratch-card',
+  path: '/scratch-card',
+  getParentRoute: () => AppRoute,
 } as any)
-const LoyaltyWheelRoute = LoyaltyWheelRouteImport.update({
-  id: '/wheel',
-  path: '/wheel',
-  getParentRoute: () => LoyaltyRoute,
+const AppServicesRoute = AppServicesRouteImport.update({
+  id: '/services',
+  path: '/services',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSetupRoute = AppSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppShiftsRoute = AppShiftsRouteImport.update({
+  id: '/shifts',
+  path: '/shifts',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStaffRoute = AppStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSubscriptionRoute = AppSubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersRoute = AppUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppVendorsRoute = AppVendorsRouteImport.update({
+  id: '/vendors',
+  path: '/vendors',
+  getParentRoute: () => AppRoute,
+} as any)
+const NearbyMyShopsRoute = NearbyMyShopsRouteImport.update({
+  id: '/my-shops',
+  path: '/my-shops',
+  getParentRoute: () => NearbyRoute,
 } as any)
 const QrLocationIdRoute = QrLocationIdRouteImport.update({
   id: '/qr/$locationId',
   path: '/qr/$locationId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppCouponsCouponIdRoute = AppCouponsCouponIdRouteImport.update({
+  id: '/$couponId',
+  path: '/$couponId',
+  getParentRoute: () => AppCouponsRoute,
+} as any)
+const AppCustomersCustomerIdRoute = AppCustomersCustomerIdRouteImport.update({
+  id: '/$customerId',
+  path: '/$customerId',
+  getParentRoute: () => AppCustomersRoute,
+} as any)
+const AppLoyaltyIndexRoute = AppLoyaltyIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyCatalogRoute = AppLoyaltyCatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyCheckinsRoute = AppLoyaltyCheckinsRouteImport.update({
+  id: '/checkins',
+  path: '/checkins',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyCouponsRoute = AppLoyaltyCouponsRouteImport.update({
+  id: '/coupons',
+  path: '/coupons',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyHistoryRoute = AppLoyaltyHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyLedgerRoute = AppLoyaltyLedgerRouteImport.update({
+  id: '/ledger',
+  path: '/ledger',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyOffersRoute = AppLoyaltyOffersRouteImport.update({
+  id: '/offers',
+  path: '/offers',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyOverviewRoute = AppLoyaltyOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyPartnersRoute = AppLoyaltyPartnersRouteImport.update({
+  id: '/partners',
+  path: '/partners',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyProgramsRoute = AppLoyaltyProgramsRouteImport.update({
+  id: '/programs',
+  path: '/programs',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyQrRoute = AppLoyaltyQrRouteImport.update({
+  id: '/qr',
+  path: '/qr',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyRedemptionsRoute = AppLoyaltyRedemptionsRouteImport.update({
+  id: '/redemptions',
+  path: '/redemptions',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyRewardsRoute = AppLoyaltyRewardsRouteImport.update({
+  id: '/rewards',
+  path: '/rewards',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyScratchRoute = AppLoyaltyScratchRouteImport.update({
+  id: '/scratch',
+  path: '/scratch',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppLoyaltyWheelRoute = AppLoyaltyWheelRouteImport.update({
+  id: '/wheel',
+  path: '/wheel',
+  getParentRoute: () => AppLoyaltyRoute,
+} as any)
+const AppCouponsCouponIdCodesRoute = AppCouponsCouponIdCodesRouteImport.update({
+  id: '/codes',
+  path: '/codes',
+  getParentRoute: () => AppCouponsCouponIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/$orgSlug': typeof OrgSlugRoute
-  '/appointments': typeof AppointmentsRoute
-  '/attendance': typeof AttendanceRoute
+  '/$orgSlug': typeof OrgSlugRouteWithChildren
   '/book': typeof BookRoute
-  '/brand-apps': typeof BrandAppsRoute
-  '/campaigns': typeof CampaignsRoute
-  '/commissions': typeof CommissionsRoute
-  '/customers': typeof CustomersRouteWithChildren
-  '/dashboard': typeof DashboardRoute
-  '/expenses': typeof ExpensesRoute
-  '/feedback': typeof FeedbackRoute
-  '/franchises': typeof FranchisesRoute
-  '/inventory': typeof InventoryRoute
-  '/leaves': typeof LeavesRoute
   '/login': typeof LoginRoute
-  '/loyalty': typeof LoyaltyRouteWithChildren
-  '/memberships': typeof MembershipsRoute
-  '/nearby': typeof NearbyRoute
-  '/offers': typeof OffersRoute
-  '/payroll': typeof PayrollRoute
+  '/nearby': typeof NearbyRouteWithChildren
   '/platform': typeof PlatformRoute
-  '/pos': typeof PosRoute
   '/register': typeof RegisterRoute
-  '/roles': typeof RolesRoute
-  '/services': typeof ServicesRoute
-  '/settings': typeof SettingsRoute
-  '/shifts': typeof ShiftsRoute
-  '/staff': typeof StaffRoute
-  '/subscription': typeof SubscriptionRoute
-  '/users': typeof UsersRoute
-  '/customers/$customerId': typeof CustomersCustomerIdRoute
-  '/loyalty/catalog': typeof LoyaltyCatalogRoute
-  '/loyalty/checkins': typeof LoyaltyCheckinsRoute
-  '/loyalty/history': typeof LoyaltyHistoryRoute
-  '/loyalty/ledger': typeof LoyaltyLedgerRoute
-  '/loyalty/offers': typeof LoyaltyOffersRoute
-  '/loyalty/overview': typeof LoyaltyOverviewRoute
-  '/loyalty/partners': typeof LoyaltyPartnersRoute
-  '/loyalty/programs': typeof LoyaltyProgramsRoute
-  '/loyalty/qr': typeof LoyaltyQrRoute
-  '/loyalty/redemptions': typeof LoyaltyRedemptionsRoute
-  '/loyalty/rewards': typeof LoyaltyRewardsRoute
-  '/loyalty/wheel': typeof LoyaltyWheelRoute
+  '/walk-in': typeof WalkInRoute
+  '/$orgSlug/walk-in': typeof OrgSlugWalkInRoute
+  '/appointments': typeof AppAppointmentsRoute
+  '/attendance': typeof AppAttendanceRoute
+  '/brand-apps': typeof AppBrandAppsRoute
+  '/campaigns': typeof AppCampaignsRoute
+  '/commissions': typeof AppCommissionsRoute
+  '/coupons': typeof AppCouponsRouteWithChildren
+  '/customers': typeof AppCustomersRouteWithChildren
+  '/dashboard': typeof AppDashboardRoute
+  '/expenses': typeof AppExpensesRoute
+  '/feedback': typeof AppFeedbackRoute
+  '/franchises': typeof AppFranchisesRoute
+  '/front-desk': typeof AppFrontDeskRoute
+  '/growth': typeof AppGrowthRoute
+  '/inventory': typeof AppInventoryRoute
+  '/leaves': typeof AppLeavesRoute
+  '/loyalty': typeof AppLoyaltyRouteWithChildren
+  '/memberships': typeof AppMembershipsRoute
+  '/offers': typeof AppOffersRoute
+  '/payroll': typeof AppPayrollRoute
+  '/pos': typeof AppPosRoute
+  '/prize-wheel': typeof AppPrizeWheelRoute
+  '/reports': typeof AppReportsRoute
+  '/roles': typeof AppRolesRoute
+  '/scratch-card': typeof AppScratchCardRoute
+  '/services': typeof AppServicesRoute
+  '/settings': typeof AppSettingsRoute
+  '/setup': typeof AppSetupRoute
+  '/shifts': typeof AppShiftsRoute
+  '/staff': typeof AppStaffRoute
+  '/subscription': typeof AppSubscriptionRoute
+  '/users': typeof AppUsersRoute
+  '/vendors': typeof AppVendorsRoute
+  '/nearby/my-shops': typeof NearbyMyShopsRoute
   '/qr/$locationId': typeof QrLocationIdRoute
-  '/loyalty/': typeof LoyaltyIndexRoute
+  '/coupons/$couponId': typeof AppCouponsCouponIdRouteWithChildren
+  '/customers/$customerId': typeof AppCustomersCustomerIdRoute
+  '/loyalty/catalog': typeof AppLoyaltyCatalogRoute
+  '/loyalty/checkins': typeof AppLoyaltyCheckinsRoute
+  '/loyalty/coupons': typeof AppLoyaltyCouponsRoute
+  '/loyalty/history': typeof AppLoyaltyHistoryRoute
+  '/loyalty/ledger': typeof AppLoyaltyLedgerRoute
+  '/loyalty/offers': typeof AppLoyaltyOffersRoute
+  '/loyalty/overview': typeof AppLoyaltyOverviewRoute
+  '/loyalty/partners': typeof AppLoyaltyPartnersRoute
+  '/loyalty/programs': typeof AppLoyaltyProgramsRoute
+  '/loyalty/qr': typeof AppLoyaltyQrRoute
+  '/loyalty/redemptions': typeof AppLoyaltyRedemptionsRoute
+  '/loyalty/rewards': typeof AppLoyaltyRewardsRoute
+  '/loyalty/scratch': typeof AppLoyaltyScratchRoute
+  '/loyalty/wheel': typeof AppLoyaltyWheelRoute
+  '/loyalty/': typeof AppLoyaltyIndexRoute
+  '/coupons/$couponId/codes': typeof AppCouponsCouponIdCodesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/$orgSlug': typeof OrgSlugRoute
-  '/appointments': typeof AppointmentsRoute
-  '/attendance': typeof AttendanceRoute
+  '/$orgSlug': typeof OrgSlugRouteWithChildren
   '/book': typeof BookRoute
-  '/brand-apps': typeof BrandAppsRoute
-  '/campaigns': typeof CampaignsRoute
-  '/commissions': typeof CommissionsRoute
-  '/customers': typeof CustomersRouteWithChildren
-  '/dashboard': typeof DashboardRoute
-  '/expenses': typeof ExpensesRoute
-  '/feedback': typeof FeedbackRoute
-  '/franchises': typeof FranchisesRoute
-  '/inventory': typeof InventoryRoute
-  '/leaves': typeof LeavesRoute
   '/login': typeof LoginRoute
-  '/memberships': typeof MembershipsRoute
-  '/nearby': typeof NearbyRoute
-  '/offers': typeof OffersRoute
-  '/payroll': typeof PayrollRoute
+  '/nearby': typeof NearbyRouteWithChildren
   '/platform': typeof PlatformRoute
-  '/pos': typeof PosRoute
   '/register': typeof RegisterRoute
-  '/roles': typeof RolesRoute
-  '/services': typeof ServicesRoute
-  '/settings': typeof SettingsRoute
-  '/shifts': typeof ShiftsRoute
-  '/staff': typeof StaffRoute
-  '/subscription': typeof SubscriptionRoute
-  '/users': typeof UsersRoute
-  '/customers/$customerId': typeof CustomersCustomerIdRoute
-  '/loyalty/catalog': typeof LoyaltyCatalogRoute
-  '/loyalty/checkins': typeof LoyaltyCheckinsRoute
-  '/loyalty/history': typeof LoyaltyHistoryRoute
-  '/loyalty/ledger': typeof LoyaltyLedgerRoute
-  '/loyalty/offers': typeof LoyaltyOffersRoute
-  '/loyalty/overview': typeof LoyaltyOverviewRoute
-  '/loyalty/partners': typeof LoyaltyPartnersRoute
-  '/loyalty/programs': typeof LoyaltyProgramsRoute
-  '/loyalty/qr': typeof LoyaltyQrRoute
-  '/loyalty/redemptions': typeof LoyaltyRedemptionsRoute
-  '/loyalty/rewards': typeof LoyaltyRewardsRoute
-  '/loyalty/wheel': typeof LoyaltyWheelRoute
+  '/walk-in': typeof WalkInRoute
+  '/$orgSlug/walk-in': typeof OrgSlugWalkInRoute
+  '/appointments': typeof AppAppointmentsRoute
+  '/attendance': typeof AppAttendanceRoute
+  '/brand-apps': typeof AppBrandAppsRoute
+  '/campaigns': typeof AppCampaignsRoute
+  '/commissions': typeof AppCommissionsRoute
+  '/coupons': typeof AppCouponsRouteWithChildren
+  '/customers': typeof AppCustomersRouteWithChildren
+  '/dashboard': typeof AppDashboardRoute
+  '/expenses': typeof AppExpensesRoute
+  '/feedback': typeof AppFeedbackRoute
+  '/franchises': typeof AppFranchisesRoute
+  '/front-desk': typeof AppFrontDeskRoute
+  '/growth': typeof AppGrowthRoute
+  '/inventory': typeof AppInventoryRoute
+  '/leaves': typeof AppLeavesRoute
+  '/memberships': typeof AppMembershipsRoute
+  '/offers': typeof AppOffersRoute
+  '/payroll': typeof AppPayrollRoute
+  '/pos': typeof AppPosRoute
+  '/prize-wheel': typeof AppPrizeWheelRoute
+  '/reports': typeof AppReportsRoute
+  '/roles': typeof AppRolesRoute
+  '/scratch-card': typeof AppScratchCardRoute
+  '/services': typeof AppServicesRoute
+  '/settings': typeof AppSettingsRoute
+  '/setup': typeof AppSetupRoute
+  '/shifts': typeof AppShiftsRoute
+  '/staff': typeof AppStaffRoute
+  '/subscription': typeof AppSubscriptionRoute
+  '/users': typeof AppUsersRoute
+  '/vendors': typeof AppVendorsRoute
+  '/nearby/my-shops': typeof NearbyMyShopsRoute
   '/qr/$locationId': typeof QrLocationIdRoute
-  '/loyalty': typeof LoyaltyIndexRoute
+  '/coupons/$couponId': typeof AppCouponsCouponIdRouteWithChildren
+  '/customers/$customerId': typeof AppCustomersCustomerIdRoute
+  '/loyalty/catalog': typeof AppLoyaltyCatalogRoute
+  '/loyalty/checkins': typeof AppLoyaltyCheckinsRoute
+  '/loyalty/coupons': typeof AppLoyaltyCouponsRoute
+  '/loyalty/history': typeof AppLoyaltyHistoryRoute
+  '/loyalty/ledger': typeof AppLoyaltyLedgerRoute
+  '/loyalty/offers': typeof AppLoyaltyOffersRoute
+  '/loyalty/overview': typeof AppLoyaltyOverviewRoute
+  '/loyalty/partners': typeof AppLoyaltyPartnersRoute
+  '/loyalty/programs': typeof AppLoyaltyProgramsRoute
+  '/loyalty/qr': typeof AppLoyaltyQrRoute
+  '/loyalty/redemptions': typeof AppLoyaltyRedemptionsRoute
+  '/loyalty/rewards': typeof AppLoyaltyRewardsRoute
+  '/loyalty/scratch': typeof AppLoyaltyScratchRoute
+  '/loyalty/wheel': typeof AppLoyaltyWheelRoute
+  '/loyalty': typeof AppLoyaltyIndexRoute
+  '/coupons/$couponId/codes': typeof AppCouponsCouponIdCodesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/$orgSlug': typeof OrgSlugRoute
-  '/appointments': typeof AppointmentsRoute
-  '/attendance': typeof AttendanceRoute
+  '/$orgSlug': typeof OrgSlugRouteWithChildren
+  '/_app': typeof AppRouteWithChildren
   '/book': typeof BookRoute
-  '/brand-apps': typeof BrandAppsRoute
-  '/campaigns': typeof CampaignsRoute
-  '/commissions': typeof CommissionsRoute
-  '/customers': typeof CustomersRouteWithChildren
-  '/dashboard': typeof DashboardRoute
-  '/expenses': typeof ExpensesRoute
-  '/feedback': typeof FeedbackRoute
-  '/franchises': typeof FranchisesRoute
-  '/inventory': typeof InventoryRoute
-  '/leaves': typeof LeavesRoute
   '/login': typeof LoginRoute
-  '/loyalty': typeof LoyaltyRouteWithChildren
-  '/memberships': typeof MembershipsRoute
-  '/nearby': typeof NearbyRoute
-  '/offers': typeof OffersRoute
-  '/payroll': typeof PayrollRoute
+  '/nearby': typeof NearbyRouteWithChildren
   '/platform': typeof PlatformRoute
-  '/pos': typeof PosRoute
   '/register': typeof RegisterRoute
-  '/roles': typeof RolesRoute
-  '/services': typeof ServicesRoute
-  '/settings': typeof SettingsRoute
-  '/shifts': typeof ShiftsRoute
-  '/staff': typeof StaffRoute
-  '/subscription': typeof SubscriptionRoute
-  '/users': typeof UsersRoute
-  '/customers/$customerId': typeof CustomersCustomerIdRoute
-  '/loyalty/catalog': typeof LoyaltyCatalogRoute
-  '/loyalty/checkins': typeof LoyaltyCheckinsRoute
-  '/loyalty/history': typeof LoyaltyHistoryRoute
-  '/loyalty/ledger': typeof LoyaltyLedgerRoute
-  '/loyalty/offers': typeof LoyaltyOffersRoute
-  '/loyalty/overview': typeof LoyaltyOverviewRoute
-  '/loyalty/partners': typeof LoyaltyPartnersRoute
-  '/loyalty/programs': typeof LoyaltyProgramsRoute
-  '/loyalty/qr': typeof LoyaltyQrRoute
-  '/loyalty/redemptions': typeof LoyaltyRedemptionsRoute
-  '/loyalty/rewards': typeof LoyaltyRewardsRoute
-  '/loyalty/wheel': typeof LoyaltyWheelRoute
+  '/walk-in': typeof WalkInRoute
+  '/$orgSlug/walk-in': typeof OrgSlugWalkInRoute
+  '/_app/appointments': typeof AppAppointmentsRoute
+  '/_app/attendance': typeof AppAttendanceRoute
+  '/_app/brand-apps': typeof AppBrandAppsRoute
+  '/_app/campaigns': typeof AppCampaignsRoute
+  '/_app/commissions': typeof AppCommissionsRoute
+  '/_app/coupons': typeof AppCouponsRouteWithChildren
+  '/_app/customers': typeof AppCustomersRouteWithChildren
+  '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/expenses': typeof AppExpensesRoute
+  '/_app/feedback': typeof AppFeedbackRoute
+  '/_app/franchises': typeof AppFranchisesRoute
+  '/_app/front-desk': typeof AppFrontDeskRoute
+  '/_app/growth': typeof AppGrowthRoute
+  '/_app/inventory': typeof AppInventoryRoute
+  '/_app/leaves': typeof AppLeavesRoute
+  '/_app/loyalty': typeof AppLoyaltyRouteWithChildren
+  '/_app/memberships': typeof AppMembershipsRoute
+  '/_app/offers': typeof AppOffersRoute
+  '/_app/payroll': typeof AppPayrollRoute
+  '/_app/pos': typeof AppPosRoute
+  '/_app/prize-wheel': typeof AppPrizeWheelRoute
+  '/_app/reports': typeof AppReportsRoute
+  '/_app/roles': typeof AppRolesRoute
+  '/_app/scratch-card': typeof AppScratchCardRoute
+  '/_app/services': typeof AppServicesRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/setup': typeof AppSetupRoute
+  '/_app/shifts': typeof AppShiftsRoute
+  '/_app/staff': typeof AppStaffRoute
+  '/_app/subscription': typeof AppSubscriptionRoute
+  '/_app/users': typeof AppUsersRoute
+  '/_app/vendors': typeof AppVendorsRoute
+  '/nearby/my-shops': typeof NearbyMyShopsRoute
   '/qr/$locationId': typeof QrLocationIdRoute
-  '/loyalty/': typeof LoyaltyIndexRoute
+  '/_app/coupons/$couponId': typeof AppCouponsCouponIdRouteWithChildren
+  '/_app/customers/$customerId': typeof AppCustomersCustomerIdRoute
+  '/_app/loyalty/catalog': typeof AppLoyaltyCatalogRoute
+  '/_app/loyalty/checkins': typeof AppLoyaltyCheckinsRoute
+  '/_app/loyalty/coupons': typeof AppLoyaltyCouponsRoute
+  '/_app/loyalty/history': typeof AppLoyaltyHistoryRoute
+  '/_app/loyalty/ledger': typeof AppLoyaltyLedgerRoute
+  '/_app/loyalty/offers': typeof AppLoyaltyOffersRoute
+  '/_app/loyalty/overview': typeof AppLoyaltyOverviewRoute
+  '/_app/loyalty/partners': typeof AppLoyaltyPartnersRoute
+  '/_app/loyalty/programs': typeof AppLoyaltyProgramsRoute
+  '/_app/loyalty/qr': typeof AppLoyaltyQrRoute
+  '/_app/loyalty/redemptions': typeof AppLoyaltyRedemptionsRoute
+  '/_app/loyalty/rewards': typeof AppLoyaltyRewardsRoute
+  '/_app/loyalty/scratch': typeof AppLoyaltyScratchRoute
+  '/_app/loyalty/wheel': typeof AppLoyaltyWheelRoute
+  '/_app/loyalty/': typeof AppLoyaltyIndexRoute
+  '/_app/coupons/$couponId/codes': typeof AppCouponsCouponIdCodesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/$orgSlug'
+    | '/book'
+    | '/login'
+    | '/nearby'
+    | '/platform'
+    | '/register'
+    | '/walk-in'
+    | '/$orgSlug/walk-in'
     | '/appointments'
     | '/attendance'
-    | '/book'
     | '/brand-apps'
     | '/campaigns'
     | '/commissions'
+    | '/coupons'
     | '/customers'
     | '/dashboard'
     | '/expenses'
     | '/feedback'
     | '/franchises'
+    | '/front-desk'
+    | '/growth'
     | '/inventory'
     | '/leaves'
-    | '/login'
     | '/loyalty'
     | '/memberships'
-    | '/nearby'
     | '/offers'
     | '/payroll'
-    | '/platform'
     | '/pos'
-    | '/register'
+    | '/prize-wheel'
+    | '/reports'
     | '/roles'
+    | '/scratch-card'
     | '/services'
     | '/settings'
+    | '/setup'
     | '/shifts'
     | '/staff'
     | '/subscription'
     | '/users'
+    | '/vendors'
+    | '/nearby/my-shops'
+    | '/qr/$locationId'
+    | '/coupons/$couponId'
     | '/customers/$customerId'
     | '/loyalty/catalog'
     | '/loyalty/checkins'
+    | '/loyalty/coupons'
     | '/loyalty/history'
     | '/loyalty/ledger'
     | '/loyalty/offers'
@@ -477,44 +632,59 @@ export interface FileRouteTypes {
     | '/loyalty/qr'
     | '/loyalty/redemptions'
     | '/loyalty/rewards'
+    | '/loyalty/scratch'
     | '/loyalty/wheel'
-    | '/qr/$locationId'
     | '/loyalty/'
+    | '/coupons/$couponId/codes'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$orgSlug'
+    | '/book'
+    | '/login'
+    | '/nearby'
+    | '/platform'
+    | '/register'
+    | '/walk-in'
+    | '/$orgSlug/walk-in'
     | '/appointments'
     | '/attendance'
-    | '/book'
     | '/brand-apps'
     | '/campaigns'
     | '/commissions'
+    | '/coupons'
     | '/customers'
     | '/dashboard'
     | '/expenses'
     | '/feedback'
     | '/franchises'
+    | '/front-desk'
+    | '/growth'
     | '/inventory'
     | '/leaves'
-    | '/login'
     | '/memberships'
-    | '/nearby'
     | '/offers'
     | '/payroll'
-    | '/platform'
     | '/pos'
-    | '/register'
+    | '/prize-wheel'
+    | '/reports'
     | '/roles'
+    | '/scratch-card'
     | '/services'
     | '/settings'
+    | '/setup'
     | '/shifts'
     | '/staff'
     | '/subscription'
     | '/users'
+    | '/vendors'
+    | '/nearby/my-shops'
+    | '/qr/$locationId'
+    | '/coupons/$couponId'
     | '/customers/$customerId'
     | '/loyalty/catalog'
     | '/loyalty/checkins'
+    | '/loyalty/coupons'
     | '/loyalty/history'
     | '/loyalty/ledger'
     | '/loyalty/offers'
@@ -524,91 +694,86 @@ export interface FileRouteTypes {
     | '/loyalty/qr'
     | '/loyalty/redemptions'
     | '/loyalty/rewards'
+    | '/loyalty/scratch'
     | '/loyalty/wheel'
-    | '/qr/$locationId'
     | '/loyalty'
+    | '/coupons/$couponId/codes'
   id:
     | '__root__'
     | '/'
     | '/$orgSlug'
-    | '/appointments'
-    | '/attendance'
+    | '/_app'
     | '/book'
-    | '/brand-apps'
-    | '/campaigns'
-    | '/commissions'
-    | '/customers'
-    | '/dashboard'
-    | '/expenses'
-    | '/feedback'
-    | '/franchises'
-    | '/inventory'
-    | '/leaves'
     | '/login'
-    | '/loyalty'
-    | '/memberships'
     | '/nearby'
-    | '/offers'
-    | '/payroll'
     | '/platform'
-    | '/pos'
     | '/register'
-    | '/roles'
-    | '/services'
-    | '/settings'
-    | '/shifts'
-    | '/staff'
-    | '/subscription'
-    | '/users'
-    | '/customers/$customerId'
-    | '/loyalty/catalog'
-    | '/loyalty/checkins'
-    | '/loyalty/history'
-    | '/loyalty/ledger'
-    | '/loyalty/offers'
-    | '/loyalty/overview'
-    | '/loyalty/partners'
-    | '/loyalty/programs'
-    | '/loyalty/qr'
-    | '/loyalty/redemptions'
-    | '/loyalty/rewards'
-    | '/loyalty/wheel'
+    | '/walk-in'
+    | '/$orgSlug/walk-in'
+    | '/_app/appointments'
+    | '/_app/attendance'
+    | '/_app/brand-apps'
+    | '/_app/campaigns'
+    | '/_app/commissions'
+    | '/_app/coupons'
+    | '/_app/customers'
+    | '/_app/dashboard'
+    | '/_app/expenses'
+    | '/_app/feedback'
+    | '/_app/franchises'
+    | '/_app/front-desk'
+    | '/_app/growth'
+    | '/_app/inventory'
+    | '/_app/leaves'
+    | '/_app/loyalty'
+    | '/_app/memberships'
+    | '/_app/offers'
+    | '/_app/payroll'
+    | '/_app/pos'
+    | '/_app/prize-wheel'
+    | '/_app/reports'
+    | '/_app/roles'
+    | '/_app/scratch-card'
+    | '/_app/services'
+    | '/_app/settings'
+    | '/_app/setup'
+    | '/_app/shifts'
+    | '/_app/staff'
+    | '/_app/subscription'
+    | '/_app/users'
+    | '/_app/vendors'
+    | '/nearby/my-shops'
     | '/qr/$locationId'
-    | '/loyalty/'
+    | '/_app/coupons/$couponId'
+    | '/_app/customers/$customerId'
+    | '/_app/loyalty/catalog'
+    | '/_app/loyalty/checkins'
+    | '/_app/loyalty/coupons'
+    | '/_app/loyalty/history'
+    | '/_app/loyalty/ledger'
+    | '/_app/loyalty/offers'
+    | '/_app/loyalty/overview'
+    | '/_app/loyalty/partners'
+    | '/_app/loyalty/programs'
+    | '/_app/loyalty/qr'
+    | '/_app/loyalty/redemptions'
+    | '/_app/loyalty/rewards'
+    | '/_app/loyalty/scratch'
+    | '/_app/loyalty/wheel'
+    | '/_app/loyalty/'
+    | '/_app/coupons/$couponId/codes'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  OrgSlugRoute: typeof OrgSlugRoute
-  AppointmentsRoute: typeof AppointmentsRoute
-  AttendanceRoute: typeof AttendanceRoute
+  OrgSlugRoute: typeof OrgSlugRouteWithChildren
+  AppRoute: typeof AppRouteWithChildren
   BookRoute: typeof BookRoute
-  BrandAppsRoute: typeof BrandAppsRoute
-  CampaignsRoute: typeof CampaignsRoute
-  CommissionsRoute: typeof CommissionsRoute
-  CustomersRoute: typeof CustomersRouteWithChildren
-  DashboardRoute: typeof DashboardRoute
-  ExpensesRoute: typeof ExpensesRoute
-  FeedbackRoute: typeof FeedbackRoute
-  FranchisesRoute: typeof FranchisesRoute
-  InventoryRoute: typeof InventoryRoute
-  LeavesRoute: typeof LeavesRoute
   LoginRoute: typeof LoginRoute
-  LoyaltyRoute: typeof LoyaltyRouteWithChildren
-  MembershipsRoute: typeof MembershipsRoute
-  NearbyRoute: typeof NearbyRoute
-  OffersRoute: typeof OffersRoute
-  PayrollRoute: typeof PayrollRoute
+  NearbyRoute: typeof NearbyRouteWithChildren
   PlatformRoute: typeof PlatformRoute
-  PosRoute: typeof PosRoute
   RegisterRoute: typeof RegisterRoute
-  RolesRoute: typeof RolesRoute
-  ServicesRoute: typeof ServicesRoute
-  SettingsRoute: typeof SettingsRoute
-  ShiftsRoute: typeof ShiftsRoute
-  StaffRoute: typeof StaffRoute
-  SubscriptionRoute: typeof SubscriptionRoute
-  UsersRoute: typeof UsersRoute
+  WalkInRoute: typeof WalkInRoute
   QrLocationIdRoute: typeof QrLocationIdRoute
 }
 
@@ -628,18 +793,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrgSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/appointments': {
-      id: '/appointments'
-      path: '/appointments'
-      fullPath: '/appointments'
-      preLoaderRoute: typeof AppointmentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/attendance': {
-      id: '/attendance'
-      path: '/attendance'
-      fullPath: '/attendance'
-      preLoaderRoute: typeof AttendanceRouteImport
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/book': {
@@ -649,95 +807,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/brand-apps': {
-      id: '/brand-apps'
-      path: '/brand-apps'
-      fullPath: '/brand-apps'
-      preLoaderRoute: typeof BrandAppsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/campaigns': {
-      id: '/campaigns'
-      path: '/campaigns'
-      fullPath: '/campaigns'
-      preLoaderRoute: typeof CampaignsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/commissions': {
-      id: '/commissions'
-      path: '/commissions'
-      fullPath: '/commissions'
-      preLoaderRoute: typeof CommissionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/customers': {
-      id: '/customers'
-      path: '/customers'
-      fullPath: '/customers'
-      preLoaderRoute: typeof CustomersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/expenses': {
-      id: '/expenses'
-      path: '/expenses'
-      fullPath: '/expenses'
-      preLoaderRoute: typeof ExpensesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/feedback': {
-      id: '/feedback'
-      path: '/feedback'
-      fullPath: '/feedback'
-      preLoaderRoute: typeof FeedbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/franchises': {
-      id: '/franchises'
-      path: '/franchises'
-      fullPath: '/franchises'
-      preLoaderRoute: typeof FranchisesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/inventory': {
-      id: '/inventory'
-      path: '/inventory'
-      fullPath: '/inventory'
-      preLoaderRoute: typeof InventoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/leaves': {
-      id: '/leaves'
-      path: '/leaves'
-      fullPath: '/leaves'
-      preLoaderRoute: typeof LeavesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/loyalty': {
-      id: '/loyalty'
-      path: '/loyalty'
-      fullPath: '/loyalty'
-      preLoaderRoute: typeof LoyaltyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/memberships': {
-      id: '/memberships'
-      path: '/memberships'
-      fullPath: '/memberships'
-      preLoaderRoute: typeof MembershipsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nearby': {
@@ -747,32 +821,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NearbyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/offers': {
-      id: '/offers'
-      path: '/offers'
-      fullPath: '/offers'
-      preLoaderRoute: typeof OffersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/payroll': {
-      id: '/payroll'
-      path: '/payroll'
-      fullPath: '/payroll'
-      preLoaderRoute: typeof PayrollRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/platform': {
       id: '/platform'
       path: '/platform'
       fullPath: '/platform'
       preLoaderRoute: typeof PlatformRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pos': {
-      id: '/pos'
-      path: '/pos'
-      fullPath: '/pos'
-      preLoaderRoute: typeof PosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -782,152 +835,250 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/roles': {
-      id: '/roles'
+    '/walk-in': {
+      id: '/walk-in'
+      path: '/walk-in'
+      fullPath: '/walk-in'
+      preLoaderRoute: typeof WalkInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$orgSlug/walk-in': {
+      id: '/$orgSlug/walk-in'
+      path: '/walk-in'
+      fullPath: '/$orgSlug/walk-in'
+      preLoaderRoute: typeof OrgSlugWalkInRouteImport
+      parentRoute: typeof OrgSlugRoute
+    }
+    '/_app/appointments': {
+      id: '/_app/appointments'
+      path: '/appointments'
+      fullPath: '/appointments'
+      preLoaderRoute: typeof AppAppointmentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/attendance': {
+      id: '/_app/attendance'
+      path: '/attendance'
+      fullPath: '/attendance'
+      preLoaderRoute: typeof AppAttendanceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/brand-apps': {
+      id: '/_app/brand-apps'
+      path: '/brand-apps'
+      fullPath: '/brand-apps'
+      preLoaderRoute: typeof AppBrandAppsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/campaigns': {
+      id: '/_app/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof AppCampaignsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/commissions': {
+      id: '/_app/commissions'
+      path: '/commissions'
+      fullPath: '/commissions'
+      preLoaderRoute: typeof AppCommissionsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/coupons': {
+      id: '/_app/coupons'
+      path: '/coupons'
+      fullPath: '/coupons'
+      preLoaderRoute: typeof AppCouponsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/customers': {
+      id: '/_app/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof AppCustomersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/dashboard': {
+      id: '/_app/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/expenses': {
+      id: '/_app/expenses'
+      path: '/expenses'
+      fullPath: '/expenses'
+      preLoaderRoute: typeof AppExpensesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/feedback': {
+      id: '/_app/feedback'
+      path: '/feedback'
+      fullPath: '/feedback'
+      preLoaderRoute: typeof AppFeedbackRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/franchises': {
+      id: '/_app/franchises'
+      path: '/franchises'
+      fullPath: '/franchises'
+      preLoaderRoute: typeof AppFranchisesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/front-desk': {
+      id: '/_app/front-desk'
+      path: '/front-desk'
+      fullPath: '/front-desk'
+      preLoaderRoute: typeof AppFrontDeskRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/growth': {
+      id: '/_app/growth'
+      path: '/growth'
+      fullPath: '/growth'
+      preLoaderRoute: typeof AppGrowthRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/inventory': {
+      id: '/_app/inventory'
+      path: '/inventory'
+      fullPath: '/inventory'
+      preLoaderRoute: typeof AppInventoryRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/leaves': {
+      id: '/_app/leaves'
+      path: '/leaves'
+      fullPath: '/leaves'
+      preLoaderRoute: typeof AppLeavesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/loyalty': {
+      id: '/_app/loyalty'
+      path: '/loyalty'
+      fullPath: '/loyalty'
+      preLoaderRoute: typeof AppLoyaltyRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/memberships': {
+      id: '/_app/memberships'
+      path: '/memberships'
+      fullPath: '/memberships'
+      preLoaderRoute: typeof AppMembershipsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/offers': {
+      id: '/_app/offers'
+      path: '/offers'
+      fullPath: '/offers'
+      preLoaderRoute: typeof AppOffersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/payroll': {
+      id: '/_app/payroll'
+      path: '/payroll'
+      fullPath: '/payroll'
+      preLoaderRoute: typeof AppPayrollRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/pos': {
+      id: '/_app/pos'
+      path: '/pos'
+      fullPath: '/pos'
+      preLoaderRoute: typeof AppPosRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/prize-wheel': {
+      id: '/_app/prize-wheel'
+      path: '/prize-wheel'
+      fullPath: '/prize-wheel'
+      preLoaderRoute: typeof AppPrizeWheelRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports': {
+      id: '/_app/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/roles': {
+      id: '/_app/roles'
       path: '/roles'
       fullPath: '/roles'
-      preLoaderRoute: typeof RolesRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppRolesRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/services': {
-      id: '/services'
+    '/_app/scratch-card': {
+      id: '/_app/scratch-card'
+      path: '/scratch-card'
+      fullPath: '/scratch-card'
+      preLoaderRoute: typeof AppScratchCardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/services': {
+      id: '/_app/services'
       path: '/services'
       fullPath: '/services'
-      preLoaderRoute: typeof ServicesRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppServicesRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/settings': {
-      id: '/settings'
+    '/_app/settings': {
+      id: '/_app/settings'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/shifts': {
-      id: '/shifts'
+    '/_app/setup': {
+      id: '/_app/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof AppSetupRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/shifts': {
+      id: '/_app/shifts'
       path: '/shifts'
       fullPath: '/shifts'
-      preLoaderRoute: typeof ShiftsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppShiftsRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/staff': {
-      id: '/staff'
+    '/_app/staff': {
+      id: '/_app/staff'
       path: '/staff'
       fullPath: '/staff'
-      preLoaderRoute: typeof StaffRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppStaffRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/subscription': {
-      id: '/subscription'
+    '/_app/subscription': {
+      id: '/_app/subscription'
       path: '/subscription'
       fullPath: '/subscription'
-      preLoaderRoute: typeof SubscriptionRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppSubscriptionRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/users': {
-      id: '/users'
+    '/_app/users': {
+      id: '/_app/users'
       path: '/users'
       fullPath: '/users'
-      preLoaderRoute: typeof UsersRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppUsersRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/customers/$customerId': {
-      id: '/customers/$customerId'
-      path: '/$customerId'
-      fullPath: '/customers/$customerId'
-      preLoaderRoute: typeof CustomersCustomerIdRouteImport
-      parentRoute: typeof CustomersRoute
+    '/_app/vendors': {
+      id: '/_app/vendors'
+      path: '/vendors'
+      fullPath: '/vendors'
+      preLoaderRoute: typeof AppVendorsRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/loyalty/': {
-      id: '/loyalty/'
-      path: '/'
-      fullPath: '/loyalty/'
-      preLoaderRoute: typeof LoyaltyIndexRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/catalog': {
-      id: '/loyalty/catalog'
-      path: '/catalog'
-      fullPath: '/loyalty/catalog'
-      preLoaderRoute: typeof LoyaltyCatalogRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/checkins': {
-      id: '/loyalty/checkins'
-      path: '/checkins'
-      fullPath: '/loyalty/checkins'
-      preLoaderRoute: typeof LoyaltyCheckinsRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/history': {
-      id: '/loyalty/history'
-      path: '/history'
-      fullPath: '/loyalty/history'
-      preLoaderRoute: typeof LoyaltyHistoryRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/ledger': {
-      id: '/loyalty/ledger'
-      path: '/ledger'
-      fullPath: '/loyalty/ledger'
-      preLoaderRoute: typeof LoyaltyLedgerRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/offers': {
-      id: '/loyalty/offers'
-      path: '/offers'
-      fullPath: '/loyalty/offers'
-      preLoaderRoute: typeof LoyaltyOffersRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/overview': {
-      id: '/loyalty/overview'
-      path: '/overview'
-      fullPath: '/loyalty/overview'
-      preLoaderRoute: typeof LoyaltyOverviewRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/partners': {
-      id: '/loyalty/partners'
-      path: '/partners'
-      fullPath: '/loyalty/partners'
-      preLoaderRoute: typeof LoyaltyPartnersRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/programs': {
-      id: '/loyalty/programs'
-      path: '/programs'
-      fullPath: '/loyalty/programs'
-      preLoaderRoute: typeof LoyaltyProgramsRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/qr': {
-      id: '/loyalty/qr'
-      path: '/qr'
-      fullPath: '/loyalty/qr'
-      preLoaderRoute: typeof LoyaltyQrRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/redemptions': {
-      id: '/loyalty/redemptions'
-      path: '/redemptions'
-      fullPath: '/loyalty/redemptions'
-      preLoaderRoute: typeof LoyaltyRedemptionsRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/rewards': {
-      id: '/loyalty/rewards'
-      path: '/rewards'
-      fullPath: '/loyalty/rewards'
-      preLoaderRoute: typeof LoyaltyRewardsRouteImport
-      parentRoute: typeof LoyaltyRoute
-    }
-    '/loyalty/wheel': {
-      id: '/loyalty/wheel'
-      path: '/wheel'
-      fullPath: '/loyalty/wheel'
-      preLoaderRoute: typeof LoyaltyWheelRouteImport
-      parentRoute: typeof LoyaltyRoute
+    '/nearby/my-shops': {
+      id: '/nearby/my-shops'
+      path: '/my-shops'
+      fullPath: '/nearby/my-shops'
+      preLoaderRoute: typeof NearbyMyShopsRouteImport
+      parentRoute: typeof NearbyRoute
     }
     '/qr/$locationId': {
       id: '/qr/$locationId'
@@ -936,100 +1087,316 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QrLocationIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/coupons/$couponId': {
+      id: '/_app/coupons/$couponId'
+      path: '/$couponId'
+      fullPath: '/coupons/$couponId'
+      preLoaderRoute: typeof AppCouponsCouponIdRouteImport
+      parentRoute: typeof AppCouponsRoute
+    }
+    '/_app/customers/$customerId': {
+      id: '/_app/customers/$customerId'
+      path: '/$customerId'
+      fullPath: '/customers/$customerId'
+      preLoaderRoute: typeof AppCustomersCustomerIdRouteImport
+      parentRoute: typeof AppCustomersRoute
+    }
+    '/_app/loyalty/': {
+      id: '/_app/loyalty/'
+      path: '/'
+      fullPath: '/loyalty/'
+      preLoaderRoute: typeof AppLoyaltyIndexRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/catalog': {
+      id: '/_app/loyalty/catalog'
+      path: '/catalog'
+      fullPath: '/loyalty/catalog'
+      preLoaderRoute: typeof AppLoyaltyCatalogRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/checkins': {
+      id: '/_app/loyalty/checkins'
+      path: '/checkins'
+      fullPath: '/loyalty/checkins'
+      preLoaderRoute: typeof AppLoyaltyCheckinsRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/coupons': {
+      id: '/_app/loyalty/coupons'
+      path: '/coupons'
+      fullPath: '/loyalty/coupons'
+      preLoaderRoute: typeof AppLoyaltyCouponsRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/history': {
+      id: '/_app/loyalty/history'
+      path: '/history'
+      fullPath: '/loyalty/history'
+      preLoaderRoute: typeof AppLoyaltyHistoryRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/ledger': {
+      id: '/_app/loyalty/ledger'
+      path: '/ledger'
+      fullPath: '/loyalty/ledger'
+      preLoaderRoute: typeof AppLoyaltyLedgerRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/offers': {
+      id: '/_app/loyalty/offers'
+      path: '/offers'
+      fullPath: '/loyalty/offers'
+      preLoaderRoute: typeof AppLoyaltyOffersRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/overview': {
+      id: '/_app/loyalty/overview'
+      path: '/overview'
+      fullPath: '/loyalty/overview'
+      preLoaderRoute: typeof AppLoyaltyOverviewRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/partners': {
+      id: '/_app/loyalty/partners'
+      path: '/partners'
+      fullPath: '/loyalty/partners'
+      preLoaderRoute: typeof AppLoyaltyPartnersRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/programs': {
+      id: '/_app/loyalty/programs'
+      path: '/programs'
+      fullPath: '/loyalty/programs'
+      preLoaderRoute: typeof AppLoyaltyProgramsRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/qr': {
+      id: '/_app/loyalty/qr'
+      path: '/qr'
+      fullPath: '/loyalty/qr'
+      preLoaderRoute: typeof AppLoyaltyQrRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/redemptions': {
+      id: '/_app/loyalty/redemptions'
+      path: '/redemptions'
+      fullPath: '/loyalty/redemptions'
+      preLoaderRoute: typeof AppLoyaltyRedemptionsRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/rewards': {
+      id: '/_app/loyalty/rewards'
+      path: '/rewards'
+      fullPath: '/loyalty/rewards'
+      preLoaderRoute: typeof AppLoyaltyRewardsRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/scratch': {
+      id: '/_app/loyalty/scratch'
+      path: '/scratch'
+      fullPath: '/loyalty/scratch'
+      preLoaderRoute: typeof AppLoyaltyScratchRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/loyalty/wheel': {
+      id: '/_app/loyalty/wheel'
+      path: '/wheel'
+      fullPath: '/loyalty/wheel'
+      preLoaderRoute: typeof AppLoyaltyWheelRouteImport
+      parentRoute: typeof AppLoyaltyRoute
+    }
+    '/_app/coupons/$couponId/codes': {
+      id: '/_app/coupons/$couponId/codes'
+      path: '/codes'
+      fullPath: '/coupons/$couponId/codes'
+      preLoaderRoute: typeof AppCouponsCouponIdCodesRouteImport
+      parentRoute: typeof AppCouponsCouponIdRoute
+    }
   }
 }
 
-interface CustomersRouteChildren {
-  CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
+interface OrgSlugRouteChildren {
+  OrgSlugWalkInRoute: typeof OrgSlugWalkInRoute
 }
 
-const CustomersRouteChildren: CustomersRouteChildren = {
-  CustomersCustomerIdRoute: CustomersCustomerIdRoute,
+const OrgSlugRouteChildren: OrgSlugRouteChildren = {
+  OrgSlugWalkInRoute: OrgSlugWalkInRoute,
 }
 
-const CustomersRouteWithChildren = CustomersRoute._addFileChildren(
-  CustomersRouteChildren,
+const OrgSlugRouteWithChildren =
+  OrgSlugRoute._addFileChildren(OrgSlugRouteChildren)
+
+interface AppCouponsCouponIdRouteChildren {
+  AppCouponsCouponIdCodesRoute: typeof AppCouponsCouponIdCodesRoute
+}
+
+const AppCouponsCouponIdRouteChildren: AppCouponsCouponIdRouteChildren = {
+  AppCouponsCouponIdCodesRoute: AppCouponsCouponIdCodesRoute,
+}
+
+const AppCouponsCouponIdRouteWithChildren =
+  AppCouponsCouponIdRoute._addFileChildren(AppCouponsCouponIdRouteChildren)
+
+interface AppCouponsRouteChildren {
+  AppCouponsCouponIdRoute: typeof AppCouponsCouponIdRouteWithChildren
+}
+
+const AppCouponsRouteChildren: AppCouponsRouteChildren = {
+  AppCouponsCouponIdRoute: AppCouponsCouponIdRouteWithChildren,
+}
+
+const AppCouponsRouteWithChildren = AppCouponsRoute._addFileChildren(
+  AppCouponsRouteChildren,
 )
 
-interface LoyaltyRouteChildren {
-  LoyaltyCatalogRoute: typeof LoyaltyCatalogRoute
-  LoyaltyCheckinsRoute: typeof LoyaltyCheckinsRoute
-  LoyaltyHistoryRoute: typeof LoyaltyHistoryRoute
-  LoyaltyLedgerRoute: typeof LoyaltyLedgerRoute
-  LoyaltyOffersRoute: typeof LoyaltyOffersRoute
-  LoyaltyOverviewRoute: typeof LoyaltyOverviewRoute
-  LoyaltyPartnersRoute: typeof LoyaltyPartnersRoute
-  LoyaltyProgramsRoute: typeof LoyaltyProgramsRoute
-  LoyaltyQrRoute: typeof LoyaltyQrRoute
-  LoyaltyRedemptionsRoute: typeof LoyaltyRedemptionsRoute
-  LoyaltyRewardsRoute: typeof LoyaltyRewardsRoute
-  LoyaltyWheelRoute: typeof LoyaltyWheelRoute
-  LoyaltyIndexRoute: typeof LoyaltyIndexRoute
+interface AppCustomersRouteChildren {
+  AppCustomersCustomerIdRoute: typeof AppCustomersCustomerIdRoute
 }
 
-const LoyaltyRouteChildren: LoyaltyRouteChildren = {
-  LoyaltyCatalogRoute: LoyaltyCatalogRoute,
-  LoyaltyCheckinsRoute: LoyaltyCheckinsRoute,
-  LoyaltyHistoryRoute: LoyaltyHistoryRoute,
-  LoyaltyLedgerRoute: LoyaltyLedgerRoute,
-  LoyaltyOffersRoute: LoyaltyOffersRoute,
-  LoyaltyOverviewRoute: LoyaltyOverviewRoute,
-  LoyaltyPartnersRoute: LoyaltyPartnersRoute,
-  LoyaltyProgramsRoute: LoyaltyProgramsRoute,
-  LoyaltyQrRoute: LoyaltyQrRoute,
-  LoyaltyRedemptionsRoute: LoyaltyRedemptionsRoute,
-  LoyaltyRewardsRoute: LoyaltyRewardsRoute,
-  LoyaltyWheelRoute: LoyaltyWheelRoute,
-  LoyaltyIndexRoute: LoyaltyIndexRoute,
+const AppCustomersRouteChildren: AppCustomersRouteChildren = {
+  AppCustomersCustomerIdRoute: AppCustomersCustomerIdRoute,
 }
 
-const LoyaltyRouteWithChildren =
-  LoyaltyRoute._addFileChildren(LoyaltyRouteChildren)
+const AppCustomersRouteWithChildren = AppCustomersRoute._addFileChildren(
+  AppCustomersRouteChildren,
+)
+
+interface AppLoyaltyRouteChildren {
+  AppLoyaltyCatalogRoute: typeof AppLoyaltyCatalogRoute
+  AppLoyaltyCheckinsRoute: typeof AppLoyaltyCheckinsRoute
+  AppLoyaltyCouponsRoute: typeof AppLoyaltyCouponsRoute
+  AppLoyaltyHistoryRoute: typeof AppLoyaltyHistoryRoute
+  AppLoyaltyLedgerRoute: typeof AppLoyaltyLedgerRoute
+  AppLoyaltyOffersRoute: typeof AppLoyaltyOffersRoute
+  AppLoyaltyOverviewRoute: typeof AppLoyaltyOverviewRoute
+  AppLoyaltyPartnersRoute: typeof AppLoyaltyPartnersRoute
+  AppLoyaltyProgramsRoute: typeof AppLoyaltyProgramsRoute
+  AppLoyaltyQrRoute: typeof AppLoyaltyQrRoute
+  AppLoyaltyRedemptionsRoute: typeof AppLoyaltyRedemptionsRoute
+  AppLoyaltyRewardsRoute: typeof AppLoyaltyRewardsRoute
+  AppLoyaltyScratchRoute: typeof AppLoyaltyScratchRoute
+  AppLoyaltyWheelRoute: typeof AppLoyaltyWheelRoute
+  AppLoyaltyIndexRoute: typeof AppLoyaltyIndexRoute
+}
+
+const AppLoyaltyRouteChildren: AppLoyaltyRouteChildren = {
+  AppLoyaltyCatalogRoute: AppLoyaltyCatalogRoute,
+  AppLoyaltyCheckinsRoute: AppLoyaltyCheckinsRoute,
+  AppLoyaltyCouponsRoute: AppLoyaltyCouponsRoute,
+  AppLoyaltyHistoryRoute: AppLoyaltyHistoryRoute,
+  AppLoyaltyLedgerRoute: AppLoyaltyLedgerRoute,
+  AppLoyaltyOffersRoute: AppLoyaltyOffersRoute,
+  AppLoyaltyOverviewRoute: AppLoyaltyOverviewRoute,
+  AppLoyaltyPartnersRoute: AppLoyaltyPartnersRoute,
+  AppLoyaltyProgramsRoute: AppLoyaltyProgramsRoute,
+  AppLoyaltyQrRoute: AppLoyaltyQrRoute,
+  AppLoyaltyRedemptionsRoute: AppLoyaltyRedemptionsRoute,
+  AppLoyaltyRewardsRoute: AppLoyaltyRewardsRoute,
+  AppLoyaltyScratchRoute: AppLoyaltyScratchRoute,
+  AppLoyaltyWheelRoute: AppLoyaltyWheelRoute,
+  AppLoyaltyIndexRoute: AppLoyaltyIndexRoute,
+}
+
+const AppLoyaltyRouteWithChildren = AppLoyaltyRoute._addFileChildren(
+  AppLoyaltyRouteChildren,
+)
+
+interface AppRouteChildren {
+  AppAppointmentsRoute: typeof AppAppointmentsRoute
+  AppAttendanceRoute: typeof AppAttendanceRoute
+  AppBrandAppsRoute: typeof AppBrandAppsRoute
+  AppCampaignsRoute: typeof AppCampaignsRoute
+  AppCommissionsRoute: typeof AppCommissionsRoute
+  AppCouponsRoute: typeof AppCouponsRouteWithChildren
+  AppCustomersRoute: typeof AppCustomersRouteWithChildren
+  AppDashboardRoute: typeof AppDashboardRoute
+  AppExpensesRoute: typeof AppExpensesRoute
+  AppFeedbackRoute: typeof AppFeedbackRoute
+  AppFranchisesRoute: typeof AppFranchisesRoute
+  AppFrontDeskRoute: typeof AppFrontDeskRoute
+  AppGrowthRoute: typeof AppGrowthRoute
+  AppInventoryRoute: typeof AppInventoryRoute
+  AppLeavesRoute: typeof AppLeavesRoute
+  AppLoyaltyRoute: typeof AppLoyaltyRouteWithChildren
+  AppMembershipsRoute: typeof AppMembershipsRoute
+  AppOffersRoute: typeof AppOffersRoute
+  AppPayrollRoute: typeof AppPayrollRoute
+  AppPosRoute: typeof AppPosRoute
+  AppPrizeWheelRoute: typeof AppPrizeWheelRoute
+  AppReportsRoute: typeof AppReportsRoute
+  AppRolesRoute: typeof AppRolesRoute
+  AppScratchCardRoute: typeof AppScratchCardRoute
+  AppServicesRoute: typeof AppServicesRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppSetupRoute: typeof AppSetupRoute
+  AppShiftsRoute: typeof AppShiftsRoute
+  AppStaffRoute: typeof AppStaffRoute
+  AppSubscriptionRoute: typeof AppSubscriptionRoute
+  AppUsersRoute: typeof AppUsersRoute
+  AppVendorsRoute: typeof AppVendorsRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppAppointmentsRoute: AppAppointmentsRoute,
+  AppAttendanceRoute: AppAttendanceRoute,
+  AppBrandAppsRoute: AppBrandAppsRoute,
+  AppCampaignsRoute: AppCampaignsRoute,
+  AppCommissionsRoute: AppCommissionsRoute,
+  AppCouponsRoute: AppCouponsRouteWithChildren,
+  AppCustomersRoute: AppCustomersRouteWithChildren,
+  AppDashboardRoute: AppDashboardRoute,
+  AppExpensesRoute: AppExpensesRoute,
+  AppFeedbackRoute: AppFeedbackRoute,
+  AppFranchisesRoute: AppFranchisesRoute,
+  AppFrontDeskRoute: AppFrontDeskRoute,
+  AppGrowthRoute: AppGrowthRoute,
+  AppInventoryRoute: AppInventoryRoute,
+  AppLeavesRoute: AppLeavesRoute,
+  AppLoyaltyRoute: AppLoyaltyRouteWithChildren,
+  AppMembershipsRoute: AppMembershipsRoute,
+  AppOffersRoute: AppOffersRoute,
+  AppPayrollRoute: AppPayrollRoute,
+  AppPosRoute: AppPosRoute,
+  AppPrizeWheelRoute: AppPrizeWheelRoute,
+  AppReportsRoute: AppReportsRoute,
+  AppRolesRoute: AppRolesRoute,
+  AppScratchCardRoute: AppScratchCardRoute,
+  AppServicesRoute: AppServicesRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppSetupRoute: AppSetupRoute,
+  AppShiftsRoute: AppShiftsRoute,
+  AppStaffRoute: AppStaffRoute,
+  AppSubscriptionRoute: AppSubscriptionRoute,
+  AppUsersRoute: AppUsersRoute,
+  AppVendorsRoute: AppVendorsRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
+interface NearbyRouteChildren {
+  NearbyMyShopsRoute: typeof NearbyMyShopsRoute
+}
+
+const NearbyRouteChildren: NearbyRouteChildren = {
+  NearbyMyShopsRoute: NearbyMyShopsRoute,
+}
+
+const NearbyRouteWithChildren =
+  NearbyRoute._addFileChildren(NearbyRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  OrgSlugRoute: OrgSlugRoute,
-  AppointmentsRoute: AppointmentsRoute,
-  AttendanceRoute: AttendanceRoute,
+  OrgSlugRoute: OrgSlugRouteWithChildren,
+  AppRoute: AppRouteWithChildren,
   BookRoute: BookRoute,
-  BrandAppsRoute: BrandAppsRoute,
-  CampaignsRoute: CampaignsRoute,
-  CommissionsRoute: CommissionsRoute,
-  CustomersRoute: CustomersRouteWithChildren,
-  DashboardRoute: DashboardRoute,
-  ExpensesRoute: ExpensesRoute,
-  FeedbackRoute: FeedbackRoute,
-  FranchisesRoute: FranchisesRoute,
-  InventoryRoute: InventoryRoute,
-  LeavesRoute: LeavesRoute,
   LoginRoute: LoginRoute,
-  LoyaltyRoute: LoyaltyRouteWithChildren,
-  MembershipsRoute: MembershipsRoute,
-  NearbyRoute: NearbyRoute,
-  OffersRoute: OffersRoute,
-  PayrollRoute: PayrollRoute,
+  NearbyRoute: NearbyRouteWithChildren,
   PlatformRoute: PlatformRoute,
-  PosRoute: PosRoute,
   RegisterRoute: RegisterRoute,
-  RolesRoute: RolesRoute,
-  ServicesRoute: ServicesRoute,
-  SettingsRoute: SettingsRoute,
-  ShiftsRoute: ShiftsRoute,
-  StaffRoute: StaffRoute,
-  SubscriptionRoute: SubscriptionRoute,
-  UsersRoute: UsersRoute,
+  WalkInRoute: WalkInRoute,
   QrLocationIdRoute: QrLocationIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

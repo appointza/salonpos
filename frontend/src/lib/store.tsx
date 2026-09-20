@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import seed from "@/data/salonData.json";
+import { hydratePublicBookingSettings } from "@/lib/public-booking-settings";
 import { useTenant } from "@/lib/tenant";
 import { useAuth } from "@/lib/auth";
 import {
@@ -44,7 +45,7 @@ const DataContext = createContext<Ctx | null>(null);
 export function DataProvider({ children }: { children: ReactNode }) {
   const { orgId, locationId, org } = useTenant();
   const { user } = useAuth();
-  const [db, setDb] = useState<Db>(() => structuredClone(seed) as Db);
+  const [db, setDb] = useState<Db>(() => hydratePublicBookingSettings(structuredClone(seed) as Db));
 
   const persist = useCallback((updater: (prev: Db) => Db) => {
     setDb(updater);
@@ -166,7 +167,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             ),
           };
         }),
-      reset: () => persist(() => structuredClone(seed) as Db),
+      reset: () => persist(() => hydratePublicBookingSettings(structuredClone(seed) as Db)),
     };
   }, [scoped, persist, orgId, locationId, org, user, db]);
 

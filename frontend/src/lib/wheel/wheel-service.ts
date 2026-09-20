@@ -3,6 +3,7 @@ import { getCustomerById } from "@/lib/customers/customer-lookup";
 import { patchCustomer } from "@/lib/customers/customer-service";
 import { postLoyaltyTransaction, type LoyaltyStore } from "@/lib/loyalty/loyalty-service";
 import { pickWheelSegment } from "@/lib/qr-loyalty";
+import { pickTierWeightedReward, type TierWeights } from "@/lib/reward-distribution";
 
 export const WHEEL_SPINS = "wheelSpins";
 
@@ -47,6 +48,23 @@ export function getTodayWheelSpin(db: Db, customerId: string, onDate?: string) {
       (s) => String(s["customerId"]) === customerId && spinDate(s) === day,
     ) ?? null
   );
+}
+
+export function canCustomerSpin(
+  db: Db,
+  customerId: string,
+  wheelProgram: Row | null,
+  checkinId?: string,
+): { ok: boolean; reason?: string } {
+  if (!wheelProgram) return { ok: false, reason: "Wheel not available at this outlet" };
+  if (customerSpunToday(db, customerId)) return { ok: false, reason: "Already spun today" };
+  if (checkinId) {
+    const checkin = (db["qrCheckins"] ?? []).find((c) => String(c.id) === checkinId);
+    if (checkin && String(checkin["status"]) !== "Approved") {
+      return { ok: false, reason: "Check-in must be approved first" };
+    }
+  }
+  return { ok: true };
 }
 
 export function hasWheelSpinForReference(db: Db, referenceId: string) {
@@ -168,6 +186,7 @@ export function redeemWheelSpinAtPos(
 }
 
 /** Weighted segment selection — shared by both wheel entry points. */
-export function selectWheelSegment(segments: Row[]) {
+export function selectWheelSegment(segments: Row[], tierWeights?: TierWeights) {
+  if (tierWeights) return pickTierWeightedReward(segments, tierWeights);
   return pickWheelSegment(segments);
 }
