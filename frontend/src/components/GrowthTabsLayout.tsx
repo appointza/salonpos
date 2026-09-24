@@ -23,10 +23,10 @@ export function GrowthTabsLayout({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { orgId, locationId } = useTenant();
   const { allRows } = useData();
-  const orgRow = (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === orgId);
-  const programs = (allRows["loyalty"] ?? []).filter((p) => String(p["orgId"]) === orgId);
+  const orgRow = (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === String(orgId));
+  const programs = (allRows["loyalty"] ?? []).filter((p) => String(p["orgId"]) === String(orgId));
   const settings = resolveLoyaltyRule(programs, orgRow, {
-    locationId: locationId === "all" ? "" : locationId,
+    locationId: locationId === "all" ? "" : String(locationId),
   });
 
   return (

@@ -11,7 +11,7 @@ export function ScratchCardPage() {
         key: "scratchPrizes",
         title: "Scratch card",
         subtitle:
-          "Weighted prizes revealed when guests scratch the foil. Tier mix is controlled in Settings → Reward tier distribution.",
+          "Prize label is the name the guest sees (set under reference values). Prize type and value are what POS applies when they claim it on the next bill. Which tiers play this game is set in Settings → Reward tiers.",
         idPrefix: "SP-",
         fields: [
           { name: "label", label: "Prize label", type: "select", table: true },

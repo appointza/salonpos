@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScratchCard } from "@/components/ScratchCard";
 import { SpinWheel } from "@/components/SpinWheel";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
+import { dbWithRow, isBookableStaff, isPublishedService, rowsAtLocation } from "@/lib/booking";
 import { autoApproveCheckin, QR_CHECKINS } from "@/lib/checkins/checkin-service";
-import { findCustomerByPhone } from "@/lib/customers/customer-lookup";
+import { findCustomerByPhoneInOrg, normalizePhone } from "@/lib/customers/customer-lookup";
 import { isValidPhone, upsertCustomerByPhone } from "@/lib/customers/customer-service";
 import {
   activePrograms,
@@ -23,17 +24,18 @@ import {
 } from "@/lib/qr-loyalty";
 import {
   publicBookingSettingsForOrg,
-  resolveWalkInRewardMode,
   usePublicBookingSettings,
 } from "@/lib/public-booking-settings";
-import { readRewardDistribution, useRewardDistribution } from "@/lib/reward-distribution";
+import { gamesForCustomer, readRewardDistribution, useRewardDistribution } from "@/lib/reward-distribution";
 import {
   customerScratchedToday,
   getTodayScratchPlay,
   processScratchResult,
   selectScratchPrize,
 } from "@/lib/scratch/scratch-service";
+import { toRow } from "@/lib/entity-row";
 import { useData, type Row } from "@/lib/store";
+import { customerService } from "@/services/customer.service";
 import { useTenant } from "@/lib/tenant";
 import {
   customerSpunToday,
@@ -56,12 +58,12 @@ export function WalkInTerminal({
 }) {
   const { user } = useAuth();
   const { tenants, org, location, locationId, scopeLabel, setOrgId } = useTenant();
-  const { allRows, create, update } = useData();
+  const { allRows, create, update, applyCache } = useData();
   const staffSettings = usePublicBookingSettings();
   const staffRewardDist = useRewardDistribution();
 
   const activeOrg = useMemo(
-    () => tenants.find((t) => t.orgId === bookingOrgId) ?? org,
+    () => tenants.find((t) => String(t.orgId) === String(bookingOrgId)) ?? org,
     [tenants, bookingOrgId, org],
   );
   const activeOrgId = activeOrg.orgId;
@@ -71,7 +73,7 @@ export function WalkInTerminal({
   }, [bookingOrgId, org.orgId, setOrgId]);
 
   const orgRow = useMemo(
-    () => (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === activeOrgId),
+    () => (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === String(activeOrgId)),
     [allRows, activeOrgId],
   );
 
@@ -85,7 +87,7 @@ export function WalkInTerminal({
   );
 
   const [pickedLocationId, setPickedLocationId] = useState(
-    initialLocationId && activeOrg.locations.some((l) => l.locationId === initialLocationId)
+    initialLocationId && activeOrg.locations.some((l) => String(l.locationId) === String(initialLocationId))
       ? initialLocationId
       : (activeOrg.locations[0]?.locationId ?? ""),
   );
@@ -106,45 +108,83 @@ export function WalkInTerminal({
   const [step, setStep] = useState<Step>("details");
   const [checkinId, setCheckinId] = useState("");
   const [customerId, setCustomerId] = useState("");
+  const [checkedIn, setCheckedIn] = useState<Row | null>(null);
   const [wheelPrize, setWheelPrize] = useState("");
   const [scratchPrize, setScratchPrize] = useState("");
   const [rewardNotes, setRewardNotes] = useState("");
 
-  const rewardMode = resolveWalkInRewardMode(bookingSettings);
+  const outletServices = useMemo(
+    () =>
+      rowsAtLocation(allRows["services"] ?? [], activeOrgId, effLocationId).filter(isPublishedService),
+    [allRows, activeOrgId, effLocationId],
+  );
+  const outletStylists = useMemo(
+    () => rowsAtLocation(allRows["staff"] ?? [], activeOrgId, effLocationId).filter(isBookableStaff),
+    [allRows, activeOrgId, effLocationId],
+  );
   const staffLabel = publicMode ? "Self walk-in" : user?.name ?? "Walk-in desk";
 
-  const customers = useMemo(
-    () => (allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === activeOrgId),
-    [allRows, activeOrgId],
-  );
   const programs = useMemo(
-    () => activePrograms((allRows["loyalty"] ?? []).filter((p) => String(p["orgId"]) === activeOrgId), effLocationId),
+    () => activePrograms((allRows["loyalty"] ?? []).filter((p) => String(p["orgId"]) === String(activeOrgId)), effLocationId),
     [allRows, activeOrgId, effLocationId],
   );
   const wheelSegments = useMemo(
     () =>
       (allRows[WHEEL_SEGMENTS] ?? []).filter(
-        (s) => String(s["orgId"]) === activeOrgId && String(s["programId"] ?? "LY-WHEEL") === "LY-WHEEL",
+        (s) => String(s["orgId"]) === String(activeOrgId) && String(s["programId"] ?? "LY-WHEEL") === "LY-WHEEL",
       ),
     [allRows, activeOrgId],
   );
   const scratchPrizes = useMemo(
     () =>
       (allRows[SCRATCH_PRIZES] ?? []).filter(
-        (p) => String(p["orgId"]) === activeOrgId && String(p["active"] ?? "Yes") !== "No",
+        (p) => String(p["orgId"]) === String(activeOrgId) && String(p["active"] ?? "Yes") !== "No",
       ),
     [allRows, activeOrgId],
   );
 
-  const matchedCustomer = useMemo(() => findCustomerByPhone(customers, phone), [customers, phone]);
+  const matchedCustomer = useMemo(
+    () => findCustomerByPhoneInOrg(allRows["customers"] ?? [], phone, activeOrgId, effLocationId),
+    [allRows, phone, activeOrgId, effLocationId],
+  );
+  const guestTier = String((checkedIn ?? matchedCustomer)?.["tier"] ?? "");
+  const tierGames = gamesForCustomer(rewardDist, guestTier);
+  const showWheelGame = bookingSettings.showPrizeWheel && tierGames.wheel;
+  const showScratchGame = bookingSettings.showScratchCard && tierGames.scratch;
+  const rewardMode = showWheelGame || showScratchGame ? "reward" : null;
   const phoneReady = isValidPhone(phone);
 
   useEffect(() => {
-    if (matchedCustomer) {
-      setName(String(matchedCustomer["name"] ?? ""));
-      setDob(String(matchedCustomer["birthday"] ?? matchedCustomer["dob"] ?? ""));
+    if (!phoneReady || !activeOrgId) return;
+    let cancelled = false;
+    const local = findCustomerByPhoneInOrg(allRows["customers"] ?? [], phone, activeOrgId, effLocationId, outletName);
+    if (local) {
+      setName(String(local["name"] ?? ""));
+      setDob(String(local["birthday"] ?? local["dob"] ?? ""));
+      return;
     }
-  }, [matchedCustomer]);
+    void customerService
+      .select({ orgId: Number(activeOrgId) })
+      .then((items) => {
+        if (cancelled) return;
+        const rows = items.map((item) => toRow(item as unknown as Record<string, unknown>));
+        applyCache((prev) => ({ ...prev, customers: rows }));
+        const found = findCustomerByPhoneInOrg(rows, phone, activeOrgId, effLocationId, outletName);
+        if (!found) {
+          setName("");
+          setDob("");
+          return;
+        }
+        setName(String(found["name"] ?? ""));
+        setDob(String(found["birthday"] ?? found["dob"] ?? ""));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // Look up once per completed number. allRows is read from this render; including it refetches forever.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone, phoneReady, activeOrgId, effLocationId, outletName]);
 
   const alreadySpunToday = customerId
     ? String(getTodayWheelSpin(allRows, customerId)?.["label"] ?? "") ||
@@ -162,12 +202,13 @@ export function WalkInTerminal({
     setStep("details");
     setCheckinId("");
     setCustomerId("");
+    setCheckedIn(null);
     setWheelPrize("");
     setScratchPrize("");
     setRewardNotes("");
   }
 
-  function checkIn() {
+  async function checkIn() {
     if (!phoneReady) return void toast.error("Enter a valid 10-digit mobile number");
     if (!name.trim()) return void toast.error("Enter your name");
     if (!effLocationId) return void toast.error("Select an outlet first");
@@ -182,17 +223,25 @@ export function WalkInTerminal({
         )
       : null;
 
-    let customer = matchedCustomer;
-    customer = upsertCustomerByPhone(store, {
-      orgId: activeOrgId,
-      name: name.trim(),
-      phone,
-      locationId: effLocationId,
-      outlet: outletName,
-      extra: { birthday: dob, dob },
-    });
+    const known = findCustomerByPhoneInOrg(allRows["customers"] ?? [], phone, activeOrgId, effLocationId, outletName);
+    let customer: Row;
+    try {
+      customer = await upsertCustomerByPhone(store, {
+        orgId: activeOrgId,
+        name: name.trim(),
+        phone,
+        locationId: effLocationId,
+        outlet: outletName,
+        ...(dob ? { extra: { birthday: dob, dob } } : {}),
+      });
+    } catch {
+      return;
+    }
+    if (known) toast.success("Customer found", { description: String(customer["name"] ?? name) });
+    else toast.success("Customer created", { description: `${name.trim()} · ${normalizePhone(phone)}` });
 
     setCustomerId(String(customer.id));
+    setCheckedIn(customer);
 
     if (existingToday) {
       setCheckinId(String(existingToday.id));
@@ -202,9 +251,8 @@ export function WalkInTerminal({
       return;
     }
 
-    const id = `CK-${Math.floor(1000 + Math.random() * 9000)}`;
     const checkinRow: Row = {
-      id,
+      id: 0,
       customerId: String(customer.id),
       customer: name.trim(),
       phone,
@@ -218,10 +266,17 @@ export function WalkInTerminal({
       locationId: effLocationId,
       orgId: activeOrgId,
     };
-    create(QR_CHECKINS, checkinRow, activeOrgId);
+    let savedCheckin: Row | void;
+    try {
+      savedCheckin = await create(QR_CHECKINS, checkinRow, activeOrgId);
+    } catch {
+      return;
+    }
+    if (!savedCheckin) return;
 
-    const result = autoApproveCheckin(store, {
-      checkin: checkinRow,
+    const liveStore = { db: dbWithRow(allRows, "customers", customer), create, update };
+    const result = autoApproveCheckin(liveStore, {
+      checkin: savedCheckin,
       customer,
       programs,
       billAmount: 0,
@@ -236,12 +291,12 @@ export function WalkInTerminal({
       return;
     }
 
-    update(QR_CHECKINS, id, {
-      ...checkinRow,
+    update(QR_CHECKINS, savedCheckin.id, {
+      ...savedCheckin,
       status: "Approved",
       rewardEarned: result.notes,
     });
-    setCheckinId(id);
+    setCheckinId(String(savedCheckin.id));
     setRewardNotes(result.notes);
     setStep(rewardMode ? "reward" : "done");
     toast.success(publicMode ? "You are checked in!" : "Walk-in checked in", { description: result.notes });
@@ -281,13 +336,13 @@ export function WalkInTerminal({
             <MapPin className="size-3.5" />
             Outlet
           </Label>
-          <Select value={pickedLocationId} onValueChange={setPickedLocationId}>
+          <Select value={String(pickedLocationId)} onValueChange={setPickedLocationId}>
             <SelectTrigger>
               <SelectValue placeholder="Select outlet" />
             </SelectTrigger>
             <SelectContent>
               {activeOrg.locations.map((loc) => (
-                <SelectItem key={loc.locationId} value={loc.locationId}>
+                <SelectItem key={String(loc.locationId)} value={String(loc.locationId)}>
                   {loc.name} · {loc.city}
                 </SelectItem>
               ))}
@@ -327,7 +382,12 @@ export function WalkInTerminal({
           {rewardMode ? (
             <p className="text-xs text-muted-foreground">
               After check-in you can{" "}
-              {rewardMode === "wheel" ? "spin the prize wheel" : "scratch the daily reward card"} once today.
+              {showWheelGame && showScratchGame
+                ? "spin the prize wheel and scratch a card"
+                : showWheelGame
+                  ? "spin the prize wheel"
+                  : "scratch the daily reward card"}{" "}
+              once today. Your tier is {guestTier || "assigned at check-in"}.
             </p>
           ) : publicMode ? (
             <p className="text-xs text-muted-foreground">Check-in only — no reward game is enabled for this salon.</p>
@@ -347,6 +407,45 @@ export function WalkInTerminal({
               </Link>
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {publicMode ? (
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
+          <div>
+            <h2 className="font-display text-lg">Services at {outletName || activeOrg.name}</h2>
+            {outletServices.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">No services published for this outlet yet.</p>
+            ) : (
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {outletServices.map((s) => (
+                  <li key={String(s.id)} className="rounded-lg border border-border px-3 py-2">
+                    <p className="text-sm font-medium">{String(s["name"])}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {String(s["category"] ?? "")}
+                      {s["duration"] ? ` · ${Number(s["duration"])} min` : ""}
+                      {s["price"] !== undefined && s["price"] !== "" ? ` · ₹${Number(s["price"])}` : ""}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <h2 className="font-display text-lg">Stylists</h2>
+            {outletStylists.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">No stylists published for this outlet yet.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {outletStylists.map((s) => (
+                  <li key={String(s.id)} className="text-sm">
+                    <span className="font-medium">{String(s["name"])}</span>
+                    {s["role"] ? <span className="text-muted-foreground"> · {String(s["role"])}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       ) : null}
 
@@ -370,7 +469,7 @@ export function WalkInTerminal({
         </div>
       ) : null}
 
-      {step === "reward" && rewardMode === "wheel" && wheelProgram && wheelSegments.length > 0 ? (
+      {step === "reward" && showWheelGame && wheelProgram && wheelSegments.length > 0 ? (
         <div className="rounded-xl border border-violet-500/20 bg-gradient-to-b from-card to-violet-500/5 p-5 shadow-sm">
           <h2 className="font-display text-lg flex items-center gap-2">
             <Sparkles className="size-5 text-violet-500" />
@@ -391,7 +490,15 @@ export function WalkInTerminal({
                 segments={wheelSegments}
                 tierWeights={rewardDist.wheel}
                 onResult={(seg) => {
-                  const store = { db: allRows, create, update };
+                  const guest =
+                    checkedIn && String(checkedIn.id) === String(customerId)
+                      ? checkedIn
+                      : (allRows["customers"] ?? []).find((c) => String(c.id) === String(customerId));
+                  const store = {
+                    db: guest ? dbWithRow(allRows, "customers", guest) : allRows,
+                    create,
+                    update,
+                  };
                   const result = processWheelSpinResult(store, {
                     customerId,
                     segment: seg,
@@ -429,7 +536,7 @@ export function WalkInTerminal({
         </div>
       ) : null}
 
-      {step === "reward" && rewardMode === "scratch" && scratchPrizes.length > 0 ? (
+      {step === "reward" && showScratchGame && scratchPrizes.length > 0 ? (
         <div className="rounded-xl border border-amber-500/20 bg-gradient-to-b from-card to-amber-500/5 p-5 shadow-sm">
           <h2 className="font-display text-lg flex items-center gap-2">
             <Layers className="size-5 text-amber-500" />
@@ -454,7 +561,15 @@ export function WalkInTerminal({
                     toast.error("No scratch prizes configured");
                     return null;
                   }
-                  const store = { db: allRows, create, update };
+                  const guest =
+                    checkedIn && String(checkedIn.id) === String(customerId)
+                      ? checkedIn
+                      : (allRows["customers"] ?? []).find((c) => String(c.id) === String(customerId));
+                  const store = {
+                    db: guest ? dbWithRow(allRows, "customers", guest) : allRows,
+                    create,
+                    update,
+                  };
                   const result = processScratchResult(store, {
                     customerId,
                     prize,

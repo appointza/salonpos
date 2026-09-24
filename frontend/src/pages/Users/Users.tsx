@@ -1,6 +1,7 @@
 import { CrudPage } from "@/components/CrudPage";
 import { UsersRolesSubnav } from "@/components/UsersRolesSubnav";
 import { modules } from "@/lib/modules";
+import { roleByStoredValue, roleLabel } from "@/lib/default-roles";
 import { permissionSummary } from "@/lib/permissions";
 import { useCollection } from "@/lib/store";
 
@@ -9,7 +10,15 @@ const description = "Assign workspace users to roles defined under Roles & permi
 
 export function Page() {
   const { rows: roles } = useCollection("roles");
-  const options = roles.map((r) => ({ value: String(r["name"]), label: `${String(r["name"])} · ${String(r["code"])}` }));
+  const { rows: outlets } = useCollection("franchises");
+  const roleOptions = roles.map((r) => ({
+    value: String(r["code"]),
+    label: `${String(r["name"])} · ${String(r["code"])}`,
+  }));
+  const outletOptions = outlets.map((o) => ({
+    value: String(o["name"]),
+    label: String(o["name"]),
+  }));
 
   return (
     <div className="space-y-6">
@@ -17,17 +26,26 @@ export function Page() {
       <CrudPage
         module={{
           ...modules.users,
-          subtitle: "People who can sign in. Permissions come from the role, not a free-text field.",
+          subtitle: "People who can sign in. Assign each user to an outlet and role.",
         }}
-        selectOptions={(field) => (field.name === "role" ? options : undefined)}
+        selectOptions={(field) => {
+          if (field.name === "role") return roleOptions;
+          if (field.name === "outlet") return outletOptions.length ? outletOptions : undefined;
+          return undefined;
+        }}
         displayValue={(field, row) => {
+          if (field.name === "role") return roleLabel(roles, row["role"]);
           if (field.name !== "permissions") return undefined;
-          const role = roles.find((r) => String(r["name"]) === String(row["role"] ?? ""));
+          const role = roleByStoredValue(roles, row["role"]);
           return role ? permissionSummary(role) : String(row["permissions"] ?? "—");
         }}
         prepareSave={(row) => {
-          const role = roles.find((r) => String(r["name"]) === String(row["role"] ?? ""));
-          return { ...row, permissions: role ? permissionSummary(role) : String(row["permissions"] ?? "") };
+          const role = roleByStoredValue(roles, row["role"]);
+          return {
+            ...row,
+            role: role ? String(role["code"]) : String(row["role"] ?? ""),
+            permissions: role ? permissionSummary(role) : String(row["permissions"] ?? ""),
+          };
         }}
       />
     </div>

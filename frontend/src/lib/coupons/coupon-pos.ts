@@ -1,3 +1,6 @@
+import type { EntityId } from "@/lib/ids";
+import { idNum, idStr } from "@/lib/ids";
+import { couponService } from "@/services/coupon.service";
 import type { Db, Row } from "@/lib/store";
 import type { BillLine } from "@/lib/pos";
 import {
@@ -19,7 +22,7 @@ import {
 
 export type AppliedCouponLine = {
   code: string;
-  couponId: string;
+  couponId: EntityId;
   voucherId?: string;
   title: string;
   amount: number;
@@ -81,6 +84,54 @@ function schemePosStatus(
     eligibleSubtotal,
     splits,
   };
+}
+
+/** Validate via API when backend is available; falls back to local rules. */
+export async function validateCouponCodeAtPosApi(
+  ctx: CouponPosContext & { code: string; alreadyAppliedCodes?: string[] },
+) {
+  if (!ctx.customer) return { ok: false as const, reason: "Select a customer first" };
+  const appliedIds: number[] = [];
+  for (const existing of ctx.alreadyAppliedCodes ?? []) {
+    const existingScheme = findCouponSchemeByCode(ctx.db, existing, ctx.orgId);
+    if (existingScheme) appliedIds.push(idNum(existingScheme.id));
+  }
+  const services = ctx.db["services"] ?? [];
+  const products = ctx.db["inventory"] ?? [];
+  const cart = billLinesToCart(ctx.lines, services, products);
+  try {
+    const res = await couponService.validateAtPos({
+      orgId: idNum(ctx.orgId),
+      locationId: idNum(ctx.locationId),
+      customerId: idNum(ctx.customer.id),
+      code: ctx.code.trim(),
+      paymentMethod: ctx.paymentMethod ?? "",
+      alreadyAppliedCouponIds: appliedIds,
+      lines: cart.map((l) => ({
+        id: idNum(l.id),
+        kind: l.type === "product" ? "product" : "service",
+        category: l.category,
+        name: l.name,
+        price: l.price,
+        qty: l.qty,
+      })),
+    });
+    if (res.ok) {
+      const splits = splitCouponOnLines(res.amount, ctx.lines);
+      return {
+        ok: true as const,
+        code: res.code,
+        couponId: idStr(res.couponId),
+        title: res.title,
+        amount: res.amount,
+        splits,
+      };
+    }
+    if (res.reason) return { ok: false as const, reason: res.reason };
+  } catch {
+    /* local fallback */
+  }
+  return validateCouponCodeAtPos(ctx);
 }
 
 /** Validate a coupon code at POS — issued voucher first, then scheme code. */
@@ -181,10 +232,10 @@ export function claimCouponsAtPos(
   },
   input: {
     lines: AppliedCouponLine[];
-    invoiceId: string;
-    orgId: string;
-    locationId: string;
-    customerId: string;
+    invoiceId: EntityId;
+    orgId: EntityId;
+    locationId: EntityId;
+    customerId: EntityId;
     staffId?: string;
     staff?: string;
   },

@@ -27,8 +27,10 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/lib/permissions";
+import { collapseCustomersByPhone, findCustomerByPhoneInOrg } from "@/lib/customers/customer-lookup";
+import { getCustomerLoyaltyBalance } from "@/lib/loyalty/loyalty-service";
 import { useCollection, useData, type Row } from "@/lib/store";
 import { useTenant } from "@/lib/tenant";
 
@@ -44,7 +46,7 @@ export function CustomersLayout() {
   return <CustomersListPage />;
 }
 
-type ListRow = Row & { membershipLabel: string };
+type ListRow = Row & { membershipLabel: string; displayPoints: number };
 
 const CustomerRow = memo(function CustomerRow({
   row,
@@ -70,7 +72,7 @@ const CustomerRow = memo(function CustomerRow({
       <TableCell>
         <Badge variant="secondary">{String(row["tier"] ?? "—")}</Badge>
       </TableCell>
-      <TableCell>{Number(row["points"] ?? 0).toLocaleString("en-IN")}</TableCell>
+      <TableCell>{Number(row.displayPoints ?? row["points"] ?? 0).toLocaleString("en-IN")}</TableCell>
       <TableCell>₹{Number(row["walletBalance"] ?? 0).toLocaleString("en-IN")}</TableCell>
       <TableCell>{row.membershipLabel}</TableCell>
       <TableCell>{String(row["outlet"] ?? "—")}</TableCell>
@@ -99,12 +101,45 @@ const CustomerRow = memo(function CustomerRow({
 function CustomersListPage() {
   const navigate = useNavigate();
   const { rows, create, update, remove } = useCollection("customers");
+  const { rows: franchiseRows } = useCollection("franchises");
   const { db, allRows, orgId } = useData();
   const { org, location, locationId, scopeLabel } = useTenant();
   const { user } = useAuth();
   const { canEditHere } = usePermissions();
   const allowEdit = user?.role === "SUPER_ADMIN" || canEditHere;
-  const lockLocation = user?.role === "STYLIST" && Boolean(user.locationId || location?.locationId);
+  const lockOutlet = user?.role === "STYLIST" && Boolean(user.locationId || location?.locationId);
+
+  const outlets = useMemo(() => {
+    if (franchiseRows.length > 0) {
+      return franchiseRows.map((o) => ({
+        name: String(o["name"] ?? ""),
+        locationId: String(o["locationId"] ?? ""),
+      }));
+    }
+    return org.locations.map((l) => ({
+      name: l.name,
+      locationId: String(l.locationId),
+    }));
+  }, [franchiseRows, org.locations]);
+
+  const defaultOutlet = useMemo(() => {
+    if (locationId !== "all") {
+      return outlets.find((o) => o.locationId === String(locationId)) ?? outlets[0];
+    }
+    return outlets[0];
+  }, [outlets, locationId]);
+
+  const applyOutlet = useCallback(
+    (row: Row, outletName: string): Row => {
+      const match = outlets.find((o) => o.name === outletName);
+      return {
+        ...row,
+        outlet: outletName,
+        locationId: match?.locationId ?? row["locationId"] ?? defaultOutlet?.locationId ?? "",
+      };
+    },
+    [outlets, defaultOutlet],
+  );
 
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -146,11 +181,13 @@ function CustomersListPage() {
     return map;
   }, [plans]);
 
+  const uniqueRows = useMemo(() => collapseCustomersByPhone(rows), [rows]);
+
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => Object.values(r).some((v) => String(v).toLowerCase().includes(q)));
-  }, [rows, debouncedQuery]);
+    if (!q) return uniqueRows;
+    return uniqueRows.filter((r) => Object.values(r).some((v) => String(v).toLowerCase().includes(q)));
+  }, [uniqueRows, debouncedQuery]);
 
   const enhancedRows = useMemo<ListRow[]>(() => {
     return filtered.map((row) => {
@@ -161,9 +198,10 @@ function CustomersListPage() {
       return {
         ...row,
         membershipLabel: plan ? String(plan["name"]) : mem ? String(mem["plan"] ?? mem.id) : "—",
+        displayPoints: getCustomerLoyaltyBalance(allRows, String(row.id)),
       };
     });
-  }, [filtered, membershipMap, planMap]);
+  }, [filtered, membershipMap, planMap, allRows]);
 
   const totalPages = Math.max(1, Math.ceil(enhancedRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -186,14 +224,14 @@ function CustomersListPage() {
         const owner = String(m["customerId"] ?? "");
         return !owner || owner === cid || String(m.id) === String(editing["membershipId"] ?? "");
       }),
-      invoices: (db["invoices"] ?? []).filter((i) => String(i["customerId"]) === cid).slice(0, 5),
-      txs: (db["loyaltyTransactions"] ?? []).filter((t) => String(t["customerId"]) === cid).slice(0, 6),
-      products: (db["stockMovements"] ?? []).filter((m) => {
+      invoices: (allRows["invoices"] ?? []).filter((i) => String(i["customerId"]) === cid).slice(0, 5),
+      txs: (allRows["loyaltyTransactions"] ?? []).filter((t) => String(t["customerId"]) === cid).slice(0, 6),
+      products: (allRows["stockMovements"] ?? []).filter((m) => {
         const type = String(m["type"]);
         return String(m["customerId"]) === cid && (type === "Sale" || type === "Used");
       }),
     };
-  }, [editing, membershipMap, planMap, memberships, db]);
+  }, [editing, membershipMap, planMap, memberships, allRows]);
 
   const onView = useCallback(
     (id: string) => {
@@ -217,7 +255,8 @@ function CustomersListPage() {
         <div>
           <h1 className="font-display text-3xl tracking-tight">Customers</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Customer master, households, tiers, wallet and loyalty. Buy stock on{" "}
+            One phone number is one customer. A return visit records the service on that profile — it does not create another customer.
+            Loyalty, wallet and visits stay on the same profile. Buy stock on{" "}
             <Link to="/expenses" className="text-primary hover:underline">
               Expenses
             </Link>
@@ -236,7 +275,7 @@ function CustomersListPage() {
               Org · {org.name}
             </Badge>
             <Badge variant="secondary" className="font-normal">
-              Location · {scopeLabel}
+              Outlet · {scopeLabel}
             </Badge>
           </div>
         </div>
@@ -246,7 +285,7 @@ function CustomersListPage() {
             onClick={() => {
               setIsNew(true);
               setEditing({
-                id: `C-${Math.floor(1000 + Math.random() * 9000)}`,
+                id: 0,
                 name: "",
                 phone: "",
                 email: "",
@@ -257,11 +296,11 @@ function CustomersListPage() {
                 tier: "Silver",
                 points: 0,
                 walletBalance: 0,
-                membershipId: "",
-                outlet: location?.name ?? org.locations[0]?.name ?? "",
+                membershipId: 0,
+                outlet: defaultOutlet?.name ?? "",
                 lastVisit: "",
                 notes: "",
-                locationId: locationId === "all" ? (org.locations[0]?.locationId ?? "") : locationId,
+                locationId: defaultOutlet?.locationId ?? (locationId === "all" ? 0 : Number(locationId) || 0),
               });
             }}
           >
@@ -343,29 +382,6 @@ function CustomersListPage() {
                 <Input value={org.name} readOnly className="bg-muted" />
               </div>
               <div>
-                <Label className="mb-1.5">Location</Label>
-                {lockLocation ? (
-                  <Input
-                    readOnly
-                    className="bg-muted"
-                    value={org.locations.find((l) => l.locationId === String(editing["locationId"] ?? ""))?.name ?? location?.name ?? "—"}
-                  />
-                ) : (
-                  <Select value={String(editing["locationId"] ?? "")} onValueChange={(v) => setEditing({ ...editing, locationId: v })}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select location…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {org.locations.map((l) => (
-                        <SelectItem key={l.locationId} value={l.locationId}>
-                          {l.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <div>
                 <Label className="mb-1.5">Full name</Label>
                 <Input value={String(editing["name"] ?? "")} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
               </div>
@@ -424,19 +440,39 @@ function CustomersListPage() {
                 />
               </div>
               <div>
-                <Label className="mb-1.5">Home outlet</Label>
-                <Select value={String(editing["outlet"] ?? "")} onValueChange={(v) => setEditing({ ...editing, outlet: v })}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {org.locations.map((l) => (
-                      <SelectItem key={l.locationId} value={l.name}>
-                        {l.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="mb-1.5">Outlet</Label>
+                {lockOutlet ? (
+                  <Input
+                    readOnly
+                    className="bg-muted"
+                    value={
+                      outlets.find((o) => o.locationId === String(editing["locationId"] ?? ""))?.name ??
+                      String(editing["outlet"] ?? location?.name ?? "—")
+                    }
+                  />
+                ) : outlets.length > 0 ? (
+                  <Select
+                    value={String(editing["outlet"] ?? "")}
+                    onValueChange={(v) => setEditing(applyOutlet(editing, v))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select outlet…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outlets.map((o) => (
+                        <SelectItem key={o.locationId + o.name} value={o.name}>
+                          {o.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    readOnly
+                    className="bg-muted"
+                    value="No outlets — add one under Outlets first"
+                  />
+                )}
               </div>
               <div>
                 <Label className="mb-1.5">Last visit</Label>
@@ -477,7 +513,7 @@ function CustomersListPage() {
               <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm sm:col-span-2">
                 <p className="font-medium">Balances (updated by POS)</p>
                 <p className="mt-1 text-muted-foreground">
-                  Loyalty {Number(editing["points"] ?? 0).toLocaleString("en-IN")} pts · wallet ₹
+                  Loyalty {getCustomerLoyaltyBalance(allRows, String(editing.id)).toLocaleString("en-IN")} pts · wallet ₹
                   {Number(editing["walletBalance"] ?? 0).toLocaleString("en-IN")}
                 </p>
               </div>
@@ -525,16 +561,38 @@ function CustomersListPage() {
             </Button>
             <Button
               onClick={() => {
-                if (!editing) return;
-                if (!String(editing["name"] ?? "").trim()) return void toast.error("Enter a name");
-                if (isNew) {
-                  create(editing);
-                  toast.success("Customer created", { description: String(editing.id) });
-                } else {
-                  update(String(editing.id), editing);
-                  toast.success("Customer updated", { description: String(editing.id) });
-                }
-                setEditing(null);
+                void (async () => {
+                  if (!editing) return;
+                  if (!String(editing["name"] ?? "").trim()) return void toast.error("Enter a name");
+                  const outletName = String(editing["outlet"] ?? defaultOutlet?.name ?? "").trim();
+                  if (!outletName) return void toast.error("Select an outlet first");
+                  const payload = applyOutlet({ ...editing, membershipId: editing["membershipId"] || 0 }, outletName);
+                  if (!Number(payload["locationId"])) {
+                    return void toast.error("Outlet has no location — check Outlets page");
+                  }
+                  if (isNew && String(payload["phone"] ?? "").trim()) {
+                    const existing = findCustomerByPhoneInOrg(
+                      allRows["customers"] ?? [],
+                      String(payload["phone"]),
+                      orgId,
+                    );
+                    if (existing) {
+                      return void toast.error("This phone already has a customer. Bill the service on that profile.");
+                    }
+                  }
+                  try {
+                    if (isNew) {
+                      await create(payload);
+                      toast.success("Customer created");
+                    } else {
+                      await update(String(editing.id), payload);
+                      toast.success("Customer updated", { description: String(editing.id) });
+                    }
+                    setEditing(null);
+                  } catch {
+                    /* store shows error toast */
+                  }
+                })();
               }}
             >
               {isNew ? "Create customer" : "Save changes"}

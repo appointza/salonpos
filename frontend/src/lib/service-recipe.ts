@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 import { remainingFor } from "@/lib/business/inventory-service";
 
@@ -80,14 +81,15 @@ export type MissingProduct = {
 
 export function missingProducts(
   lines: { id: string; kind: string; qty: number; name: string }[],
-  ctx: { services: Row[]; recipes: Row[]; skus: Row[]; movements: Row[]; locationId?: string },
+  ctx: { services: Row[]; recipes: Row[]; skus: Row[]; movements: Row[]; locationId?: EntityId },
 ): MissingProduct[] {
   const reserved: Record<string, number> = {};
   const missing: MissingProduct[] = [];
   const loc = ctx.locationId && ctx.locationId !== "all" ? ctx.locationId : undefined;
 
   const consider = (skuId: string, qty: number) => {
-    const have = remainingFor(skuId, ctx.movements, loc) - (reserved[skuId] ?? 0);
+    const sku = ctx.skus.find((s) => String(s.id) === skuId);
+    const have = remainingFor(skuId, ctx.movements, loc, sku) - (reserved[skuId] ?? 0);
     if (qty > have) {
       missing.push({
         skuId,

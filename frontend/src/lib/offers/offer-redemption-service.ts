@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { getCustomerById } from "@/lib/customers/customer-lookup";
 import { isBirthdayWindow } from "@/lib/qr-loyalty";
@@ -12,7 +13,7 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function isNewCustomer(db: Db, customerId: string) {
+export function isNewCustomer(db: Db, customerId: EntityId) {
   const customer = getCustomerById(db, customerId);
   if (!customer) return false;
   const visits = Number(customer["totalVisits"] ?? customer["visits"] ?? 0);
@@ -46,8 +47,8 @@ export function isOfferEligible(offer: Row, customer: Row, db: Db, onDate = toda
 export function listOffersForPublicGuest(
   db: Db,
   input: {
-    orgId: string;
-    locationId: string;
+    orgId: EntityId;
+    locationId: EntityId;
     customer?: Row | null;
     treatAsNewGuest?: boolean;
     onDate?: string;
@@ -102,11 +103,11 @@ export function hasOfferRedemptionForCheckin(db: Db, checkinId: string, offerId:
 export function issueEligibleOffers(
   store: OfferStore,
   input: {
-    customerId: string;
+    customerId: EntityId;
     customer: Row;
     checkinId: string;
-    locationId: string;
-    orgId: string;
+    locationId: EntityId;
+    orgId: EntityId;
     offers: Row[];
   },
 ): Row[] {
@@ -140,7 +141,7 @@ export function issueEligibleOffers(
   return issued;
 }
 
-export function getPendingOfferRedemptions(db: Db, customerId: string) {
+export function getPendingOfferRedemptions(db: Db, customerId: EntityId) {
   return (db[QR_OFFER_REDEMPTIONS] ?? []).filter(
     (r) => String(r["customerId"]) === customerId && String(r["status"]) === "Issued",
   );
@@ -148,7 +149,7 @@ export function getPendingOfferRedemptions(db: Db, customerId: string) {
 
 export function redeemOfferAtPos(
   store: OfferStore,
-  input: { redemptionId: string; invoiceId: string; discountAmount: number; orgId?: string },
+  input: { redemptionId: string; invoiceId: EntityId; discountAmount: number; orgId?: EntityId },
 ) {
   const row = (store.db[QR_OFFER_REDEMPTIONS] ?? []).find((r) => String(r.id) === input.redemptionId);
   if (!row) return { ok: false, error: "Offer redemption not found" };

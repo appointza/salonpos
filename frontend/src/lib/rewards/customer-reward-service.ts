@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import type { LoyaltyStore } from "@/lib/loyalty/loyalty-service";
 
@@ -25,14 +26,14 @@ export function hasCustomerRewardForSource(db: Db, sourceType: string, sourceId:
 export function issueStampReward(
   store: CustomerRewardStore,
   input: {
-    customerId: string;
+    customerId: EntityId;
     checkinId: string;
     title: string;
     description: string;
     rewardType: string;
     programId: string;
-    orgId: string;
-    locationId: string;
+    orgId: EntityId;
+    locationId: EntityId;
     validityDays?: number;
   },
 ) {
@@ -63,7 +64,7 @@ export function issueStampReward(
   return { ok: true, reward: row };
 }
 
-export function getAvailableCustomerRewards(db: Db, customerId: string) {
+export function getAvailableCustomerRewards(db: Db, customerId: EntityId) {
   const day = today();
   return (db[CUSTOMER_REWARDS] ?? []).filter((r) => {
     if (String(r["customerId"]) !== customerId) return false;
@@ -84,7 +85,7 @@ export function customerRewardDiscountAmount(reward: Row, subtotal: number) {
 
 export function redeemCustomerRewardAtPos(
   store: CustomerRewardStore,
-  input: { rewardId: string; invoiceId: string; discountAmount: number },
+  input: { rewardId: string; invoiceId: EntityId; discountAmount: number },
 ) {
   const row = (store.db[CUSTOMER_REWARDS] ?? []).find((r) => String(r.id) === input.rewardId);
   if (!row) return { ok: false, error: "Reward not found" };

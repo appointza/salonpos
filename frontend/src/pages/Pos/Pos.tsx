@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearch } from "@tanstack/react-router";
 import { Receipt, CalendarCheck } from "lucide-react";
 import { CrudPage } from "@/components/CrudPage";
 import { PosTerminal } from "@/components/PosTerminal";
@@ -18,9 +19,19 @@ const TABS = [
 ] as const;
 
 export function Page() {
+  const { appointment: appointmentId } = useSearch({ from: "/_app/pos" });
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("sale");
   const [prefill, setPrefill] = useState<Row | null>(null);
   const { rows: appointments } = useCollection("appointments");
+
+  useEffect(() => {
+    if (!appointmentId) return;
+    const wanted = String(appointmentId).replace(/^["']+|["']+$/g, "").trim();
+    const match = appointments.find((a) => String(a.id) === wanted);
+    if (!match) return;
+    setPrefill(match);
+    setTab("sale");
+  }, [appointmentId, appointments]);
 
   const pending = appointments.filter((a) => ["Confirmed", "Pending"].includes(String(a["status"])));
 

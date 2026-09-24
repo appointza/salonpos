@@ -1,8 +1,10 @@
+import type { EntityId } from "@/lib/ids";
 import type { BillLine } from "@/lib/pos";
 import { AUDIT, MEMBERSHIP_USAGE } from "@/lib/pos";
 import { addExpiry, postLoyaltyTransaction } from "@/lib/loyalty/loyalty-service";
 import { redeemOfferAtPos } from "@/lib/offers/offer-redemption-service";
 import { redeemPartnerCouponAtPos } from "@/lib/partners/partner-coupon-service";
+import { redeemScratchPlayAtPos } from "@/lib/scratch/scratch-service";
 import { redeemWheelSpinAtPos } from "@/lib/wheel/wheel-service";
 import { claimCouponsAtPos } from "@/lib/coupons/coupon-pos";
 import { quoteUnifiedSale } from "@/lib/business/discount-engine";
@@ -14,7 +16,7 @@ export type StockOps = {
   assertCanIssue: (lines: BillLine[]) => string | null;
   issueForCustomer: (
     lines: BillLine[],
-    ctx: { customerId: string; invoiceId: string; locationId: string; date: string },
+    ctx: { customerId: EntityId; invoiceId: EntityId; locationId: EntityId; date: string },
   ) => unknown;
 };
 
@@ -70,6 +72,7 @@ export function completeSale(
     couponDiscount: Math.round(quote.couponDiscount),
     couponCodes: (couponCodes ?? []).join(", "),
     wheelSpinId: rewards?.wheelSpinId ?? "",
+    scratchPlayId: rewards?.scratchPlayId ?? "",
     offerRedemptionId: rewards?.offerRedemptionId ?? "",
     partnerCouponId: rewards?.partnerCouponId ?? "",
     pointsRedeemed: redeem,
@@ -91,6 +94,13 @@ export function completeSale(
     if (line.label.startsWith("Wheel") && rewards?.wheelSpinId) {
       redeemWheelSpinAtPos(store, {
         spinId: rewards.wheelSpinId,
+        invoiceId,
+        discountAmount: line.amount,
+      });
+    }
+    if (line.label.startsWith("Scratch") && rewards?.scratchPlayId) {
+      redeemScratchPlayAtPos(store, {
+        playId: rewards.scratchPlayId,
         invoiceId,
         discountAmount: line.amount,
       });

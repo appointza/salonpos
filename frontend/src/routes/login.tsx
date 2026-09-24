@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LoginPage } from "@/pages/Login/Login";
 
 const title = "Sign in — Krios";
-const description = "Choose a demo user to fill the form, then sign in.";
+const description = "Sign in to your salon workspace or book as a customer.";
 
 export const Route = createFileRoute("/login")({
   head: () => ({

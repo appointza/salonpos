@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { getCustomerById } from "@/lib/customers/customer-lookup";
 import { getCustomerLoyaltyBalance } from "@/lib/loyalty/loyalty-service";
@@ -29,6 +30,7 @@ export type CustomerDetail = {
   appointments: Row[];
   checkins: Row[];
   wheelSpins: Row[];
+  scratchPlays: Row[];
   offerRedemptions: Row[];
   partnerCoupons: Row[];
   products: Row[];
@@ -47,7 +49,7 @@ function sortDesc(rows: Row[], key: string) {
   return [...rows].sort((a, b) => String(b[key] ?? "").localeCompare(String(a[key] ?? "")));
 }
 
-export function buildCustomerDetail(db: Db, customerId: string): CustomerDetail | null {
+export function buildCustomerDetail(db: Db, customerId: EntityId): CustomerDetail | null {
   const customer = getCustomerById(db, customerId);
   if (!customer) return null;
 
@@ -76,7 +78,7 @@ export function buildCustomerDetail(db: Db, customerId: string): CustomerDetail 
   });
 
   const loyaltyTransactions = sortDesc(
-    (db["loyaltyTransactions"] ?? []).filter((t) => String(t["customerId"]) === customerId),
+    (db["loyaltyTransactions"] ?? []).filter((t) => String(t["customerId"]) === String(customerId)),
     "createdon",
   );
 
@@ -84,8 +86,9 @@ export function buildCustomerDetail(db: Db, customerId: string): CustomerDetail 
   let redeemed = 0;
   for (const t of loyaltyTransactions) {
     const pts = Number(t["points"] ?? 0);
-    if (String(t["type"]) === "Redeem") redeemed += pts;
-    else earned += pts;
+    const type = String(t["type"]);
+    if (type === "Redeem" || type === "Expire") redeemed += pts;
+    else if (type === "Earn" || type === "Reverse" || type === "Adjust") earned += pts;
   }
 
   const appointments = sortDesc(
@@ -110,6 +113,7 @@ export function buildCustomerDetail(db: Db, customerId: string): CustomerDetail 
     appointments,
     checkins: sortDesc((db["qrCheckins"] ?? []).filter((c) => matchesCustomer(c, customer)), "visitAt"),
     wheelSpins: sortDesc((db["wheelSpins"] ?? []).filter((w) => String(w["customerId"]) === customerId), "createdAt"),
+    scratchPlays: sortDesc((db["scratchPlays"] ?? []).filter((w) => String(w["customerId"]) === customerId), "createdAt"),
     offerRedemptions: sortDesc(
       (db["qrOfferRedemptions"] ?? []).filter((r) => String(r["customerId"]) === customerId),
       "issuedAt",

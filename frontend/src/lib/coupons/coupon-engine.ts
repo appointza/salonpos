@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { getCustomerById } from "@/lib/customers/customer-lookup";
 import { isBirthdayWindow } from "@/lib/qr-loyalty";
@@ -27,8 +28,8 @@ export type CartLine = {
 export type CouponContext = {
   db: Db;
   customer: Row;
-  orgId: string;
-  locationId: string;
+  orgId: EntityId;
+  locationId: EntityId;
   at?: Date;
   paymentMethod?: string;
   staffId?: string;
@@ -202,7 +203,7 @@ export function normalizeCoupon(row: Row, source: "coupons" | "qrOffers" = "coup
   };
 }
 
-export function listCouponDefinitions(db: Db, scope?: { orgId?: string; locationId?: string }) {
+export function listCouponDefinitions(db: Db, scope?: { orgId?: EntityId; locationId?: EntityId }) {
   const rows: CouponRule[] = [];
   for (const r of db[COUPONS_COLLECTION] ?? []) {
     if (scope?.orgId && str(r, "orgId") !== scope.orgId) continue;
@@ -221,7 +222,7 @@ export function listCouponDefinitions(db: Db, scope?: { orgId?: string; location
   return rows.sort((a, b) => a.code.localeCompare(b.code));
 }
 
-function isNewCustomer(db: Db, customerId: string) {
+function isNewCustomer(db: Db, customerId: EntityId) {
   const customer = getCustomerById(db, customerId);
   if (!customer) return false;
   const visits = Number(customer["totalVisits"] ?? customer["visits"] ?? 0);
@@ -238,7 +239,7 @@ function isInactiveCustomer(customer: Row, inactiveDays: number, onDate: string)
   return diff >= inactiveDays;
 }
 
-function redemptionRows(db: Db, couponId: string) {
+function redemptionRows(db: Db, couponId: EntityId) {
   const legacy = (db[QR_OFFER_REDEMPTIONS] ?? []).filter(
     (r) => String(r["couponId"] ?? r["offerId"]) === couponId,
   );
@@ -277,7 +278,7 @@ export function slabDiscountForBill(slabs: DiscountSlab[], billAmount: number) {
   return best;
 }
 
-export function findCouponSchemeByCode(db: Db, code: string, orgId?: string) {
+export function findCouponSchemeByCode(db: Db, code: string, orgId?: EntityId) {
   const q = code.trim().replace(/^#/, "").toLowerCase();
   if (!q) return null;
   const row = (db[COUPONS_COLLECTION] ?? []).find((c) => {
@@ -287,7 +288,7 @@ export function findCouponSchemeByCode(db: Db, code: string, orgId?: string) {
   return row ? normalizeCoupon(row, "coupons") : null;
 }
 
-function customerRedemptions(db: Db, couponId: string, customerId: string, since?: string) {
+function customerRedemptions(db: Db, couponId: EntityId, customerId: EntityId, since?: string) {
   return redemptionRows(db, couponId).filter((r) => {
     if (String(r["customerId"]) !== customerId) return false;
     if (!since) return true;
@@ -296,7 +297,7 @@ function customerRedemptions(db: Db, couponId: string, customerId: string, since
   });
 }
 
-function usageBlocked(db: Db, coupon: CouponRule, customerId: string, at: Date): string | null {
+function usageBlocked(db: Db, coupon: CouponRule, customerId: EntityId, at: Date): string | null {
   const redeemed = redemptionRows(db, coupon.id);
   const totalUsed = Math.max(coupon.usageCount, redeemed.length);
 
@@ -548,12 +549,12 @@ export type CouponUsageStore = {
 export function recordCouponUsage(
   store: CouponUsageStore,
   input: {
-    orgId: string;
-    locationId: string;
-    couponId: string;
+    orgId: EntityId;
+    locationId: EntityId;
+    couponId: EntityId;
     code: string;
-    customerId: string;
-    invoiceId: string;
+    customerId: EntityId;
+    invoiceId: EntityId;
     discountAmount: number;
     voucherId?: string;
     staffId?: string;

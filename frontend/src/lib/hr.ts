@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 import { toMinutes } from "@/lib/booking";
 
@@ -48,7 +49,7 @@ export function hoursBetween(start: string, end: string) {
   return Math.max(0, Math.round(((toMinutes(end) - toMinutes(start)) / 60) * 10) / 10);
 }
 
-export function approvedLeaveOn(leaves: Row[], staffId: string, date: string) {
+export function approvedLeaveOn(leaves: Row[], staffId: EntityId, date: string) {
   return (
     leaves.find(
       (l) =>
@@ -60,19 +61,19 @@ export function approvedLeaveOn(leaves: Row[], staffId: string, date: string) {
   );
 }
 
-export function shiftOn(shifts: Row[], staffId: string, date: string) {
+export function shiftOn(shifts: Row[], staffId: EntityId, date: string) {
   return shifts.find((s) => String(s["staffId"]) === staffId && String(s["date"]) === date) ?? null;
 }
 
-export function punchOn(punches: Row[], staffId: string, date: string) {
+export function punchOn(punches: Row[], staffId: EntityId, date: string) {
   return punches.find((p) => String(p["staffId"]) === staffId && String(p["date"]) === date) ?? null;
 }
 
 export type DerivedAttendance = {
   date: string;
-  staffId: string;
+  staffId: EntityId;
   staffName: string;
-  locationId: string;
+  locationId: EntityId;
   shiftId: string;
   shiftStart: string;
   shiftEnd: string;
@@ -164,9 +165,9 @@ export function deriveAttendanceRows(opts: {
 }
 
 export type PayrollCalc = {
-  staffId: string;
+  staffId: EntityId;
   staffName: string;
-  locationId: string;
+  locationId: EntityId;
   period: string;
   workingDays: number;
   presentDays: number;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, Gift, MapPin, PlugZap } from "lucide-react";
+import { CalendarClock, CheckCircle2, Gift, MapPin, PlugZap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useWhatsAppSettings, type WhatsAppSettings } from "@/lib/whatsapp";
 import { earnPoints, pointsToRupees, useLoyaltySettings } from "@/lib/loyalty-settings";
+import { applyTierGames, useRewardDistribution } from "@/lib/reward-distribution";
+import { RewardDistributionPanel } from "@/components/RewardDistributionPanel";
+import { useBookingRules, type BookingRules } from "@/lib/booking-rules";
+import { Switch } from "@/components/ui/switch";
 import { useTenant } from "@/lib/tenant";
 import { useCollection } from "@/lib/store";
 
@@ -26,15 +30,21 @@ const FIELDS: { name: keyof WhatsAppSettings; label: string; placeholder: string
 export function Page() {
   const { settings, save, isConfigured } = useWhatsAppSettings();
   const { settings: loyalty, save: saveLoyalty } = useLoyaltySettings();
+  const { config: rewardConfig, save: saveRewards } = useRewardDistribution();
+  const { rules, save: saveRules } = useBookingRules();
   const { org, scopeLabel } = useTenant();
   const { rows: messages } = useCollection("whatsappMessages");
   const { rows: locationRows, update: updateLocation } = useCollection("locations");
   const [placeIds, setPlaceIds] = useState<Record<string, string>>({});
   const [form, setForm] = useState(settings);
   const [loyaltyForm, setLoyaltyForm] = useState(loyalty);
+  const [rewardForm, setRewardForm] = useState(rewardConfig);
+  const [bookingForm, setBookingForm] = useState<BookingRules>(rules);
 
   useEffect(() => setForm(settings), [settings]);
   useEffect(() => setLoyaltyForm(loyalty), [loyalty]);
+  useEffect(() => setRewardForm(rewardConfig), [rewardConfig]);
+  useEffect(() => setBookingForm(rules), [rules]);
   useEffect(() => {
     const next: Record<string, string> = {};
     for (const loc of locationRows) next[String(loc.id)] = String(loc["placeId"] ?? "");
@@ -51,7 +61,7 @@ export function Page() {
       <header>
         <h1 className="font-display text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          {org.name} · {scopeLabel} — POS uses the active Points program ({loyalty.name}), not a separate org rate.
+          {org.name} · {scopeLabel} — rates saved here are stored on the server and used by POS billing ({loyalty.name}).
         </p>
       </header>
 
@@ -128,11 +138,123 @@ export function Page() {
         <Button
           className="mt-5"
           onClick={() => {
-            saveLoyalty(loyaltyForm);
-            toast.success("Loyalty conversion saved");
+            void saveLoyalty(loyaltyForm);
           }}
         >
           <CheckCircle2 /> Save loyalty rates
+        </Button>
+      </section>
+
+      <section className="max-w-3xl rounded-xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Gift className="size-5 text-primary" />
+          <h2 className="font-display text-lg">Reward tiers</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Choose, for each tier, whether the guest gets a scratch card, a prize wheel, or both — and how many prizes
+          of that tier are on each game. A discount prize stays pending until the next POS bill.
+        </p>
+        <Separator className="my-4" />
+        <RewardDistributionPanel value={rewardForm} onChange={setRewardForm} />
+        <Button
+          className="mt-5"
+          onClick={() => {
+            saveRewards(applyTierGames(rewardForm));
+            toast.success("Reward tiers saved");
+          }}
+        >
+          <CheckCircle2 /> Save reward tiers
+        </Button>
+      </section>
+
+      <section className="max-w-3xl rounded-xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="size-5 text-primary" />
+          <h2 className="font-display text-lg">Appointment slots & booking rules</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Opening hours, slot length, and how far ahead a guest can book. Public booking on your salon page uses these rules.
+        </p>
+        <Separator className="my-4" />
+        <div className="divide-y divide-border rounded-lg border border-border">
+          {bookingForm.hours.map((h, i) => (
+            <div key={h.day} className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <Switch
+                checked={h.open}
+                onCheckedChange={(checked) =>
+                  setBookingForm((p) => ({
+                    ...p,
+                    hours: p.hours.map((x, xi) => (xi === i ? { ...x, open: checked } : x)),
+                  }))
+                }
+              />
+              <span className="w-24 text-sm">{h.day}</span>
+              {h.open ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="time"
+                    className="w-32"
+                    value={h.from}
+                    onChange={(e) =>
+                      setBookingForm((p) => ({
+                        ...p,
+                        hours: p.hours.map((x, xi) => (xi === i ? { ...x, from: e.target.value } : x)),
+                      }))
+                    }
+                  />
+                  <span className="text-muted-foreground">to</span>
+                  <Input
+                    type="time"
+                    className="w-32"
+                    value={h.to}
+                    onChange={(e) =>
+                      setBookingForm((p) => ({
+                        ...p,
+                        hours: p.hours.map((x, xi) => (xi === i ? { ...x, to: e.target.value } : x)),
+                      }))
+                    }
+                  />
+                </div>
+              ) : (
+                <Badge variant="secondary">Closed</Badge>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="slotDuration" className="mb-1.5">Slot duration (minutes)</Label>
+            <Input id="slotDuration" type="number" min={5} value={bookingForm.duration} onChange={(e) => setBookingForm((p) => ({ ...p, duration: e.target.value }))} />
+          </div>
+          <div>
+            <Label htmlFor="slotBuffer" className="mb-1.5">Buffer between appointments (minutes)</Label>
+            <Input id="slotBuffer" type="number" min={0} value={bookingForm.buffer} onChange={(e) => setBookingForm((p) => ({ ...p, buffer: e.target.value }))} />
+          </div>
+          <div>
+            <Label htmlFor="maxPerSlot" className="mb-1.5">Max bookings per slot</Label>
+            <Input id="maxPerSlot" type="number" min={1} value={bookingForm.maxPerSlot} onChange={(e) => setBookingForm((p) => ({ ...p, maxPerSlot: e.target.value }))} />
+          </div>
+          <div>
+            <Label htmlFor="advanceDays" className="mb-1.5">Advance booking days</Label>
+            <Input id="advanceDays" type="number" min={1} value={bookingForm.advanceDays} onChange={(e) => setBookingForm((p) => ({ ...p, advanceDays: e.target.value }))} />
+          </div>
+          <div>
+            <Label htmlFor="minNotice" className="mb-1.5">Minimum booking notice (hours)</Label>
+            <Input id="minNotice" type="number" min={0} value={bookingForm.minNotice} onChange={(e) => setBookingForm((p) => ({ ...p, minNotice: e.target.value }))} />
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <Switch checked={bookingForm.onlineBooking} onCheckedChange={(checked) => setBookingForm((p) => ({ ...p, onlineBooking: checked }))} />
+          <span className="text-sm">Allow customers to book online</span>
+        </div>
+        <Button
+          className="mt-5"
+          onClick={() => {
+            saveRules(bookingForm);
+            toast.success("Booking rules saved");
+          }}
+        >
+          <CheckCircle2 /> Save booking rules
         </Button>
       </section>
 

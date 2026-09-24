@@ -2,6 +2,7 @@ import type { Row } from "@/lib/store";
 import type { BillLine, CartQuote } from "@/lib/pos";
 import type { AppliedCouponLine } from "@/lib/coupons/coupon-pos";
 import type { RewardRefs } from "@/lib/rewards/reward-quote";
+import type { EntityId } from "@/lib/ids";
 
 /** Store surface used by domain services (no React hooks). */
 export type BusinessStore = {
@@ -11,8 +12,8 @@ export type BusinessStore = {
 };
 
 export type TenantCtx = {
-  orgId: string;
-  locationId: string;
+  orgId: EntityId;
+  locationId: EntityId | "all";
   outletName: string;
 };
 
@@ -56,8 +57,8 @@ export type BusinessEventType =
 
 export type BusinessEvent = {
   type: BusinessEventType;
-  orgId: string;
-  locationId: string;
+  orgId: EntityId;
+  locationId: EntityId;
   at: string;
   entityId: string;
   customerId?: string;

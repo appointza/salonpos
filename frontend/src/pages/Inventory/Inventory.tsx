@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CrudPage } from "@/components/CrudPage";
 import { StockFlowNote } from "@/components/StockFlowNote";
 import { modules } from "@/lib/modules";
-import { useCollection } from "@/lib/store";
+import { useCollection, useData, type Row } from "@/lib/store";
+import { useTenant } from "@/lib/tenant";
 import { useListView } from "@/lib/list-view";
 import { signedQty, skuName, useStockService } from "@/lib/stock";
 
@@ -16,9 +21,80 @@ const TABS = [
   { key: "ledger", label: "Stock movements" },
 ] as const;
 
+function StockAdjustPanel({ editing }: { editing: Row }) {
+  const stock = useStockService();
+  const skuId = String(editing.id);
+  const current = stock.remaining(skuId);
+  const [qty, setQty] = useState("");
+  const [reason, setReason] = useState("Stock received");
+
+  return (
+    <div className="sm:col-span-2 space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+      <div>
+        <p className="text-sm font-medium">Adjust stock</p>
+        <p className="text-xs text-muted-foreground">
+          Remaining for <strong>{String(editing["name"] || skuId)}</strong> is <strong>{current}</strong>. POS reads
+          this balance — add a movement to increase or decrease stock.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div>
+          <Label className="mb-1.5">Add quantity</Label>
+          <Input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder="e.g. 10" />
+        </div>
+        <div className="sm:col-span-2">
+          <Label className="mb-1.5">Reason</Label>
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} />
+        </div>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        onClick={async () => {
+          const n = Number(qty);
+          if (!Number.isFinite(n) || n <= 0) return void toast.error("Enter a quantity to add");
+          const result = await stock.adjust({ skuId, quantity: n, direction: "in", reason: reason.trim() || "Stock received" });
+          if (!result.ok) {
+            toast.error("error" in result ? String(result.error) : "Could not post movement");
+            return;
+          }
+          const after = "remainingAfter" in result ? Number(result.remainingAfter) : current + n;
+          toast.success(`Added ${n} to stock`, { description: `${String(editing["name"])} · ${after} remaining` });
+          setQty("");
+        }}
+      >
+        Post stock in
+      </Button>
+    </div>
+  );
+}
+
 export function Page() {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("catalogue");
   const stock = useStockService();
+  const { allRows } = useData();
+  const { orgId } = useTenant();
+  const inlineFields = modules.inventory.fields.filter((f) => f.table && f.name !== "stock").map((f) => f.name);
+  const vendors = useMemo(
+    () => (allRows["vendors"] ?? []).filter((v) => String(v["orgId"]) === String(orgId)),
+    [allRows, orgId],
+  );
+  const vendorOptions = useMemo(
+    () => [
+      { value: "0", label: "No preferred vendor" },
+      ...vendors.map((v) => ({
+        value: String(v.id),
+        label: String(v["status"] ?? "Active") === "Inactive" ? `${String(v["name"])} (inactive)` : String(v["name"] ?? v.id),
+      })),
+    ],
+    [vendors],
+  );
+  const vendorName = (id: string | number | undefined) => {
+    if (!id || String(id) === "0") return "—";
+    return vendorOptions.find((v) => v.value === String(id))?.label ?? String(id);
+  };
+
   return (
     <div className="space-y-6">
       <StockFlowNote />
@@ -37,16 +113,14 @@ export function Page() {
       {tab === "catalogue" ? (
         <CrudPage
           module={modules.inventory}
+          inlineEditable={inlineFields}
+          selectOptions={(field) => (field.name === "vendorId" ? vendorOptions : undefined)}
           displayValue={(field, row) => {
             if (field.name === "stock") return String(stock.remaining(String(row.id)));
+            if (field.name === "vendorId") return vendorName(row["vendorId"]);
             return undefined;
           }}
-          extraFields={({ editing }) => (
-            <p className="sm:col-span-2 text-xs text-muted-foreground">
-              Remaining for {String(editing["name"] || editing.id)} is {stock.remaining(String(editing.id))} (from
-              movements, not typed here).
-            </p>
-          )}
+          extraFields={({ editing }) => <StockAdjustPanel editing={editing} />}
         />
       ) : (
         <MovementLedger />

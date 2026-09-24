@@ -1,12 +1,14 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
-import { isSlotFree } from "@/lib/booking";
+import { isSlotFree, openingWindow, toMinutes } from "@/lib/booking";
+import { readBookingRules } from "@/lib/booking-rules";
 import { approvedLeaveOn, shiftOn, staffById } from "@/lib/hr";
 import { emitBusinessEvent } from "@/lib/business/event-bus";
 import type { BusinessStore } from "@/lib/business/types";
 
 export type AppointmentBookingInput = {
-  orgId: string;
-  locationId: string;
+  orgId: EntityId;
+  locationId: EntityId;
   staffId?: string;
   staffName: string;
   date: string;
@@ -22,7 +24,7 @@ export function validateAppointmentBooking(
   db: Record<string, Row[]>,
   input: AppointmentBookingInput,
 ): AppointmentValidation {
-  const appointments = (db["appointments"] ?? []).filter((a) => String(a["orgId"]) === input.orgId);
+  const appointments = (db["appointments"] ?? []).filter((a) => String(a["orgId"]) === String(input.orgId));
   const leaves = (db["leaves"] ?? []).filter((l) => String(l["orgId"]) === input.orgId);
   const shifts = (db["shifts"] ?? []).filter((s) => String(s["orgId"]) === input.orgId);
   const staff = (db["staff"] ?? []).filter((s) => String(s["orgId"]) === input.orgId);
@@ -54,16 +56,35 @@ export function validateAppointmentBooking(
     }
   }
 
+  const orgRow = (db["organizations"] ?? []).find((o) => String(o["orgId"]) === String(input.orgId));
+  const rules = readBookingRules(orgRow, input.orgId);
+  if (!rules.onlineBooking) return { ok: false, error: "Online booking is turned off" };
+  const window = openingWindow(shifts, input.date, staffId, rules.hours);
+  if (window.closed) return { ok: false, error: "The salon is closed that day" };
+  const noticeHours = Math.max(0, Number(rules.minNotice) || 0);
+  if (noticeHours > 0) {
+    const when = new Date(`${String(input.date).slice(0, 10)}T${input.time || "00:00"}`);
+    if (when.getTime() < Date.now() + noticeHours * 60 * 60 * 1000) {
+      return { ok: false, error: `Book at least ${noticeHours} hours ahead` };
+    }
+  }
+  const start = toMinutes(input.time);
+  const finish = start + Math.max(15, input.duration || 30);
+  if (start < toMinutes(window.open) || finish > toMinutes(window.close)) {
+    return { ok: false, error: `Bookings are only open ${window.open}–${window.close}` };
+  }
+
   if (
     !isSlotFree(appointments, {
       staff: input.staffName,
+      staffId,
       date: input.date,
       time: input.time,
       duration: input.duration,
       locationId: input.locationId,
     })
   ) {
-    return { ok: false, error: "That slot was just taken — pick another time" };
+    return { ok: false, error: "That time is already booked — pick another slot" };
   }
 
   return { ok: true };
@@ -71,7 +92,7 @@ export function validateAppointmentBooking(
 
 export function completeAppointment(
   store: BusinessStore,
-  input: { appointmentId: string; invoiceId: string; orgId: string; locationId: string },
+  input: { appointmentId: EntityId; invoiceId: EntityId; orgId: EntityId; locationId: EntityId },
 ) {
   const appt = (store.db["appointments"] ?? []).find((a) => String(a.id) === input.appointmentId);
   if (!appt) return { ok: false, error: "Appointment not found" };
@@ -99,7 +120,7 @@ export function completeAppointment(
 
 export function cancelAppointment(
   store: BusinessStore,
-  input: { appointmentId: string; orgId: string; locationId: string; reason?: string },
+  input: { appointmentId: EntityId; orgId: EntityId; locationId: EntityId; reason?: string },
 ) {
   const appt = (store.db["appointments"] ?? []).find((a) => String(a.id) === input.appointmentId);
   if (!appt) return { ok: false, error: "Appointment not found" };

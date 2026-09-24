@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 import { normalizePhone } from "@/lib/customers/customer-lookup";
 
@@ -26,7 +27,7 @@ export function isBirthdayWindow(date: string, withinDays = 7) {
   return diff >= 0 && diff <= withinDays;
 }
 
-export function activePrograms(loyalty: Row[], locationId: string) {
+export function activePrograms(loyalty: Row[], locationId: EntityId) {
   return loyalty.filter((p) => {
     if (String(p["status"]) !== "Active") return false;
     if (String(p["qrEnabled"] ?? "Yes") === "No") return false;
@@ -51,13 +52,13 @@ export function pickWheelSegment(segments: Row[]) {
   return active[active.length - 1] ?? null;
 }
 
-export function publicSiteUrl(origin: string, slug: string, locationId?: string) {
+export function publicSiteUrl(origin: string, slug: string, locationId?: EntityId) {
   const base = `${origin.replace(/\/$/, "")}/${slug}`;
   if (locationId && locationId !== "all") return `${base}?loc=${encodeURIComponent(locationId)}`;
   return base;
 }
 
-export function qrLandingUrl(origin: string, slug: string, locationId?: string) {
+export function qrLandingUrl(origin: string, slug: string, locationId?: EntityId) {
   return publicSiteUrl(origin, slug, locationId);
 }
 

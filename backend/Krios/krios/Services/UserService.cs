@@ -1,5 +1,4 @@
 using Krios.Models.Krios;
-using Krios.Models;
 using Krios.Utils;
 using System.Data.Common;
 
@@ -7,9 +6,9 @@ namespace Krios.Services.Krios
 {
     public class UserService
     {
-        IDbProvider dbprovider;
-        IQueryBuilderProvider querybuilderprovider;
-        RequestState requeststate;
+        private readonly IDbProvider dbprovider;
+        private readonly IQueryBuilderProvider querybuilderprovider;
+        private readonly RequestState requeststate;
 
         public UserService(
             IDbProvider dbprovider,
@@ -23,271 +22,205 @@ namespace Krios.Services.Krios
 
         public async Task<List<User>> Select(UserSelectReq req)
         {
-            using (IDb db = await dbprovider.GetDb())
-            {
-                await db.Connect();
-                return await SelectTransaction(db, req);
-            }
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+            return await SelectTransaction(db, req);
         }
 
         public async Task<List<User>> SelectTransaction(IDb db, UserSelectReq req)
         {
-            List<User> result = new List<User>();
-
-            string query = @"
+            const string query = @"
                 SELECT
-                    id, email, username, passwordhash,
-                    role, status, organizationid, profileid,
-                    lastloginat, lastloginip,
-                    emailverified, emailverifiedat, twofactorenabled,
-                    version, createdby, createdon,
-                    modifiedby, modifiedon,
-                    isactive, issuspended, notes
-                FROM UserAccount
+                    id, ""orgId"", ""locationId"", name, email, role, outlet,
+                    permissions, ""lastLogin"", status, passwordhash,
+                    createdby, createdon, updatedby, updatedon
+                FROM users
             ";
 
             var qb = querybuilderprovider.GetQueryBuilder(query);
 
             if (req.id > 0)
                 qb.AddParameter("id", "=", "id", req.id, DbTypes.Types.Long);
-
-            if (req.organizationid > 0)
-                qb.AddParameter("organizationid", "=", "organizationid", req.organizationid, DbTypes.Types.Long);
-
-            if (!string.IsNullOrEmpty(req.email))
+            if (req.orgId > 0)
+                qb.AddParameter(@"""orgId""", "=", "orgId", req.orgId, DbTypes.Types.Long);
+            if (req.locationId > 0)
+                qb.AddParameter(@"""locationId""", "=", "locationId", req.locationId, DbTypes.Types.Long);
+            if (!string.IsNullOrWhiteSpace(req.email))
                 qb.AddParameter("email", "=", "email", req.email, DbTypes.Types.String);
-
-            if (!string.IsNullOrEmpty(req.role))
+            if (!string.IsNullOrWhiteSpace(req.role))
                 qb.AddParameter("role", "=", "role", req.role, DbTypes.Types.String);
-
-            if (!string.IsNullOrEmpty(req.status))
+            if (!string.IsNullOrWhiteSpace(req.status))
                 qb.AddParameter("status", "=", "status", req.status, DbTypes.Types.String);
+            else
+                qb.AddParameter("status", "<>", "status", "Inactive", DbTypes.Types.String);
 
-            qb.AddParameter("isactive", "=", "isactive", true, DbTypes.Types.Boolean);
+            if (!string.IsNullOrWhiteSpace(req.search))
+                qb.AddParameter("name", "ILIKE", "name", $"%{req.search}%", DbTypes.Types.String);
+
             qb.AddOrderBy(QueryBuilder.Order.ASC, "id");
-
             var command = qb.GetCommand(db);
 
-            using (DbDataReader reader = await db.Execute(command))
-            {
-                while (await reader.ReadAsync())
-                {
-                    User u = new User();
-
-                    u.id = reader["id"] == DBNull.Value ? 0 : Convert.ToInt64(reader["id"]);
-                    u.email = reader["email"]?.ToString();
-                    u.username = reader["username"]?.ToString();
-                    u.passwordhash = reader["passwordhash"]?.ToString();
-
-                    u.role = reader["role"]?.ToString();
-                    u.status = reader["status"]?.ToString();
-                    u.organizationid = reader["organizationid"] == DBNull.Value ? 0 : Convert.ToInt64(reader["organizationid"]);
-                    u.profileid = reader["profileid"]?.ToString();
-
-                    u.lastloginat = reader["lastloginat"] == DBNull.Value
-                        ? null
-                        : Convert.ToDateTime(reader["lastloginat"]);
-                    u.lastloginip = reader["lastloginip"]?.ToString();
-
-                    u.emailverified = reader["emailverified"] != DBNull.Value && Convert.ToBoolean(reader["emailverified"]);
-                    u.emailverifiedat = reader["emailverifiedat"] == DBNull.Value
-                        ? null
-                        : Convert.ToDateTime(reader["emailverifiedat"]);
-                    u.twofactorenabled = reader["twofactorenabled"] != DBNull.Value && Convert.ToBoolean(reader["twofactorenabled"]);
-
-                    u.version = reader["version"] == DBNull.Value ? 0 : Convert.ToInt32(reader["version"]);
-                    u.createdby = reader["createdby"] == DBNull.Value ? 0 : Convert.ToInt64(reader["createdby"]);
-                    u.createdon = reader["createdon"] == DBNull.Value ? DateTime.MinValue : Convert.ToDateTime(reader["createdon"]);
-                    u.modifiedby = reader["modifiedby"] == DBNull.Value ? 0 : Convert.ToInt64(reader["modifiedby"]);
-                    u.modifiedon = reader["modifiedon"] == DBNull.Value ? DateTime.MinValue : Convert.ToDateTime(reader["modifiedon"]);
-
-                    u.isactive = reader["isactive"] != DBNull.Value && Convert.ToBoolean(reader["isactive"]);
-                    u.issuspended = reader["issuspended"] != DBNull.Value && Convert.ToBoolean(reader["issuspended"]);
-                    u.notes = reader["notes"]?.ToString();
-
-                    result.Add(u);
-                }
-            }
+            var result = new List<User>();
+            using DbDataReader reader = await db.Execute(command);
+            while (await reader.ReadAsync())
+                result.Add(MapUser(reader));
 
             return result;
         }
 
         public async Task<User> Insert(User user)
         {
-            using (IDb db = await dbprovider.GetDb())
-            {
-                await db.Connect();
-                await InsertTransaction(db, user);
-            }
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+            await InsertTransaction(db, user);
             return user;
         }
 
         public async Task InsertTransaction(IDb db, User user)
         {
-            string query = @"
-                INSERT INTO UserAccount (
-                    email, username, passwordhash,
-                    role, status, organizationid, profileid,
-                    lastloginat, lastloginip,
-                    emailverified, emailverifiedat, twofactorenabled,
-                    version, createdby, createdon,
-                    modifiedby, modifiedon,
-                    isactive, issuspended, notes
+            const string query = @"
+                INSERT INTO users (
+                    ""orgId"", ""locationId"", name, email, role, outlet,
+                    permissions, ""lastLogin"", status, passwordhash,
+                    createdby, createdon, updatedby, updatedon
                 )
                 VALUES (
-                    @email, @username, @passwordhash,
-                    @role, @status, @organizationid, @profileid,
-                    @lastloginat, @lastloginip,
-                    @emailverified, @emailverifiedat, @twofactorenabled,
-                    @version, @createdby, @createdon,
-                    @modifiedby, @modifiedon,
-                    @isactive, @issuspended, @notes
+                    @orgId, @locationId, @name, @email, @role, @outlet,
+                    @permissions, @lastLogin, @status, @passwordhash,
+                    @createdby, @createdon, @updatedby, @updatedon
                 )
                 RETURNING id;
             ";
 
-            user.isactive = true;
-            user.version = 1;
-            user.createdon = DateTime.UtcNow;
-            user.modifiedon = DateTime.UtcNow;
-            user.createdby = requeststate.usercontext.id;
-            user.modifiedby = requeststate.usercontext.id;
+            var today = DateTime.UtcNow.Date;
+            var actor = requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : "system";
+            user.status = string.IsNullOrWhiteSpace(user.status) ? "Active" : user.status;
+            user.createdon = today;
+            user.updatedon = today;
+            user.createdby = actor;
+            user.updatedby = actor;
 
             var cmd = db.GetCommand(query);
+            BindUserParameters(cmd, db, user, includeId: false);
 
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = user.email ?? "";
-            db.AddParameter(cmd, "username", DbTypes.Types.String).Value = user.username ?? "";
-            db.AddParameter(cmd, "passwordhash", DbTypes.Types.String).Value = user.passwordhash ?? "";
-
-            db.AddParameter(cmd, "role", DbTypes.Types.String).Value = user.role ?? "";
-            db.AddParameter(cmd, "status", DbTypes.Types.String).Value = user.status ?? "";
-            db.AddParameter(cmd, "organizationid", DbTypes.Types.Long).Value = user.organizationid;
-            db.AddParameter(cmd, "profileid", DbTypes.Types.String).Value = user.profileid ?? "";
-
-            db.AddParameter(cmd, "lastloginat", DbTypes.Types.DateTime).Value =
-                user.lastloginat.HasValue ? user.lastloginat.Value : DBNull.Value;
-            db.AddParameter(cmd, "lastloginip", DbTypes.Types.String).Value = user.lastloginip ?? "";
-
-            db.AddParameter(cmd, "emailverified", DbTypes.Types.Boolean).Value = user.emailverified;
-            db.AddParameter(cmd, "emailverifiedat", DbTypes.Types.DateTime).Value =
-                user.emailverifiedat.HasValue ? user.emailverifiedat.Value : DBNull.Value;
-            db.AddParameter(cmd, "twofactorenabled", DbTypes.Types.Boolean).Value = user.twofactorenabled;
-
-            db.AddParameter(cmd, "version", DbTypes.Types.Integer).Value = user.version;
-            db.AddParameter(cmd, "createdby", DbTypes.Types.Long).Value = user.createdby;
-            db.AddParameter(cmd, "createdon", DbTypes.Types.DateTime).Value = user.createdon;
-            db.AddParameter(cmd, "modifiedby", DbTypes.Types.Long).Value = user.modifiedby;
-            db.AddParameter(cmd, "modifiedon", DbTypes.Types.DateTime).Value = user.modifiedon;
-
-            db.AddParameter(cmd, "isactive", DbTypes.Types.Boolean).Value = user.isactive;
-            db.AddParameter(cmd, "issuspended", DbTypes.Types.Boolean).Value = user.issuspended;
-            db.AddParameter(cmd, "notes", DbTypes.Types.String).Value = user.notes ?? "";
-
-            using (DbDataReader reader = await db.Execute(cmd))
-            {
-                if (await reader.ReadAsync())
-                    user.id = Convert.ToInt64(reader["id"]);
-            }
+            using var reader = await db.Execute(cmd);
+            if (await reader.ReadAsync())
+                user.id = Convert.ToInt64(reader["id"]);
         }
 
         public async Task<User> Update(User user)
         {
-            using (IDb db = await dbprovider.GetDb())
-            {
-                await db.Connect();
-                await UpdateTransaction(db, user);
-            }
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+            await UpdateTransaction(db, user);
             return user;
         }
 
         public async Task<bool> UpdateTransaction(IDb db, User user)
         {
-            string query = @"
-                UPDATE UserAccount
-                SET
+            const string query = @"
+                UPDATE users SET
+                    ""orgId"" = @orgId,
+                    ""locationId"" = @locationId,
+                    name = @name,
                     email = @email,
-                    username = @username,
-                    passwordhash = @passwordhash,
                     role = @role,
+                    outlet = @outlet,
+                    permissions = @permissions,
+                    ""lastLogin"" = @lastLogin,
                     status = @status,
-                    organizationid = @organizationid,
-                    profileid = @profileid,
-                    lastloginat = @lastloginat,
-                    lastloginip = @lastloginip,
-                    emailverified = @emailverified,
-                    emailverifiedat = @emailverifiedat,
-                    twofactorenabled = @twofactorenabled,
-                    modifiedby = @modifiedby,
-                    modifiedon = @modifiedon,
-                    notes = @notes,
-                    issuspended = @issuspended,
-                    version = version + 1
+                    passwordhash = @passwordhash,
+                    updatedby = @updatedby,
+                    updatedon = @updatedon
                 WHERE id = @id
             ";
 
-            user.modifiedon = DateTime.UtcNow;
-            user.modifiedby = requeststate.usercontext.id;
+            user.updatedon = DateTime.UtcNow.Date;
+            user.updatedby = requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : user.updatedby;
 
             var cmd = db.GetCommand(query);
-
-            db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = user.id;
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = user.email ?? "";
-            db.AddParameter(cmd, "username", DbTypes.Types.String).Value = user.username ?? "";
-            db.AddParameter(cmd, "passwordhash", DbTypes.Types.String).Value = user.passwordhash ?? "";
-            db.AddParameter(cmd, "role", DbTypes.Types.String).Value = user.role ?? "";
-            db.AddParameter(cmd, "status", DbTypes.Types.String).Value = user.status ?? "";
-            db.AddParameter(cmd, "organizationid", DbTypes.Types.Long).Value = user.organizationid;
-            db.AddParameter(cmd, "profileid", DbTypes.Types.String).Value = user.profileid ?? "";
-
-            db.AddParameter(cmd, "lastloginat", DbTypes.Types.DateTime).Value =
-                user.lastloginat.HasValue ? user.lastloginat.Value : DBNull.Value;
-            db.AddParameter(cmd, "lastloginip", DbTypes.Types.String).Value = user.lastloginip ?? "";
-
-            db.AddParameter(cmd, "emailverified", DbTypes.Types.Boolean).Value = user.emailverified;
-            db.AddParameter(cmd, "emailverifiedat", DbTypes.Types.DateTime).Value =
-                user.emailverifiedat.HasValue ? user.emailverifiedat.Value : DBNull.Value;
-            db.AddParameter(cmd, "twofactorenabled", DbTypes.Types.Boolean).Value = user.twofactorenabled;
-
-            db.AddParameter(cmd, "modifiedby", DbTypes.Types.Long).Value = user.modifiedby;
-            db.AddParameter(cmd, "modifiedon", DbTypes.Types.DateTime).Value = user.modifiedon;
-            db.AddParameter(cmd, "notes", DbTypes.Types.String).Value = user.notes ?? "";
-            db.AddParameter(cmd, "issuspended", DbTypes.Types.Boolean).Value = user.issuspended;
-
-            if (await db.ExecuteNonQuery(cmd) > 0)
-            {
-                user.version += 1;
-                return true;
-            }
-
-            return false;
+            BindUserParameters(cmd, db, user, includeId: true);
+            return await db.ExecuteNonQuery(cmd) > 0;
         }
 
         public async Task<bool> Delete(UserDeleteReq req)
         {
-            using (IDb db = await dbprovider.GetDb())
-            {
-                await db.Connect();
-                return await DeleteTransaction(db, req);
-            }
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+            return await DeleteTransaction(db, req);
         }
 
         public async Task<bool> DeleteTransaction(IDb db, UserDeleteReq req)
         {
-            string query = @"
-                UPDATE UserAccount
-                SET isactive = '0',
-                    version = version + 1,
-                    modifiedby = @modifiedby,
-                    modifiedon = @modifiedon
+            const string query = @"
+                UPDATE users
+                SET status = 'Inactive',
+                    updatedby = @updatedby,
+                    updatedon = @updatedon
                 WHERE id = @id
             ";
 
             var cmd = db.GetCommand(query);
             db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = req.id;
-            db.AddParameter(cmd, "modifiedby", DbTypes.Types.Long).Value = requeststate.usercontext.id;
-            db.AddParameter(cmd, "modifiedon", DbTypes.Types.DateTime).Value = DateTime.UtcNow;
-
+            db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value =
+                requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : "system";
+            db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = DateTime.UtcNow.Date;
             return await db.ExecuteNonQuery(cmd) > 0;
+        }
+
+        private static User MapUser(DbDataReader reader)
+        {
+            return new User
+            {
+                id = ReadLong(reader, "id"),
+                orgId = ReadLong(reader, "orgId"),
+                locationId = ReadLong(reader, "locationId"),
+                name = reader["name"]?.ToString() ?? "",
+                email = reader["email"]?.ToString() ?? "",
+                role = reader["role"]?.ToString() ?? "",
+                outlet = reader["outlet"]?.ToString() ?? "",
+                permissions = reader["permissions"]?.ToString() ?? "",
+                lastLogin = reader["lastLogin"]?.ToString() ?? "",
+                status = reader["status"]?.ToString() ?? "",
+                passwordhash = reader["passwordhash"]?.ToString() ?? "",
+                createdby = reader["createdby"]?.ToString() ?? "",
+                createdon = ReadDate(reader, "createdon"),
+                updatedby = reader["updatedby"]?.ToString() ?? "",
+                updatedon = ReadDate(reader, "updatedon"),
+            };
+        }
+
+        private static void BindUserParameters(DbCommand cmd, IDb db, User user, bool includeId)
+        {
+            if (includeId)
+                db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = user.id;
+
+            db.AddParameter(cmd, "orgId", DbTypes.Types.Long).Value = user.orgId;
+            db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = user.locationId;
+            db.AddParameter(cmd, "name", DbTypes.Types.String).Value = user.name ?? "";
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = user.email ?? "";
+            db.AddParameter(cmd, "role", DbTypes.Types.String).Value = user.role ?? "";
+            db.AddParameter(cmd, "outlet", DbTypes.Types.String).Value = user.outlet ?? "";
+            db.AddParameter(cmd, "permissions", DbTypes.Types.String).Value = user.permissions ?? "";
+            db.AddParameter(cmd, "lastLogin", DbTypes.Types.String).Value = user.lastLogin ?? "";
+            db.AddParameter(cmd, "status", DbTypes.Types.String).Value = user.status ?? "";
+            db.AddParameter(cmd, "passwordhash", DbTypes.Types.String).Value = user.passwordhash ?? "";
+            db.AddParameter(cmd, "createdby", DbTypes.Types.String).Value = user.createdby ?? "";
+            db.AddParameter(cmd, "createdon", DbTypes.Types.Date).Value = user.createdon ?? DateTime.UtcNow.Date;
+            db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value = user.updatedby ?? "";
+            db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = user.updatedon ?? DateTime.UtcNow.Date;
+        }
+
+        private static long ReadLong(DbDataReader reader, string column)
+        {
+            var value = reader[column];
+            return value == DBNull.Value ? 0 : Convert.ToInt64(value);
+        }
+
+        private static DateTime? ReadDate(DbDataReader reader, string column)
+        {
+            var value = reader[column];
+            return value == DBNull.Value ? null : Convert.ToDateTime(value);
         }
     }
 }

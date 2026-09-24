@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 import { getCustomerById } from "@/lib/customers/customer-lookup";
 import { patchCustomer, type CustomerStore } from "@/lib/customers/customer-service";
@@ -17,9 +18,9 @@ export type ProcessCheckinApprovalInput = {
   programs: Row[];
   billAmount: number;
   birthdayBonus: boolean;
-  locationId: string;
-  orgId: string;
-  staffId: string;
+  locationId: EntityId;
+  orgId: EntityId;
+  staffId: EntityId;
   staffName: string;
 };
 
@@ -38,7 +39,7 @@ function computeTier(visits: number, points: number) {
   return "Bronze";
 }
 
-export function hasApprovedCheckinToday(db: CheckinStore["db"], customerId: string, day?: string) {
+export function hasApprovedCheckinToday(db: CheckinStore["db"], customerId: EntityId, day?: string) {
   const on = day ?? new Date().toISOString().slice(0, 10);
   return (db[QR_CHECKINS] ?? []).some(
     (c) =>
@@ -48,7 +49,7 @@ export function hasApprovedCheckinToday(db: CheckinStore["db"], customerId: stri
   );
 }
 
-function hasBirthdayBonusThisYear(db: CheckinStore["db"], customerId: string, year: number) {
+function hasBirthdayBonusThisYear(db: CheckinStore["db"], customerId: EntityId, year: number) {
   return (db["loyaltyTransactions"] ?? []).some(
     (t) =>
       String(t["customerId"]) === customerId &&
@@ -58,7 +59,7 @@ function hasBirthdayBonusThisYear(db: CheckinStore["db"], customerId: string, ye
   );
 }
 
-function hasInvoiceEarnToday(db: CheckinStore["db"], customerId: string, day: string) {
+function hasInvoiceEarnToday(db: CheckinStore["db"], customerId: EntityId, day: string) {
   return (db["loyaltyTransactions"] ?? []).some(
     (t) =>
       String(t["customerId"]) === customerId &&

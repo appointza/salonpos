@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 import type { BusinessStore } from "@/lib/business/types";
 import { emitBusinessEvent } from "@/lib/business/event-bus";
@@ -33,24 +34,36 @@ export function signedQty(row: Row) {
   return Number(row["qtyIn"] ?? 0) - Number(row["qtyOut"] ?? 0);
 }
 
-export function orgSkus(db: Record<string, Row[]>, orgId: string) {
-  return (db[PRODUCTS] ?? []).filter((s) => String(s["orgId"]) === orgId);
+export function orgSkus(db: Record<string, Row[]>, orgId: EntityId) {
+  return (db[PRODUCTS] ?? []).filter((s) => String(s["orgId"]) === String(orgId));
 }
 
-export function orgMovements(db: Record<string, Row[]>, orgId: string, locationId?: string) {
+export function orgMovements(db: Record<string, Row[]>, orgId: EntityId, locationId?: EntityId) {
   const rows = (db[STOCK_MOVEMENTS] ?? []).filter((m) => String(m["orgId"]) === orgId);
   if (!locationId || locationId === "all") return rows;
   return rows.filter((m) => String(m["locationId"]) === locationId);
 }
 
 /** Remaining qty for a SKU, optionally scoped to one outlet. */
-export function remainingFor(skuId: string, movements: Row[], locationId?: string) {
+export function remainingFor(skuId: string, movements: Row[], locationId?: EntityId, sku?: Row) {
   const id = String(skuId);
   const scoped =
     locationId && locationId !== "all"
-      ? movements.filter((m) => String(m["locationId"]) === locationId)
+      ? movements.filter((m) => {
+          const mLoc = String(m["locationId"] ?? "");
+          return !mLoc || mLoc === String(locationId);
+        })
       : movements;
-  return Math.max(0, scoped.filter((m) => skuKey(m) === id).reduce((sum, m) => sum + signedQty(m), 0));
+  const matched = scoped.filter((m) => skuKey(m) === id);
+  const fromMovements = Math.max(0, matched.reduce((sum, m) => sum + signedQty(m), 0));
+  if (matched.length > 0) return fromMovements;
+  // No ledger rows yet — fall back to inventory.stock (direct catalog edits / legacy data).
+  if (!sku) return fromMovements;
+  if (locationId && locationId !== "all") {
+    const skuLoc = String(sku["locationId"] ?? "");
+    if (skuLoc && skuLoc !== String(locationId)) return fromMovements;
+  }
+  return Math.max(fromMovements, Number(sku["stock"] ?? 0));
 }
 
 export function isSkuExpired(sku: Row | undefined, at = new Date()) {
@@ -83,8 +96,8 @@ export function skuName(skus: Row[], skuId: string | number | undefined) {
 }
 
 export type InventoryCtx = {
-  orgId: string;
-  locationId: string;
+  orgId: EntityId;
+  locationId: EntityId;
 };
 
 export type LowStockAlert = {
@@ -92,7 +105,7 @@ export type LowStockAlert = {
   name: string;
   remaining: number;
   reorderLevel: number;
-  locationId: string;
+  locationId: EntityId;
   outlet: string;
   batch: string;
   expiry: string;
@@ -105,7 +118,7 @@ export type InventoryValuation = {
   remaining: number;
   unitCost: number;
   value: number;
-  locationId: string;
+  locationId: EntityId;
 };
 
 function movementId(prefix: string) {
@@ -123,8 +136,8 @@ function syncSkuCache(store: BusinessStore, sku: Row, remaining: number) {
 
 export function listLowStockAlerts(
   db: Record<string, Row[]>,
-  orgId: string,
-  locationId?: string,
+  orgId: EntityId,
+  locationId?: EntityId,
 ): LowStockAlert[] {
   const movements = orgMovements(db, orgId);
   const skus = orgSkus(db, orgId).filter((s) => {
@@ -157,8 +170,8 @@ export function listLowStockAlerts(
 
 export function inventoryValuation(
   db: Record<string, Row[]>,
-  orgId: string,
-  locationId?: string,
+  orgId: EntityId,
+  locationId?: EntityId,
 ): { lines: InventoryValuation[]; totalValue: number } {
   const movements = orgMovements(db, orgId);
   const skus = orgSkus(db, orgId).filter((s) => {
@@ -214,7 +227,7 @@ export function postStockMovement(
 
   const loc = resolveLocation(ctx, sku);
   const movements = orgMovements(store.db, ctx.orgId, loc);
-  const before = input.balanceBefore ?? remainingFor(input.skuId, movements, loc);
+  const before = input.balanceBefore ?? remainingFor(input.skuId, movements, loc, sku);
 
   if ((input.type === "Sale" || input.type === "Used" || input.type === "Wastage") && isSkuExpired(sku)) {
     return { ok: false, error: `${String(sku["name"])} batch ${String(sku["batch"] ?? "—")} expired on ${String(sku["expiry"])}` };
@@ -337,9 +350,10 @@ export function recordStockAdjustment(
   const type: StockType = "Adjustment";
   const qty = Math.abs(input.quantity);
   const signed = input.direction === "out" ? -qty : qty;
-  const loc = resolveLocation(ctx, orgSkus(store.db, ctx.orgId).find((s) => String(s.id) === input.skuId));
+  const sku = orgSkus(store.db, ctx.orgId).find((s) => String(s.id) === input.skuId);
+  const loc = resolveLocation(ctx, sku);
   const movements = orgMovements(store.db, ctx.orgId, loc);
-  const before = remainingFor(input.skuId, movements, loc);
+  const before = remainingFor(input.skuId, movements, loc, sku);
   if (signed < 0 && qty > before) {
     return { ok: false as const, error: `Cannot adjust out ${qty} — only ${before} on hand.` };
   }
@@ -398,13 +412,13 @@ export function recordStockReturn(
 
 export function assertCanIssueStock(
   db: Record<string, Row[]>,
-  orgId: string,
-  locationId: string,
+  orgId: EntityId,
+  locationId: EntityId,
   lines: { id: string; kind: string; qty: number; name: string }[],
 ): string | null {
   const movements = orgMovements(db, orgId, locationId === "all" ? undefined : locationId);
-  const services = (db["services"] ?? []).filter((s) => String(s["orgId"]) === orgId);
-  const recipes = (db[SERVICE_PRODUCTS] ?? []).filter((r) => String(r["orgId"]) === orgId);
+  const services = (db["services"] ?? []).filter((s) => String(s["orgId"]) === String(orgId));
+  const recipes = (db[SERVICE_PRODUCTS] ?? []).filter((r) => String(r["orgId"]) === String(orgId));
   const skus = orgSkus(db, orgId);
   const missing = missingProducts(lines, { services, recipes, skus, movements, locationId });
   const expired: MissingProduct[] = [];
@@ -433,7 +447,7 @@ export function issueStockForSale(
   store: BusinessStore,
   ctx: InventoryCtx,
   lines: { id: string; kind: string; qty: number; name: string }[],
-  saleCtx: { customerId: string; invoiceId: string; date: string },
+  saleCtx: { customerId: EntityId; invoiceId: EntityId; date: string },
 ): Row[] {
   const skus = orgSkus(store.db, ctx.orgId);
   const services = (store.db["services"] ?? []).filter((s) => String(s["orgId"]) === ctx.orgId);
@@ -488,7 +502,7 @@ export function issueStockForSale(
   return posted;
 }
 
-export function customerProductHistory(customerId: string, movements: Row[], skus: Row[]) {
+export function customerProductHistory(customerId: EntityId, movements: Row[], skus: Row[]) {
   const grouped = new Map<string, { skuId: string; name: string; sold: number; used: number }>();
   for (const m of movements) {
     if (String(m["customerId"] ?? "") !== customerId) continue;

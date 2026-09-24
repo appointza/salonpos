@@ -1,11 +1,11 @@
 using Krios.Models;
-using CampusModels = Krios.Models.Krios;
+using Krios.Models.Krios;
 using Krios.Services.Krios;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Krios.Controllers.Krios
 {
-    [Route("api/krios/[controller]")]
+    [Route("api/[controller]")]
     [ApiController]
     public class StaffController : ControllerBase
     {
@@ -19,20 +19,20 @@ namespace Krios.Controllers.Krios
         }
 
         [HttpGet("Entity")]
-        public async Task<ActionResult<ActionRes<CampusModels.Staff>>> Entity()
+        public async Task<ActionResult<ActionRes<Staff>>> Entity()
         {
-            ActionRes<CampusModels.Staff> result = new ActionRes<CampusModels.Staff>()
+            ActionRes<Staff> result = new ActionRes<Staff>()
             {
-               item = new CampusModels.Staff()
+               item = new Staff()
             };
 
             return Ok(result);
         }
 
         [HttpPost("Select")]
-        public async Task<ActionResult<ActionRes<List<CampusModels.Staff>>>> Select(ActionReq<CampusModels.StaffSelectReq> req)
+        public async Task<ActionResult<ActionRes<List<Staff>>>> Select(ActionReq<StaffSelectReq> req)
         {
-            ActionRes<List<CampusModels.Staff>> result = new ActionRes<List<CampusModels.Staff>>();
+            ActionRes<List<Staff>> result = new ActionRes<List<Staff>>();
 
             result.item = await staffService.Select(req.item);
 
@@ -40,9 +40,9 @@ namespace Krios.Controllers.Krios
         }
 
         [HttpPost("Insert")]
-        public async Task<ActionResult<ActionRes<CampusModels.Staff>>> Insert(ActionReq<CampusModels.Staff> req)
+        public async Task<ActionResult<ActionRes<Staff>>> Insert(ActionReq<Staff> req)
         {
-            ActionRes<CampusModels.Staff> result = new ActionRes<CampusModels.Staff>();
+            ActionRes<Staff> result = new ActionRes<Staff>();
 
             result.item = await staffService.Insert(req.item);
 
@@ -50,9 +50,9 @@ namespace Krios.Controllers.Krios
         }
 
         [HttpPost("Update")]
-        public async Task<ActionResult<ActionRes<CampusModels.Staff>>> Update(ActionReq<CampusModels.Staff> req)
+        public async Task<ActionResult<ActionRes<Staff>>> Update(ActionReq<Staff> req)
         {
-            ActionRes<CampusModels.Staff> result = new ActionRes<CampusModels.Staff>();
+            ActionRes<Staff> result = new ActionRes<Staff>();
 
             result.item = await staffService.Update(req.item);
 
@@ -60,11 +60,11 @@ namespace Krios.Controllers.Krios
         }
 
         [HttpPost("Save")]
-        public async Task<ActionResult<ActionRes<CampusModels.Staff>>> Save(ActionReq<CampusModels.Staff> req)
+        public async Task<ActionResult<ActionRes<Staff>>> Save(ActionReq<Staff> req)
         {
-            ActionRes<CampusModels.Staff> result = new ActionRes<CampusModels.Staff>();
+            ActionRes<Staff> result = new ActionRes<Staff>();
 
-            if(!string.IsNullOrEmpty(req.item.id)){
+            if(req.item.id > 0){
                 result.item = await staffService.Update(req.item);
             }else{
                 result.item = await staffService.Insert(req.item);
@@ -74,7 +74,7 @@ namespace Krios.Controllers.Krios
         }
 
         [HttpPost("Delete")]
-        public async Task<ActionResult<ActionRes<bool>>> Delete(ActionReq<CampusModels.StaffDeleteReq> req)
+        public async Task<ActionResult<ActionRes<bool>>> Delete(ActionReq<StaffDeleteReq> req)
         {
             ActionRes<bool> result = new ActionRes<bool>();
 

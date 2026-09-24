@@ -25,7 +25,7 @@ export function adminBreadcrumbLabel(pathname: string): string {
   if (pathname === "/scratch-card" || pathname.startsWith("/scratch-card/")) return "Scratch card";
   if (pathname === "/memberships" || pathname.startsWith("/memberships/")) return "Memberships";
   if (pathname === "/campaigns" || pathname.startsWith("/campaigns/")) return "Campaigns";
-  if (pathname === "/franchises" || pathname.startsWith("/franchises/")) return "Franchises";
+  if (pathname === "/franchises" || pathname.startsWith("/franchises/")) return "Outlets";
   if (pathname === "/brand-apps" || pathname.startsWith("/brand-apps/")) return "White-Label Apps";
   if (pathname === "/users" || pathname.startsWith("/users/")) return "Users";
   if (pathname === "/roles" || pathname.startsWith("/roles/")) return "Roles & permissions";

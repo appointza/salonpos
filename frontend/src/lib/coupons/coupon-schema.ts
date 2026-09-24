@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 
 /** How the discount is calculated. */
@@ -83,8 +84,8 @@ export type DiscountSlab = {
 
 export type CouponRule = {
   id: string;
-  orgId: string;
-  locationId: string;
+  orgId: EntityId;
+  locationId: EntityId;
   code: string;
   title: string;
   description: string;
@@ -105,7 +106,7 @@ export type CouponRule = {
   targetCustomerId: string;
   discountSlabs: string;
   inactiveDays: number;
-  staffId: string;
+  staffId: EntityId;
   paymentMethod: string;
   firstAppointmentOnly: string;
   advanceBookingDays: number;
@@ -133,7 +134,7 @@ export type CouponRule = {
   source: "coupons" | "qrOffers";
 };
 
-export function emptyCoupon(orgId: string, locationId: string): Row {
+export function emptyCoupon(orgId: EntityId, locationId: EntityId): Row {
   const suffix = Math.floor(1000 + Math.random() * 9000);
   return {
     id: `CP-${suffix}`,

@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 
 export type LoyaltyRule = {
@@ -27,7 +28,7 @@ export function parseRupeesPerPoint(redeemValue: string) {
 export function resolveLoyaltyRule(
   programs: Row[],
   org: Row | undefined,
-  opts: { locationId?: string; tier?: string } = {},
+  opts: { locationId?: EntityId; tier?: string } = {},
 ): LoyaltyRule {
   const pointsPrograms = programs.filter(
     (p) => String(p["type"]) === "Points" && String(p["status"] ?? "Active") === "Active",

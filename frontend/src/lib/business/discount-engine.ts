@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 import type { BillLine } from "@/lib/pos";
 import { billTotals } from "@/lib/pos";
@@ -29,18 +30,18 @@ export type QuoteInput = {
 export function quoteUnifiedSale(
   input: QuoteInput,
   db: Record<string, Row[]>,
-  ctx: { orgId: string; locationId: string },
+  ctx: { orgId: EntityId; locationId: EntityId },
 ): UnifiedQuote {
-  const programs = (db["loyalty"] ?? []).filter((p) => String(p["orgId"]) === ctx.orgId);
-  const org = (db["organizations"] ?? []).find((o) => String(o["orgId"]) === ctx.orgId);
+  const programs = (db["loyalty"] ?? []).filter((p) => String(p["orgId"]) === String(ctx.orgId));
+  const org = (db["organizations"] ?? []).find((o) => String(o["orgId"]) === String(ctx.orgId));
   const rule = resolveLoyaltyRule(programs, org, {
     locationId: ctx.locationId === "all" ? "" : ctx.locationId,
     tier: String(input.customer?.["tier"] ?? "All"),
   });
 
-  const memberships = (db["memberships"] ?? []).filter((m) => String(m["orgId"]) === ctx.orgId);
-  const plans = (db["membershipPlans"] ?? []).filter((p) => String(p["orgId"]) === ctx.orgId);
-  const usage = (db["membershipUsage"] ?? []).filter((u) => String(u["orgId"]) === ctx.orgId);
+  const memberships = (db["memberships"] ?? []).filter((m) => String(m["orgId"]) === String(ctx.orgId));
+  const plans = (db["membershipPlans"] ?? []).filter((p) => String(p["orgId"]) === String(ctx.orgId));
+  const usage = (db["membershipUsage"] ?? []).filter((u) => String(u["orgId"]) === String(ctx.orgId));
   const services = db["services"] ?? [];
 
   const membership = input.customer

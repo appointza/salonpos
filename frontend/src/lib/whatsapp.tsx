@@ -35,13 +35,13 @@ function settingsFromOrg(row: Row | undefined): WhatsAppSettings {
   };
 }
 
-/** Meta WhatsApp credentials live on the organization row in salonData. */
+/** Meta WhatsApp credentials live on the organization row from the API. */
 export function useWhatsAppSettings() {
   const { orgId } = useTenant();
   const { allRows, update } = useData();
 
   const orgRow = useMemo(
-    () => (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === orgId),
+    () => (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === String(orgId)),
     [allRows, orgId],
   );
 

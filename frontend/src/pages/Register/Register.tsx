@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -17,14 +18,17 @@ import {
   defaultSlots,
   generateSlots,
   uuid,
-  useAuth,
   type DayHours,
-  type Organization,
   type OrgService,
   type OrgStaff,
-  type Role,
   type SlotConfig,
 } from "@/lib/auth";
+import { useAuth, type Role } from "@/hooks/useAuth";
+import { organizationService } from "@/services/organization.service";
+import { serviceService } from "@/services/service.service";
+import { staffService } from "@/services/staff.service";
+import { userService } from "@/services/user.service";
+import { isAxiosError } from "axios";
 
 const title = "Create an account — Luxe Salon CRM";
 const description =
@@ -37,7 +41,7 @@ type RegisterIntent = "customer" | "organization" | null;
 type Draft = {
   intent: RegisterIntent;
   step: number;
-  orgId: string;
+  orgId: EntityId;
   admin: { name: string; email: string; phone: string; password: string; confirm: string; verified: boolean };
   customer: { name: string; email: string; phone: string; password: string; confirm: string };
   otp: string;
@@ -154,6 +158,25 @@ function Field({
   );
 }
 
+function registerError(err: unknown): string {
+  if (isAxiosError(err)) {
+    const data = err.response?.data;
+    if (typeof data === "string") {
+      try {
+        const parsed = JSON.parse(data) as { message?: string };
+        if (parsed.message) return parsed.message;
+      } catch {
+        return data;
+      }
+    }
+    if (data && typeof data === "object" && "message" in data) {
+      return String((data as { message?: string }).message || "Could not create the organization.");
+    }
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return "Could not create the organization.";
+}
+
 function StepShell({ title: t, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
     <div className="space-y-6">
@@ -168,11 +191,12 @@ function StepShell({ title: t, hint, children }: { title: string; hint: string; 
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { completeOnboarding } = useAuth();
+  const { signIn } = useAuth();
   const { signIn: signInCustomer } = useCustomerSession();
   const { tenants, upsertTenant } = useTenant();
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
   const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     try {
@@ -235,6 +259,7 @@ export function RegisterPage() {
     }
     if (step === 2) {
       if (!draft.org.name.trim()) return "Organization name is required.";
+      if (!draft.address.city.trim()) return "City is required for your main outlet.";
       if (!draft.slug.trim()) return "Choose a public booking URL for your business.";
       if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(draft.slug)) return "URLs can only use lowercase letters, numbers and hyphens.";
       if (takenSlugs.includes(draft.slug)) return "That URL is already taken — try another one.";
@@ -310,77 +335,138 @@ export function RegisterPage() {
     navigate({ to: "/nearby" });
   }
 
-  function finish() {
-    const org: Organization = {
-      orgId: draft.orgId,
-      name: draft.org.name,
-      businessType: draft.org.businessType,
-      businessCategory: draft.org.businessCategory,
-      outletCount: Number(draft.org.outletCount || 1),
-      createdAt: new Date().toISOString(),
-      plan: draft.plan,
-      profile: { ...draft.profile, slug: draft.slug },
-      address: draft.address,
-      outlet: { ...draft.outlet, name: draft.outlet.name.trim() || draft.org.name },
-      hours: draft.hours,
-      slots: draft.slots,
-      services: draft.services,
-      staff: draft.staff,
-      features: draft.features,
-      menu: draft.menu,
-      loyalty: draft.loyalty,
-      reward: draft.reward,
-      completed: [
-        "organization",
-        "hours",
-        "slots",
-        ...(draft.services.length ? ["services"] : []),
-        ...(draft.staff.length ? ["staff"] : []),
-        ...(draft.menu.items.length ? ["menu"] : []),
-        ...(draft.paid ? ["subscription"] : []),
-      ],
-    };
-    completeOnboarding(org, { name: draft.admin.name, email: draft.admin.email, phone: draft.admin.phone });
-    upsertTenant({
-      orgId: org.orgId,
-      name: org.name,
-      slug: org.profile["slug"] || slugify(org.name),
-      domain: org.profile["domain"] ?? "",
-      website: org.profile["website"] ?? "",
-      businessType: org.businessType,
-      brandColor: org.profile["brandColor"] ?? "#2f5bff",
-      locations: [
-        {
-          locationId: `loc-${org.orgId.slice(0, 8)}`,
-          name: org.outlet["name"] || org.name,
-          code: "MAIN",
-          city: org.address["city"] ?? "",
-          address: org.outlet["address"] || org.address["line"] || "",
-          phone: org.outlet["phone"] || org.profile["phone"] || "",
-          email: org.outlet["email"] || org.profile["email"] || "",
-          timezone: "Asia/Kolkata",
-          status: org.outlet["status"] || "Active",
-          lat: Number(org.address["lat"] ?? 0),
-          lng: Number(org.address["lng"] ?? 0),
-          placeId: "",
-        },
-      ],
-    });
-    saveAccount({
-      identifier: draft.admin.email,
-      type: "organization",
-      name: draft.admin.name,
-      email: draft.admin.email,
-      phone: draft.admin.phone,
-      role: "ADMIN",
-    });
-    try {
-      window.localStorage.removeItem(DRAFT_KEY);
-    } catch {
-      /* ignore */
+  async function finish() {
+    if (saving) return;
+    if (draft.admin.password.length < 6) {
+      toast.error("Password must be at least 6 characters.");
+      return;
     }
-    toast.success("Organization created");
-    navigate({ to: "/dashboard" });
+    if (draft.admin.password !== draft.admin.confirm) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await organizationService.register({
+        organizationName: draft.org.name,
+        businessType: draft.org.businessType,
+        domain: draft.profile.domain ?? "",
+        website: draft.profile.website ?? "",
+        brandColor: draft.profile.brandColor || "#2f5bff",
+        adminName: draft.admin.name,
+        adminEmail: draft.admin.email,
+        adminPassword: draft.admin.password,
+        phone: draft.admin.phone,
+        city: draft.address.city,
+        address: draft.address.line,
+        outletName: draft.outlet.name.trim() || draft.org.name,
+      });
+
+      const login = await userService.login({
+        email: draft.admin.email.trim(),
+        password: draft.admin.password,
+      });
+      const apiRole = (login.role?.toUpperCase().replace(/\s+/g, "_") || "ADMIN") as Role;
+      signIn(login.email, apiRole, {
+        id: login.userId || res.adminUserId,
+        name: login.name || draft.admin.name,
+        phone: draft.admin.phone,
+        orgId: login.organizationId || res.organizationId,
+        locationId: login.locationId || res.locationId,
+      });
+
+      upsertTenant({
+        orgId: res.organizationId,
+        name: draft.org.name,
+        slug: res.slug,
+        domain: draft.profile.domain ?? "",
+        website: draft.profile.website ?? "",
+        businessType: draft.org.businessType,
+        brandColor: draft.profile.brandColor || "#2f5bff",
+        locations: [
+          {
+            locationId: res.locationId,
+            name: draft.outlet.name.trim() || draft.org.name || "Main",
+            code: "MAIN",
+            city: draft.address.city ?? "",
+            address: draft.address.line ?? "",
+            phone: draft.admin.phone,
+            email: draft.admin.email,
+            timezone: "Asia/Kolkata",
+            status: "Active",
+            lat: 0,
+            lng: 0,
+            placeId: "",
+          },
+        ],
+      });
+
+      const today = new Date().toISOString().slice(0, 10);
+      for (const svc of draft.services) {
+        await serviceService.save({
+          id: 0,
+          orgId: res.organizationId,
+          locationId: res.locationId,
+          name: svc.name,
+          category: svc.category,
+          duration: Number(svc.duration) || 0,
+          price: Number(svc.price) || 0,
+          gstRate: 0,
+          commission: 0,
+          outlet: draft.org.name,
+          active: svc.status || "Active",
+          createdby: draft.admin.email,
+          createdon: today,
+          updatedby: draft.admin.email,
+          updatedon: today,
+          type: "Service",
+          comboItems: "",
+          productNeeds: "",
+        });
+      }
+      for (const member of draft.staff) {
+        await staffService.save({
+          id: 0,
+          orgId: res.organizationId,
+          locationId: res.locationId,
+          name: member.name,
+          role: member.role,
+          outlet: draft.org.name,
+          phone: member.phone,
+          email: member.email,
+          joinDate: today,
+          baseSalary: 0,
+          commissionRate: 0,
+          target: 0,
+          status: member.status || "Active",
+          createdby: draft.admin.email,
+          createdon: today,
+          updatedby: draft.admin.email,
+          updatedon: today,
+        });
+      }
+
+      saveAccount({
+        identifier: draft.admin.email,
+        type: "organization",
+        name: draft.admin.name,
+        email: draft.admin.email,
+        phone: draft.admin.phone,
+        role: "ADMIN",
+      });
+      try {
+        window.localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* ignore */
+      }
+      toast.success("Organization created");
+      navigate({ to: "/dashboard" });
+    } catch (err) {
+      toast.error(registerError(err));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -545,6 +631,7 @@ export function RegisterPage() {
                 <Field label="Business type" value={draft.org.businessType} onChange={(v) => set("org", { ...draft.org, businessType: v })} />
                 <Field label="Business category" value={draft.org.businessCategory} onChange={(v) => set("org", { ...draft.org, businessCategory: v })} />
                 <Field label="Number of outlets" type="number" value={draft.org.outletCount} onChange={(v) => set("org", { ...draft.org, outletCount: v })} />
+                <Field label="City" required value={draft.address.city} onChange={(v) => set("address", { ...draft.address, city: v })} placeholder="Chennai" />
               </div>
               <div className="max-w-2xl space-y-3">
                 <Label className="text-xs tracking-wide text-muted-foreground uppercase">Your booking link</Label>
@@ -621,7 +708,7 @@ export function RegisterPage() {
           )}
 
           {step === 6 && (
-            <StepShell title="Create your first outlet" hint="Add more branches later from the Franchises & outlets module.">
+            <StepShell title="Create your first outlet" hint="Add more outlets later from the Outlets screen.">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Outlet name" required value={draft.outlet.name} onChange={(v) => set("outlet", { ...draft.outlet, name: v })} />
                 <Field label="Contact number" value={draft.outlet.phone} onChange={(v) => set("outlet", { ...draft.outlet, phone: v })} />
@@ -898,8 +985,8 @@ export function RegisterPage() {
                 <SummaryRow label="Features" value={draft.features.join(", ") || "None"} />
                 <SummaryRow label="Subscription" value={`${draft.plan} · ${draft.paid ? "Active" : "Trial"}`} />
               </dl>
-              <Button size="lg" className="w-full sm:w-auto" onClick={finish}>
-                Create organization & go to dashboard
+              <Button size="lg" className="w-full sm:w-auto" onClick={finish} disabled={saving}>
+                {saving ? "Creating organization…" : "Create organization & go to dashboard"}
               </Button>
             </StepShell>
           )}
@@ -910,9 +997,11 @@ export function RegisterPage() {
             </Button>
             <div className="flex items-center gap-2">
               {isLastVisible ? (
-                <Button onClick={next}>Create organization</Button>
+                <Button onClick={next} disabled={saving}>
+                  {saving ? "Creating organization…" : "Create organization"}
+                </Button>
               ) : (
-                <Button onClick={next}>
+                <Button onClick={next} disabled={saving}>
                   Continue <ChevronRight />
                 </Button>
               )}

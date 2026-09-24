@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Barcode, Download, Printer, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,10 @@ import {
 import { downloadCouponBarcodeSheet, printCouponBarcodes } from "@/lib/coupons/export-coupon-barcodes";
 import { downloadCouponCodesExcel, printCouponCodes } from "@/lib/coupons/export-coupon-codes";
 import { couponHeadline, normalizeCoupon } from "@/lib/coupons/coupon-engine";
-import { useData } from "@/lib/store";
+import { useApi } from "@/hooks/useApi";
+import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/lib/tenant";
 import { usePermissions } from "@/lib/permissions";
-import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
 const title = "Coupon codes — Krios";
@@ -42,12 +42,12 @@ function statusVariant(status: CouponCodeStatus) {
 }
 
 export function CouponCodesPage() {
-  const { couponId } = Route.useParams();
+  const { couponId } = useParams({ from: "/_app/coupons/$couponId/codes" });
   const { org } = useTenant();
   const { user } = useAuth();
   const { canEditHere } = usePermissions();
   const allowMutate = user?.role === "SUPER_ADMIN" || canEditHere;
-  const { allRows, create } = useData();
+  const { allRows, create } = useApi();
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | CouponCodeStatus>("All");

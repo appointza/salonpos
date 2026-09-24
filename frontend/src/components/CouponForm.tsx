@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 import {
   APPLIES_TO,
@@ -27,7 +28,7 @@ export function CouponForm({
 }: {
   value: Row;
   onChange: (next: Row) => void;
-  locations?: { locationId: string; name: string }[];
+  locations?: { locationId: EntityId; name: string }[];
 }) {
   const discountType = String(value["discountType"] ?? "percentage") as DiscountType;
   const normalized = normalizeCoupon(value, "coupons");

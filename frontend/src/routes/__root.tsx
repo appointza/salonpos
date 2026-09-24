@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-router";
 
 import { DataProvider } from "@/lib/store";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider } from "@/context/AuthContext";
 import { TenantProvider } from "@/lib/tenant";
 import { ListViewProvider } from "@/lib/list-view";
 import { Toaster } from "@/components/ui/sonner";

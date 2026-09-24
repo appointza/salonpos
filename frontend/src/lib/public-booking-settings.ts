@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import { useCallback, useMemo } from "react";
 import type { Db, Row } from "@/lib/store";
 import { useData } from "@/lib/store";
@@ -29,7 +30,7 @@ function readAllStored(): Record<string, PublicBookingSettings> {
   }
 }
 
-function writeStored(orgId: string, settings: PublicBookingSettings) {
+function writeStored(orgId: EntityId, settings: PublicBookingSettings) {
   if (typeof window === "undefined") return;
   try {
     const all = readAllStored();
@@ -40,7 +41,7 @@ function writeStored(orgId: string, settings: PublicBookingSettings) {
   }
 }
 
-/** Merge saved public-booking toggles into seed org rows on app load. */
+/** Merge saved public-booking toggles into organization rows after API load. */
 export function hydratePublicBookingSettings(db: Db): Db {
   const stored = readAllStored();
   if (!Object.keys(stored).length) return db;
@@ -65,7 +66,7 @@ export function resolveWalkInRewardMode(settings: PublicBookingSettings): WalkIn
   return null;
 }
 
-export function readPublicBookingSettings(orgRow: Row | undefined | null, orgId?: string): PublicBookingSettings {
+export function readPublicBookingSettings(orgRow: Row | undefined | null, orgId?: EntityId): PublicBookingSettings {
   const fromRow: PublicBookingSettings = {
     showPrizeWheel: String(orgRow?.[FIELD_PRIZE_WHEEL] ?? "Yes") !== "No",
     showScratchCard: String(orgRow?.[FIELD_SCRATCH_CARD] ?? "Yes") !== "No",
@@ -92,7 +93,7 @@ export function usePublicBookingSettings() {
   const { allRows, update } = useData();
 
   const orgRow = useMemo(
-    () => (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === orgId),
+    () => (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === String(orgId)),
     [allRows, orgId],
   );
 
@@ -114,7 +115,7 @@ export function usePublicBookingSettings() {
 }
 
 /** Read booking feature flags for a public guest page (any org). */
-export function publicBookingSettingsForOrg(allRows: Record<string, Row[]>, orgId: string): PublicBookingSettings {
-  const orgRow = (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === orgId);
+export function publicBookingSettingsForOrg(allRows: Record<string, Row[]>, orgId: EntityId): PublicBookingSettings {
+  const orgRow = (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === String(orgId));
   return readPublicBookingSettings(orgRow, orgId);
 }

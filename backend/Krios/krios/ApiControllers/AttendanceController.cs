@@ -1,11 +1,11 @@
 using Krios.Models;
-using CampusModels = Krios.Models.Krios;
+using Krios.Models.Krios;
 using Krios.Services.Krios;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Krios.Controllers.Krios
 {
-    [Route("api/krios/[controller]")]
+    [Route("api/[controller]")]
     [ApiController]
     public class AttendanceController : ControllerBase
     {
@@ -19,20 +19,20 @@ namespace Krios.Controllers.Krios
         }
 
         [HttpGet("Entity")]
-        public async Task<ActionResult<ActionRes<CampusModels.Attendance>>> Entity()
+        public async Task<ActionResult<ActionRes<Attendance>>> Entity()
         {
-            ActionRes<CampusModels.Attendance> result = new ActionRes<CampusModels.Attendance>()
+            ActionRes<Attendance> result = new ActionRes<Attendance>()
             {
-               item = new CampusModels.Attendance()
+               item = new Attendance()
             };
 
             return Ok(result);
         }
 
         [HttpPost("Select")]
-        public async Task<ActionResult<ActionRes<List<CampusModels.Attendance>>>> Select(ActionReq<CampusModels.AttendanceSelectReq> req)
+        public async Task<ActionResult<ActionRes<List<Attendance>>>> Select(ActionReq<AttendanceSelectReq> req)
         {
-            ActionRes<List<CampusModels.Attendance>> result = new ActionRes<List<CampusModels.Attendance>>();
+            ActionRes<List<Attendance>> result = new ActionRes<List<Attendance>>();
 
             result.item = await attendanceService.Select(req.item);
 
@@ -40,9 +40,9 @@ namespace Krios.Controllers.Krios
         }
 
         [HttpPost("Insert")]
-        public async Task<ActionResult<ActionRes<CampusModels.Attendance>>> Insert(ActionReq<CampusModels.Attendance> req)
+        public async Task<ActionResult<ActionRes<Attendance>>> Insert(ActionReq<Attendance> req)
         {
-            ActionRes<CampusModels.Attendance> result = new ActionRes<CampusModels.Attendance>();
+            ActionRes<Attendance> result = new ActionRes<Attendance>();
 
             result.item = await attendanceService.Insert(req.item);
 
@@ -50,9 +50,9 @@ namespace Krios.Controllers.Krios
         }
 
         [HttpPost("Update")]
-        public async Task<ActionResult<ActionRes<CampusModels.Attendance>>> Update(ActionReq<CampusModels.Attendance> req)
+        public async Task<ActionResult<ActionRes<Attendance>>> Update(ActionReq<Attendance> req)
         {
-            ActionRes<CampusModels.Attendance> result = new ActionRes<CampusModels.Attendance>();
+            ActionRes<Attendance> result = new ActionRes<Attendance>();
 
             result.item = await attendanceService.Update(req.item);
 
@@ -60,47 +60,26 @@ namespace Krios.Controllers.Krios
         }
 
         [HttpPost("Save")]
-        public async Task<ActionResult<ActionRes<CampusModels.Attendance>>> Save(ActionReq<CampusModels.Attendance> req)
+        public async Task<ActionResult<ActionRes<Attendance>>> Save(ActionReq<Attendance> req)
         {
-            ActionRes<CampusModels.Attendance> result = new ActionRes<CampusModels.Attendance>();
+            ActionRes<Attendance> result = new ActionRes<Attendance>();
 
-            result.item = await attendanceService.Save(req.item);
+            if(req.item.id > 0){
+                result.item = await attendanceService.Update(req.item);
+            }else{
+                result.item = await attendanceService.Insert(req.item);
+            }
 
             return Ok(result);
         }
 
         [HttpPost("Delete")]
-        public async Task<ActionResult<ActionRes<bool>>> Delete(ActionReq<CampusModels.AttendanceDeleteReq> req)
+        public async Task<ActionResult<ActionRes<bool>>> Delete(ActionReq<AttendanceDeleteReq> req)
         {
             ActionRes<bool> result = new ActionRes<bool>();
 
             result.item = await attendanceService.Delete(req.item);
 
-            return Ok(result);
-        }
-
-        /// <summary>One API: students for the class with each student's attendance status for the given date.</summary>
-        [HttpPost("GetStudentsWithAttendance")]
-        public async Task<ActionResult<ActionRes<List<CampusModels.StudentWithAttendanceItem>>>> GetStudentsWithAttendance(ActionReq<CampusModels.StudentsWithAttendanceReq> req)
-        {
-            ActionRes<List<CampusModels.StudentWithAttendanceItem>> result = new ActionRes<List<CampusModels.StudentWithAttendanceItem>>();
-            result.item = await attendanceService.GetStudentsWithAttendance(req.item);
-            return Ok(result);
-        }
-
-        [HttpPost("GetStaffAttendancePage")]
-        public async Task<ActionResult<ActionRes<CampusModels.StaffAttendancePageRes>>> GetStaffAttendancePage(ActionReq<CampusModels.StaffAttendancePageReq> req)
-        {
-            ActionRes<CampusModels.StaffAttendancePageRes> result = new ActionRes<CampusModels.StaffAttendancePageRes>();
-            result.item = await attendanceService.GetStaffAttendancePage(req.item);
-            return Ok(result);
-        }
-
-        [HttpPost("SaveBulk")]
-        public async Task<ActionResult<ActionRes<CampusModels.StaffAttendancePageRes>>> SaveBulk(ActionReq<CampusModels.BulkAttendanceSaveReq> req)
-        {
-            ActionRes<CampusModels.StaffAttendancePageRes> result = new ActionRes<CampusModels.StaffAttendancePageRes>();
-            result.item = await attendanceService.SaveBulkAttendance(req.item);
             return Ok(result);
         }
     }

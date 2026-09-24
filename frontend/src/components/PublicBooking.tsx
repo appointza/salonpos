@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { MapPin, Clock, Scissors, CalendarCheck, ExternalLink, CreditCard, Gift, TicketPercent, Layers, Sparkles } from "lucide-react";
 import { BRAND_LOGO } from "@/lib/brand";
@@ -13,11 +13,13 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useData, type Row } from "@/lib/store";
 import { useTenant } from "@/lib/tenant";
-import { isSlotFree, slotList } from "@/lib/booking";
+import { dbWithRow, isBookableStaff, isPublishedService, isSlotFree, openingWindow, rowsAtLocation, slotsInWindow } from "@/lib/booking";
 import { validateAppointmentBooking } from "@/lib/business/appointment-service";
 import { addCalendarMonths } from "@/lib/membership";
 import { SpinWheel } from "@/components/SpinWheel";
-import { findCustomerByPhone, normalizePhone, SCRATCH_PRIZES, WHEEL_SEGMENTS } from "@/lib/qr-loyalty";
+import { normalizePhone, SCRATCH_PRIZES, WHEEL_SEGMENTS } from "@/lib/qr-loyalty";
+import { readBookingRules } from "@/lib/booking-rules";
+import { findCustomerByPhoneInOrg } from "@/lib/customers/customer-lookup";
 import { upsertCustomerByPhone, isValidPhone } from "@/lib/customers/customer-service";
 import { buildAppointmentRow } from "@/lib/appointments/appointment-resolve";
 import { customerSpunToday, getTodayWheelSpin, processWheelSpinResult } from "@/lib/wheel/wheel-service";
@@ -28,8 +30,10 @@ import {
   selectScratchPrize,
 } from "@/lib/scratch/scratch-service";
 import { publicBookingSettingsForOrg } from "@/lib/public-booking-settings";
-import { useRewardDistribution } from "@/lib/reward-distribution";
+import { gamesForCustomer, useRewardDistribution } from "@/lib/reward-distribution";
 import { getCustomerLoyaltyBalance } from "@/lib/loyalty/loyalty-service";
+import type { EntityId } from "@/lib/ids";
+import { idStr } from "@/lib/ids";
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -40,19 +44,23 @@ export function PublicBooking({
   bookingOrgId,
 }: {
   showSwitcher?: boolean;
-  initialLocationId?: string;
+  initialLocationId?: EntityId;
   /** When set (public slug page), always scope data to this org. */
-  bookingOrgId?: string;
+  bookingOrgId?: EntityId;
 }) {
   const { tenants, org, setOrgId } = useTenant();
   const { allRows, create, update } = useData();
   const { config: rewardDist } = useRewardDistribution();
 
   const activeOrg = useMemo(
-    () => tenants.find((t) => t.orgId === bookingOrgId) ?? org,
+    () => tenants.find((t) => String(t.orgId) === String(bookingOrgId)) ?? org,
     [tenants, bookingOrgId, org],
   );
   const activeOrgId = activeOrg.orgId;
+
+  useEffect(() => {
+    if (bookingOrgId && String(bookingOrgId) !== String(org.orgId)) setOrgId(Number(bookingOrgId));
+  }, [bookingOrgId, org.orgId, setOrgId]);
 
   const bookingFeatures = useMemo(
     () => publicBookingSettingsForOrg(allRows, activeOrgId),
@@ -67,7 +75,7 @@ export function PublicBooking({
   }, [bookingFeatures]);
 
   const [locationId, setLocationId] = useState(
-    initialLocationId && activeOrg.locations.some((l) => l.locationId === initialLocationId)
+    initialLocationId && activeOrg.locations.some((l) => String(l.locationId) === String(initialLocationId))
       ? initialLocationId
       : (activeOrg.locations[0]?.locationId ?? ""),
   );
@@ -80,40 +88,46 @@ export function PublicBooking({
   const [booked, setBooked] = useState<Row | null>(null);
   const [planId, setPlanId] = useState("");
   const [payment, setPayment] = useState("UPI");
+  const [saving, setSaving] = useState(false);
   const [purchased, setPurchased] = useState<Row | null>(null);
   const [wheelPrize, setWheelPrize] = useState("");
   const [scratchPrize, setScratchPrize] = useState("");
 
-  const location = activeOrg.locations.find((l) => l.locationId === locationId) ?? activeOrg.locations[0] ?? null;
-
-  const scoped = (key: string) =>
-    (allRows[key] ?? []).filter(
-      (r) => String(r["orgId"]) === activeOrgId && (!location || String(r["locationId"]) === location.locationId),
-    );
+  const location = activeOrg.locations.find((l) => String(l.locationId) === String(locationId)) ?? activeOrg.locations[0] ?? null;
 
   const services = useMemo(
-    () => scoped("services").filter((s) => String(s["active"] ?? "Yes") !== "No"),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () =>
+      rowsAtLocation(allRows["services"] ?? [], activeOrgId, location?.locationId ?? "").filter(isPublishedService),
     [allRows, activeOrgId, location?.locationId],
   );
   const staff = useMemo(
-    () => scoped("staff").filter((s) => String(s["status"] ?? "Active") === "Active"),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => rowsAtLocation(allRows["staff"] ?? [], activeOrgId, location?.locationId ?? "").filter(isBookableStaff),
     [allRows, activeOrgId, location?.locationId],
   );
   const membershipPlans = useMemo(
     () =>
       (allRows["membershipPlans"] ?? []).filter(
-        (p) => String(p["orgId"]) === activeOrgId && String(p["status"] ?? "Active") === "Active",
+        (p) => String(p["orgId"]) === String(activeOrgId) && String(p["status"] ?? "Active") === "Active",
       ),
     [allRows, activeOrgId],
   );
-  const appointments = (allRows["appointments"] ?? []).filter((a) => String(a["orgId"]) === activeOrgId);
+  const appointments = (allRows["appointments"] ?? []).filter((a) => String(a["orgId"]) === String(activeOrgId));
 
   const matchedCustomer = useMemo(
-    () => findCustomerByPhone((allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === activeOrgId), phone),
-    [allRows, activeOrgId, phone],
+    () =>
+      findCustomerByPhoneInOrg(
+        allRows["customers"] ?? [],
+        phone,
+        activeOrgId,
+        location?.locationId,
+        location?.name,
+      ),
+    [allRows, activeOrgId, phone, location?.locationId, location?.name],
   );
+  useEffect(() => {
+    const known = String(matchedCustomer?.["name"] ?? "").trim();
+    if (known) setName(known);
+  }, [matchedCustomer]);
   const phoneReady = isValidPhone(phone);
   const eligibleOffers = useMemo(() => {
     if (!location || !phoneReady) return [];
@@ -128,7 +142,7 @@ export function PublicBooking({
     () =>
       (allRows[QR_OFFERS] ?? []).filter(
         (o) =>
-          String(o["orgId"]) === activeOrgId &&
+          String(o["orgId"]) === String(activeOrgId) &&
           String(o["status"]) === "Active" &&
           (!o["locationId"] || String(o["locationId"]) === location?.locationId),
       ).length,
@@ -136,13 +150,13 @@ export function PublicBooking({
   );
   const wheelSegments = useMemo(() => {
     const loc = location?.locationId ?? "";
-    const all = (allRows[WHEEL_SEGMENTS] ?? []).filter((s) => String(s["orgId"]) === activeOrgId);
+    const all = (allRows[WHEEL_SEGMENTS] ?? []).filter((s) => String(s["orgId"]) === String(activeOrgId));
     const here = all.filter((s) => String(s["locationId"]) === loc);
     return here.length ? here : all;
   }, [allRows, activeOrgId, location?.locationId]);
   const scratchPrizes = useMemo(() => {
     const loc = location?.locationId ?? "";
-    const all = (allRows[SCRATCH_PRIZES] ?? []).filter((s) => String(s["orgId"]) === activeOrgId);
+    const all = (allRows[SCRATCH_PRIZES] ?? []).filter((s) => String(s["orgId"]) === String(activeOrgId));
     const here = all.filter((s) => String(s["locationId"]) === loc);
     return (here.length ? here : all).filter((s) => String(s["active"] ?? "Yes") !== "No");
   }, [allRows, activeOrgId, location?.locationId]);
@@ -162,6 +176,9 @@ export function PublicBooking({
     }
     return "";
   }, [allRows, matchedCustomer]);
+  const guestGames = gamesForCustomer(rewardDist, String(matchedCustomer?.["tier"] ?? ""));
+  const showScratchGame = bookingFeatures.showScratchCard && guestGames.scratch;
+  const showWheelGame = bookingFeatures.showPrizeWheel && guestGames.wheel;
   const service = services.find((s) => String(s.id) === serviceId) ?? null;
   const plan = membershipPlans.find((p) => String(p.id) === planId) ?? null;
   const duration = Number(service?.["duration"] ?? 60);
@@ -170,12 +187,12 @@ export function PublicBooking({
   const planTax = Math.round(planPrice * (gstRate / 100));
   const planTotal = planPrice + planTax;
 
-  function upsertCustomer(membershipId: string): Row {
+  function upsertCustomer(membershipId: string, guestName = name.trim() || String(matchedCustomer?.["name"] ?? "").trim()) {
     return upsertCustomerByPhone(
       { db: allRows, create, update },
       {
         orgId: activeOrgId,
-        name,
+        name: guestName,
         phone,
         locationId: location?.locationId ?? "",
         outlet: location?.name ?? "",
@@ -185,12 +202,24 @@ export function PublicBooking({
     );
   }
 
+  const bookingRules = useMemo(() => {
+    const orgRow = (allRows["organizations"] ?? []).find((o) => String(o["orgId"]) === String(activeOrgId));
+    return readBookingRules(orgRow, activeOrgId);
+  }, [allRows, activeOrgId]);
   const slots = useMemo(() => {
-    if (!service || !staffName || !location) return [];
-    return slotList("09:00", "20:00", 30).map((t) => ({
+    if (!service || !staffName || !location || !bookingRules.onlineBooking) return [];
+    const stylist = staff.find((s) => String(s["name"]) === staffName);
+    const window = openingWindow(allRows["shifts"] ?? [], date, stylist?.id, bookingRules.hours);
+    if (window.closed) return [];
+    const step = Math.max(5, Number(bookingRules.duration) || 30);
+    const noticeMs = Math.max(0, Number(bookingRules.minNotice) || 0) * 60 * 60 * 1000;
+    return slotsInWindow(window.open, window.close, duration, step)
+      .filter((t) => new Date(`${date}T${t}`).getTime() >= Date.now() + noticeMs)
+      .map((t) => ({
       time: t,
       free: isSlotFree(appointments, {
         staff: staffName,
+        staffId: stylist?.id,
         date,
         time: t,
         duration,
@@ -198,10 +227,12 @@ export function PublicBooking({
       }),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appointments, staffName, date, duration, service, location?.locationId]);
+  }, [appointments, staffName, date, duration, service, location?.locationId, staff, allRows, bookingRules]);
 
-  function book() {
-    if (!service || !staffName || !time || !name || !phone || !location)
+  async function book() {
+    if (saving) return;
+    const guestName = name.trim() || String(matchedCustomer?.["name"] ?? "").trim();
+    if (!service || !staffName || !time || !guestName || !phone || !location)
       return void toast.error("Fill every field to confirm the booking");
     const availability = validateAppointmentBooking(allRows, {
       orgId: activeOrgId,
@@ -214,12 +245,14 @@ export function PublicBooking({
     });
     if (!availability.ok) return void toast.error(availability.error);
 
+    setSaving(true);
     setOrgId(activeOrgId);
-    const customer = upsertCustomerByPhone(
+    try {
+    const customer = await upsertCustomerByPhone(
       { db: allRows, create, update },
       {
         orgId: activeOrgId,
-        name,
+        name: guestName,
         phone,
         locationId: location.locationId,
         outlet: location.name,
@@ -241,12 +274,18 @@ export function PublicBooking({
       source: "Website",
       notes: `Online booking · ${phone}`,
     });
-    create("appointments", appt);
+    await create("appointments", appt);
     setBooked(appt);
+    setTime("");
     toast.success("Appointment confirmed", { description: `${date} ${time} · ${staffName}` });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not book that time");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function ensureGuest(): Row | null {
+  async function ensureGuest(): Promise<Row | null> {
     if (!isValidPhone(phone)) {
       toast.error("Enter your mobile so the wheel is saved against your account");
       return null;
@@ -257,29 +296,45 @@ export function PublicBooking({
       return null;
     }
     setOrgId(activeOrgId);
-    return upsertCustomerByPhone(
-      { db: allRows, create, update },
-      {
-        orgId: activeOrgId,
-        name: guestName,
-        phone,
-        locationId: location?.locationId ?? "",
-        outlet: location?.name ?? "",
-        lastVisit: today(),
-      },
-    );
+    try {
+      return await upsertCustomerByPhone(
+        { db: allRows, create, update },
+        {
+          orgId: activeOrgId,
+          name: guestName,
+          phone,
+          locationId: location?.locationId ?? "",
+          outlet: location?.name ?? "",
+          lastVisit: today(),
+        },
+      );
+    } catch {
+      return null;
+    }
   }
 
-  function buyMembership() {
-    if (!plan || !name.trim() || !phone.trim() || !location)
+  async function buyMembership() {
+    if (saving) return;
+    const guestName = name.trim() || String(matchedCustomer?.["name"] ?? "").trim();
+    if (!plan || !guestName || !phone.trim() || !location)
       return void toast.error("Enter your name and mobile, then pick a membership");
     if (phone.replace(/\D/g, "").length < 10) return void toast.error("Enter a valid 10-digit mobile number");
+    const already = (allRows["memberships"] ?? []).some(
+      (m) =>
+        String(m["status"] ?? "Active") === "Active" &&
+        String(m["planId"] ?? m["plan"]) === String(plan.id) &&
+        (String(m["customerId"]) === String(matchedCustomer?.id ?? "") ||
+          String(m["customer"] ?? "").trim().toLowerCase() === guestName.toLowerCase()),
+    );
+    if (already) return void toast.error("This membership is already active for this customer");
 
+    setSaving(true);
     setOrgId(activeOrgId);
+    try {
     const start = today();
     const months = Math.max(1, Number(plan["validityMonths"] ?? 12));
     const memId = `MP-${Math.floor(1000 + Math.random() * 9000)}`;
-    const customer = upsertCustomer(memId);
+    const customer = await upsertCustomer(memId, guestName);
     const enrollment: Row = {
       id: memId,
       planId: String(plan.id),
@@ -291,8 +346,8 @@ export function PublicBooking({
       status: "Active",
       locationId: location.locationId,
     };
-    create("memberships", enrollment);
-    create("invoices", {
+    await create("memberships", enrollment);
+    await create("invoices", {
       id: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
       customerId: String(customer.id),
       customer: String(customer["name"]),
@@ -313,6 +368,11 @@ export function PublicBooking({
     toast.success("Membership purchased", {
       description: `${String(plan["name"])} · ${money(planTotal)} · ${payment}`,
     });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not take payment");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -400,7 +460,7 @@ export function PublicBooking({
         <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <h2 className="font-display text-xl">Your details</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Enter once. This name and mobile are used for
+            Enter your mobile. If we already know you, your name fills in. This name and mobile are used for
             {bookingFeatures.showPrizeWheel || bookingFeatures.showScratchCard
               ? ` ${[
                   bookingFeatures.showScratchCard ? "scratch card" : "",
@@ -413,12 +473,6 @@ export function PublicBooking({
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="guest-name" className="mb-1.5">
-                Your name
-              </Label>
-              <Input id="guest-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="As on your profile" />
-            </div>
-            <div>
               <Label htmlFor="guest-phone" className="mb-1.5">
                 Mobile number
               </Label>
@@ -429,6 +483,12 @@ export function PublicBooking({
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="98765 43210"
               />
+            </div>
+            <div>
+              <Label htmlFor="guest-name" className="mb-1.5">
+                Your name
+              </Label>
+              <Input id="guest-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Fills in when we know this number" />
             </div>
           </div>
           {matchedCustomer ? (
@@ -478,7 +538,7 @@ export function PublicBooking({
           </section>
         ) : null}
 
-        {bookingFeatures.showScratchCard && phoneReady && location && scratchPrizes.length > 0 ? (
+        {showScratchGame && phoneReady && location && scratchPrizes.length > 0 ? (
           <section className="overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-b from-card via-card to-amber-500/5 p-5 shadow-sm">
             <h2 className="font-display text-xl flex items-center gap-2">
               <Layers className="size-5 text-amber-500" />
@@ -510,14 +570,15 @@ export function PublicBooking({
                   brandName={activeOrg.name}
                   disabled={!phoneReady || (!name.trim() && !matchedCustomer) || scratchPrizes.length === 0}
                   onBegin={() => {
-                    const guest = ensureGuest();
+                    const guestPromise = ensureGuest();
+                    return guestPromise.then((guest) => {
                     if (!guest || !location) return null;
                     const prize = selectScratchPrize(scratchPrizes, rewardDist.scratch);
                     if (!prize) {
                       toast.error("No scratch prizes configured");
                       return null;
                     }
-                    const store = { db: allRows, create, update };
+                    const store = { db: dbWithRow(allRows, "customers", guest), create, update };
                     const result = processScratchResult(store, {
                       customerId: String(guest.id),
                       prize,
@@ -537,6 +598,7 @@ export function PublicBooking({
                     setScratchPrize(result.label);
                     toast.success(`Prize saved to ${guest["name"]}`, { description: result.label });
                     return result.label;
+                    });
                   }}
                   onRevealed={(label) => setScratchPrize(label)}
                 />
@@ -545,7 +607,7 @@ export function PublicBooking({
           </section>
         ) : null}
 
-        {bookingFeatures.showPrizeWheel ? (
+        {showWheelGame ? (
         <section className="overflow-hidden rounded-2xl bg-card p-5">
           <h2 className="font-display text-xl flex items-center gap-2">
             <Sparkles className="size-5 text-violet-500" />
@@ -572,27 +634,29 @@ export function PublicBooking({
                 tierWeights={rewardDist.wheel}
                 disabled={normalizePhone(phone).length < 10 || (!name.trim() && !matchedCustomer)}
                 onResult={(seg) => {
-                  const guest = ensureGuest();
-                  if (!guest || !location) return;
-                  const store = { db: allRows, create, update };
-                  const result = processWheelSpinResult(store, {
-                    customerId: String(guest.id),
-                    segment: seg,
-                    locationId: location.locationId,
-                    orgId: activeOrgId,
-                    source: "public",
-                  });
-                  if (result.duplicate) {
-                    toast.message("You already spun today", { description: result.label });
+                  void (async () => {
+                    const guest = await ensureGuest();
+                    if (!guest || !location) return;
+                    const store = { db: dbWithRow(allRows, "customers", guest), create, update };
+                    const result = processWheelSpinResult(store, {
+                      customerId: String(guest.id),
+                      segment: seg,
+                      locationId: location.locationId,
+                      orgId: activeOrgId,
+                      source: "public",
+                    });
+                    if (result.duplicate) {
+                      toast.message("You already spun today", { description: result.label });
+                      setWheelPrize(result.label);
+                      return;
+                    }
+                    if (!result.ok) {
+                      toast.error(result.error ?? "Could not save spin");
+                      return;
+                    }
                     setWheelPrize(result.label);
-                    return;
-                  }
-                  if (!result.ok) {
-                    toast.error(result.error ?? "Could not save spin");
-                    return;
-                  }
-                  setWheelPrize(result.label);
-                  toast.success(`Prize saved to ${guest["name"]}`, { description: result.label });
+                    toast.success(`Prize saved to ${guest["name"]}`, { description: result.label });
+                  })();
                 }}
               />
             )}
@@ -646,8 +710,8 @@ export function PublicBooking({
                   </Select>
                 </div>
                 <div className="flex flex-col justify-end">
-                  <Button className="w-full" onClick={buyMembership}>
-                    <CreditCard /> Pay {money(planTotal)}
+                  <Button className="w-full" disabled={saving} onClick={() => void buyMembership()}>
+                    <CreditCard /> {saving ? "Paying…" : `Pay ${money(planTotal)}`}
                   </Button>
                   <p className="mt-1 text-center text-[11px] text-muted-foreground">
                     {money(planPrice)} + {gstRate}% GST · {name || "Name"} · {phone || "mobile"}
@@ -717,7 +781,14 @@ export function PublicBooking({
               <Label htmlFor="bk-date" className="mb-1.5">
                 Date
               </Label>
-              <Input id="bk-date" type="date" value={date} min={today()} onChange={(e) => setDate(e.target.value)} />
+              <Input
+                id="bk-date"
+                type="date"
+                value={date}
+                min={today()}
+                max={new Date(Date.now() + Math.max(1, Number(bookingRules.advanceDays) || 30) * 86400000).toISOString().slice(0, 10)}
+                onChange={(e) => setDate(e.target.value)}
+              />
             </div>
             <div>
               <Label className="mb-1.5 flex items-center gap-2">
@@ -750,8 +821,8 @@ export function PublicBooking({
             <p className="text-xs text-muted-foreground">
               Booking as {name.trim() || "—"} · {phone.trim() || "add mobile above"}
             </p>
-            <Button className="w-full" onClick={book}>
-              <CalendarCheck /> Confirm booking
+            <Button className="w-full" disabled={saving || !time} onClick={() => void book()}>
+              <CalendarCheck /> {saving ? "Booking…" : "Confirm booking"}
             </Button>
             {booked && (
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">

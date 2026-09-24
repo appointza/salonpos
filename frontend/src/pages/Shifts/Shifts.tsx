@@ -1,5 +1,5 @@
 import { CrudPage } from "@/components/CrudPage";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { modules } from "@/lib/modules";
 import { staffName } from "@/lib/hr";
 import { resolveStaffForUser } from "@/lib/staff-scope";
@@ -14,7 +14,7 @@ export function Page() {
   const { rows: staff } = useCollection("staff");
   const isStylist = user?.role === "STYLIST";
   const me = resolveStaffForUser(
-    (allRows["staff"] ?? []).filter((s) => String(s["orgId"]) === orgId),
+    (allRows["staff"] ?? []).filter((s) => String(s["orgId"]) === String(orgId)),
     user,
   );
   const options = staff.map((s) => ({ value: String(s.id), label: `${String(s["name"])} · ${String(s.id)}` }));

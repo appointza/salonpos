@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Link, Outlet, useParams, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft, Barcode, Download, Lock, Pencil, Printer, Search, TicketPercent } from "lucide-react";
 import { toast } from "sonner";
 import { CouponForm } from "@/components/CouponForm";
@@ -34,10 +34,10 @@ import {
 } from "@/lib/coupons/coupon-code-pool";
 import { printCouponBarcodes } from "@/lib/coupons/export-coupon-barcodes";
 import { downloadCouponCodesExcel, printCouponCodes } from "@/lib/coupons/export-coupon-codes";
-import { useCollection, useData, type Row } from "@/lib/store";
+import { useApi, useCollection, type Row } from "@/hooks/useApi";
+import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/lib/tenant";
 import { usePermissions } from "@/lib/permissions";
-import { useAuth } from "@/lib/auth";
 
 const STATUS_FILTERS: Array<"All" | CouponCodeStatus> = [
   "All",
@@ -63,12 +63,12 @@ export function CouponSchemeLayout() {
 }
 
 function CouponDetailPage() {
-  const { couponId } = Route.useParams();
+  const { couponId } = useParams({ from: "/_app/coupons/$couponId" });
   const { org } = useTenant();
   const { user } = useAuth();
   const { canEditHere } = usePermissions();
   const allowMutate = user?.role === "SUPER_ADMIN" || canEditHere;
-  const { allRows, create: createRow, create } = useData();
+  const { allRows, create: createRow, create } = useApi();
   const { update } = useCollection(COUPONS_COLLECTION);
 
   const [editing, setEditing] = useState<Row | null>(null);

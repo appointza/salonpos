@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -38,7 +39,7 @@ export function Page() {
     return payrollForStaff({ staff: person, period, attendance, commissions, adjustment });
   });
 
-  function setStatus(staffId: string, status: string) {
+  function setStatus(staffId: EntityId, status: string) {
     const existing = payroll.find((p) => String(p["staffId"]) === staffId && String(p["period"]) === period);
     const calc = rows.find((r) => r.staffId === staffId);
     if (!calc) return;
@@ -59,7 +60,7 @@ export function Page() {
     toast.success(`Payroll ${status.toLowerCase()}`, { description: calc.staffName });
   }
 
-  function saveAdjustment(staffId: string, field: "incentive" | "extraDeductions", value: number) {
+  function saveAdjustment(staffId: EntityId, field: "incentive" | "extraDeductions", value: number) {
     const existing = payroll.find((p) => String(p["staffId"]) === staffId && String(p["period"]) === period);
     const calc = rows.find((r) => r.staffId === staffId);
     if (!calc) return;

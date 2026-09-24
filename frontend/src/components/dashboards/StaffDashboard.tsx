@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { DashHeader, DashStat, QuickLink, sortAppointments } from "@/components/dashboards/shared";
 import { listLowStockAlerts } from "@/lib/business/inventory-service";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { useData } from "@/lib/store";
 import { useTenant } from "@/lib/tenant";
 

@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import seed from "@/data/salonData.json";
-import { DEMO_ORG_ID } from "@/lib/tenant";
+import type { EntityId } from "@/lib/ids";
+import { authTokenStore } from "@/utils/auth-token.util";
 
 export type Role = "SUPER_ADMIN" | "ADMIN" | "STAFF" | "STYLIST";
 
 export type Organization = {
-  orgId: string;
+  orgId: EntityId;
   name: string;
   businessType: string;
   businessCategory: string;
@@ -36,8 +36,8 @@ export type SlotConfig = {
   onlineBooking: boolean;
 };
 export type OrgService = {
-  id: string;
-  orgId: string;
+  id: EntityId;
+  orgId: EntityId;
   name: string;
   category: string;
   description: string;
@@ -48,8 +48,8 @@ export type OrgService = {
   staff: string;
 };
 export type OrgStaff = {
-  id: string;
-  orgId: string;
+  id: EntityId;
+  orgId: EntityId;
   name: string;
   phone: string;
   email: string;
@@ -60,44 +60,23 @@ export type OrgStaff = {
 };
 
 export type SessionUser = {
-  id: string;
-  orgId: string | null;
+  id: EntityId;
+  orgId: EntityId | null;
   name: string;
   email: string;
   phone: string;
   role: Role;
-  /** Linked staff row (ST-…) when the login is a stylist. */
-  staffId?: string;
-  /** Home outlet assigned by admin; stylists cannot switch away from it. */
-  locationId?: string;
+  staffId?: EntityId;
+  locationId?: EntityId;
 };
-
-function staffFromSeed(email: string, name?: string, userId?: string) {
-  const staff = seed.staff as { id: string; email?: string; name?: string; locationId?: string }[];
-  const e = email.trim().toLowerCase();
-  const n = (name ?? "").trim().toLowerCase();
-  return (
-    staff.find((s) => String(s.email ?? "").trim().toLowerCase() === e) ??
-    staff.find((s) => String(s.name ?? "").trim().toLowerCase() === n) ??
-    staff.find((s) => s.id === userId) ??
-    null
-  );
-}
 
 function withStaffLink(user: SessionUser): SessionUser {
   if (user.role !== "STYLIST") return user;
-  const staff = staffFromSeed(user.email, user.name, user.staffId || user.id);
-  if (!staff) return user;
-  return {
-    ...user,
-    staffId: user.staffId || staff.id,
-    locationId: user.locationId || staff.locationId,
-  };
+  return user;
 }
 
 const SESSION_KEY = "salon-crm-session-v1";
 
-/** Sync session read for route guards (beforeLoad). */
 export function getStoredSession(): SessionUser | null {
   try {
     const raw = window.localStorage.getItem(SESSION_KEY);
@@ -105,38 +84,6 @@ export function getStoredSession(): SessionUser | null {
   } catch {
     return null;
   }
-}
-
-function orgsFromSeed(): Organization[] {
-  return seed.organizations.map((o) => ({
-    orgId: o.orgId,
-    name: o.name,
-    businessType: o.businessType,
-    businessCategory: "",
-    outletCount: seed.locations.filter((l) => l.orgId === o.orgId).length,
-    createdAt: o.createdon,
-    plan: "Growth",
-    profile: {
-      slug: o.slug,
-      domain: o.domain,
-      website: o.website,
-      brandColor: o.brandColor,
-    },
-    address: {},
-    outlet: {},
-    hours: defaultHours(),
-    slots: defaultSlots(),
-    services: [],
-    staff: [],
-    features: [],
-    menu: { mode: "services", items: [] },
-    loyalty: {
-      pointsPerRupee: String(o.pointsPerRupee),
-      rupeesPerPoint: String(o.rupeesPerPoint),
-    },
-    reward: {},
-    completed: ["organization", "hours", "slots", "services", "subscription"],
-  }));
 }
 
 export const DEFAULT_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -212,7 +159,7 @@ function write(key: string, value: unknown) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [orgs, setOrgs] = useState<Organization[]>(() => orgsFromSeed());
+  const [orgs, setOrgs] = useState<Organization[]>([]);
   const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
@@ -223,8 +170,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     (email: string, role: Role, profile?: Partial<Pick<SessionUser, "id" | "name" | "phone" | "orgId" | "staffId" | "locationId">>) => {
       const next = withStaffLink({
-        id: profile?.id || uuid(),
-        orgId: profile?.orgId !== undefined ? profile.orgId : role === "SUPER_ADMIN" ? null : DEMO_ORG_ID,
+        id: profile?.id ?? 0,
+        orgId: profile?.orgId !== undefined ? profile.orgId : role === "SUPER_ADMIN" ? null : null,
         name: profile?.name || email.split("@")[0] || "User",
         email,
         phone: profile?.phone ?? "",
@@ -242,11 +189,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(() => {
     setUser(null);
     write(SESSION_KEY, null);
+    authTokenStore.clear();
   }, []);
 
   const completeOnboarding = useCallback<Ctx["completeOnboarding"]>((org, admin) => {
     setOrgs((prev) => [org, ...prev.filter((o) => o.orgId !== org.orgId)]);
-    const session: SessionUser = { id: uuid(), orgId: org.orgId, role: "ADMIN", ...admin };
+    const session: SessionUser = { id: 0, orgId: org.orgId, role: "ADMIN", ...admin };
     setUser(session);
     write(SESSION_KEY, session);
   }, []);

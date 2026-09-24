@@ -4,7 +4,7 @@ import { LogOut, Menu, ChevronRight } from "lucide-react";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/lib/permissions";
 import { useTenant } from "@/lib/tenant";
 import { BRAND_LOGO } from "@/lib/brand";

@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 
 export type ReportPeriod = "day" | "week" | "month" | "quarter" | "half" | "year";
@@ -58,7 +59,7 @@ export function inPeriod(dateStr: string, range: PeriodRange) {
   return d >= range.start && d <= range.end;
 }
 
-export function paidInvoices(invoices: Row[], range: PeriodRange, orgId?: string, locationId?: string) {
+export function paidInvoices(invoices: Row[], range: PeriodRange, orgId?: EntityId, locationId?: EntityId) {
   return invoices.filter((inv) => {
     if (String(inv["status"]) !== "Paid") return false;
     if (orgId && String(inv["orgId"]) !== orgId) return false;

@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import type { BillLine } from "@/lib/pos";
 import {
@@ -41,8 +42,8 @@ export type BillCouponContext = {
   db: Db;
   customer: Row;
   lines: BillLine[];
-  orgId: string;
-  locationId: string;
+  orgId: EntityId;
+  locationId: EntityId;
   paymentMethod?: string;
   otherDiscount?: number;
   membershipDiscount?: number;
@@ -148,7 +149,7 @@ function schemeFromVoucher(db: Db, voucher: Row): CouponRule | null {
   return normalizeCoupon(row, "coupons");
 }
 
-export function findVoucherByCode(db: Db, code: string, orgId?: string) {
+export function findVoucherByCode(db: Db, code: string, orgId?: EntityId) {
   const q = code.trim().replace(/^#/, "").toLowerCase();
   if (!q) return null;
   return (db[VOUCHERS] ?? []).find((v) => {
@@ -290,10 +291,10 @@ export function generateVoucherCode(schemeCode: string) {
 export function issueVoucher(
   store: { db: Db; create: (c: string, r: Row) => void },
   input: {
-    couponId: string;
-    customerId: string;
-    orgId: string;
-    locationId: string;
+    couponId: EntityId;
+    customerId: EntityId;
+    orgId: EntityId;
+    locationId: EntityId;
     amount?: number;
     voucherType?: VoucherTypeName;
     code?: string;
@@ -339,10 +340,10 @@ export function claimVoucherAtPos(
   },
   input: {
     voucherId: string;
-    invoiceId: string;
+    invoiceId: EntityId;
     discountAmount: number;
     customerId?: string;
-    locationId?: string;
+    locationId?: EntityId;
     staffId?: string;
     staff?: string;
   },
@@ -385,7 +386,7 @@ export function claimVoucherAtPos(
   return { ok: true };
 }
 
-export function listCustomerVouchers(db: Db, customerId: string, orgId?: string) {
+export function listCustomerVouchers(db: Db, customerId: EntityId, orgId?: EntityId) {
   return (db[VOUCHERS] ?? []).filter((v) => {
     if (String(v["issueTo"] ?? v["customerId"]) !== customerId) return false;
     if (orgId && str(v, "orgId") && str(v, "orgId") !== orgId) return false;
@@ -394,7 +395,7 @@ export function listCustomerVouchers(db: Db, customerId: string, orgId?: string)
   });
 }
 
-export function allowDuplicateCoupons(db: Db, orgId: string) {
+export function allowDuplicateCoupons(db: Db, orgId: EntityId) {
   const org = (db["organizations"] ?? []).find((o) => String(o["orgId"]) === orgId);
   return String(org?.["sale_duplicatecoupon"] ?? "No") === "Yes";
 }

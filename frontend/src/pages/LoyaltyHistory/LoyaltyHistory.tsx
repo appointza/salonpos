@@ -1,8 +1,9 @@
+import { useSearch } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { customerName } from "@/lib/customers/customer-lookup";
-import { useCollection, useData } from "@/lib/store";
+import { useApi, useCollection } from "@/hooks/useApi";
 
 function friendlyReason(row: Record<string, unknown>) {
   const reason = String(row["reason"] ?? "");
@@ -16,9 +17,9 @@ function friendlyReason(row: Record<string, unknown>) {
 }
 
 export function LoyaltyHistoryPage() {
-  const { tab } = Route.useSearch();
+  const { tab } = useSearch({ from: "/_app/loyalty/history" });
   const { rows: txs } = useCollection("loyaltyTransactions");
-  const { allRows } = useData();
+  const { allRows } = useApi();
   const nameOf = (id: string) => customerName(allRows, id);
 
   const offers = allRows["qrOfferRedemptions"] ?? [];

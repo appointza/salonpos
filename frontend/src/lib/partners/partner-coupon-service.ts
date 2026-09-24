@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import type { LoyaltyStore } from "@/lib/loyalty/loyalty-service";
 
@@ -31,10 +32,10 @@ export function issuePartnerCoupon(
   store: PartnerStore,
   input: {
     partnerId: string;
-    customerId: string;
+    customerId: EntityId;
     direction: "inbound" | "outbound";
-    locationId: string;
-    orgId: string;
+    locationId: EntityId;
+    orgId: EntityId;
     offer?: string;
   },
 ) {
@@ -70,7 +71,7 @@ export function issuePartnerCoupon(
   return { ok: true, coupon: row };
 }
 
-export function getPendingPartnerCoupons(db: Db, customerId: string, direction: "inbound" = "inbound") {
+export function getPendingPartnerCoupons(db: Db, customerId: EntityId, direction: "inbound" = "inbound") {
   return (db[PARTNER_COUPONS] ?? []).filter(
     (c) =>
       String(c["customerId"]) === customerId &&
@@ -81,7 +82,7 @@ export function getPendingPartnerCoupons(db: Db, customerId: string, direction: 
 
 export function redeemPartnerCouponAtPos(
   store: PartnerStore,
-  input: { couponId: string; invoiceId: string; discountAmount: number; orgId?: string },
+  input: { couponId: EntityId; invoiceId: EntityId; discountAmount: number; orgId?: EntityId },
 ) {
   const coupon = (store.db[PARTNER_COUPONS] ?? []).find((c) => String(c.id) === input.couponId);
   if (!coupon) return { ok: false, error: "Partner coupon not found" };

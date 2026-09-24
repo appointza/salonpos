@@ -1,6 +1,7 @@
-import { CUSTOMER_TIERS, tierWeightPercents, type RewardChannel, type RewardDistributionConfig, type TierWeights } from "@/lib/reward-distribution";
+import { CUSTOMER_TIERS, tierWeightPercents, type RewardChannel, type RewardDistributionConfig, type RewardGame, type TierWeights } from "@/lib/reward-distribution";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const CHANNEL_META: Record<RewardChannel, { title: string; hint: string }> = {
   wheel: {
@@ -76,6 +77,12 @@ function TierWeightEditor({
   );
 }
 
+const GAME_OPTIONS: { value: RewardGame; label: string }[] = [
+  { value: "scratch", label: "Scratch card" },
+  { value: "wheel", label: "Prize wheel" },
+  { value: "both", label: "Both" },
+];
+
 export function RewardDistributionPanel({
   value,
   onChange,
@@ -85,18 +92,72 @@ export function RewardDistributionPanel({
 }) {
   return (
     <div className="space-y-4">
-      {(Object.keys(CHANNEL_META) as RewardChannel[]).map((channel) => (
-        <TierWeightEditor
-          key={channel}
-          title={CHANNEL_META[channel].title}
-          hint={CHANNEL_META[channel].hint}
-          weights={value[channel]}
-          onChange={(weights) => onChange({ ...value, [channel]: weights })}
-        />
-      ))}
+      <div className="rounded-lg border border-border bg-muted/20 p-4">
+        <p className="font-medium">Reward tier → game</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          For each tier, choose whether that guest plays the scratch card, the prize wheel, or both, and how many
+          prizes of that tier sit on each game. Walk-in, online booking, and the draw odds use this.
+        </p>
+        <div className="mt-4 space-y-4">
+          {CUSTOMER_TIERS.map((tier) => {
+            const game = value.tierGames[tier];
+            const patch = (next: Partial<typeof game>) =>
+              onChange({
+                ...value,
+                tierGames: { ...value.tierGames, [tier]: { ...game, ...next } },
+              });
+            return (
+              <div key={tier} className="grid gap-3 border-t border-border pt-3 sm:grid-cols-3">
+                <div>
+                  <Label className="mb-1.5 text-xs">{tier}</Label>
+                  <Select value={game.channel} onValueChange={(channel) => patch({ channel: channel as RewardGame })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GAME_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="mb-1.5 text-xs">Scratch prizes</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    disabled={game.channel === "wheel"}
+                    value={game.scratchCount}
+                    onChange={(e) => patch({ scratchCount: Math.max(0, Number(e.target.value) || 0) })}
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1.5 text-xs">Wheel prizes</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    disabled={game.channel === "scratch"}
+                    value={game.wheelCount}
+                    onChange={(e) => patch({ wheelCount: Math.max(0, Number(e.target.value) || 0) })}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <TierWeightEditor
+        title={CHANNEL_META.customerTier.title}
+        hint={CHANNEL_META.customerTier.hint}
+        weights={value.customerTier}
+        onChange={(customerTier) => onChange({ ...value, customerTier })}
+      />
       <p className="text-xs text-muted-foreground">
-        Each wheel segment and scratch prize has a <strong>Reward tier</strong>. Final chance = segment weight × tier
-        weight from this screen.
+        Prize label on Scratch card and Prize wheel is the name the guest sees. Prize type and value are what POS
+        applies when they claim the reward on the next bill. Each prize is tagged with a reward tier so the counts
+        above decide how often it is drawn.
       </p>
     </div>
   );

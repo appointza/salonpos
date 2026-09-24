@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { getCustomerById } from "@/lib/customers/customer-lookup";
 import { COLLECTIONS } from "@/lib/loyalty/schema";
@@ -17,7 +18,7 @@ export function getRewardById(db: Db, rewardId: string) {
   return (db[REWARDS] ?? []).find((r) => String(r.id) === rewardId) ?? null;
 }
 
-export function getCustomerLoyaltyAccount(db: Db, customerId: string, programId: string) {
+export function getCustomerLoyaltyAccount(db: Db, customerId: EntityId, programId: string) {
   return (
     (db[COLLECTIONS.customerLoyalty] ?? []).find(
       (a) => String(a["customerId"]) === customerId && String(a["programId"]) === programId,
@@ -25,19 +26,19 @@ export function getCustomerLoyaltyAccount(db: Db, customerId: string, programId:
   );
 }
 
-export function getPointsBalance(db: Db, customerId: string, programId = DEFAULT_POINTS_PROGRAM) {
+export function getPointsBalance(db: Db, customerId: EntityId, programId = DEFAULT_POINTS_PROGRAM) {
   const account = getCustomerLoyaltyAccount(db, customerId, programId);
   if (account) return Number(account["pointsBalance"] ?? 0);
   return Number(getCustomerById(db, customerId)?.["points"] ?? 0);
 }
 
-export function getCustomerTier(db: Db, customerId: string, programId = DEFAULT_POINTS_PROGRAM) {
+export function getCustomerTier(db: Db, customerId: EntityId, programId = DEFAULT_POINTS_PROGRAM) {
   const account = getCustomerLoyaltyAccount(db, customerId, programId);
   if (account?.["tierId"]) return String(account["tierId"]);
   return String(getCustomerById(db, customerId)?.["tier"] ?? "Silver");
 }
 
-export function getStampProgress(db: Db, customerId: string, programId = DEFAULT_STAMP_PROGRAM) {
+export function getStampProgress(db: Db, customerId: EntityId, programId = DEFAULT_STAMP_PROGRAM) {
   const stampRow = (db[COLLECTIONS.customerStamps] ?? []).find(
     (s) => String(s["customerId"]) === customerId && String(s["programId"]) === programId,
   );

@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Building2, CreditCard, IndianRupee, LogOut, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 const title = "Platform console — Luxe Salon CRM";
 const description = "SUPER_ADMIN console: all organizations, admins, subscription plans, payments and platform analytics.";

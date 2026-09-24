@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Building2, CreditCard, IndianRupee, Shield, Users } from "lucide-react";
 import { DashHeader, DashStat, QuickLink } from "@/components/dashboards/shared";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { useData } from "@/lib/store";
 import { useTenant } from "@/lib/tenant";
 
@@ -29,7 +29,7 @@ export function SuperAdminDashboard() {
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <QuickLink to="/platform" icon={Shield} color="bg-blue-100 text-blue-600" title="Platform home" text="Org list, plans and operators." />
-        <QuickLink to="/franchises" icon={Building2} color="bg-orange-100 text-orange-600" title="Franchises" text="Network of branded outlets." />
+        <QuickLink to="/franchises" icon={Building2} color="bg-orange-100 text-orange-600" title="Outlets" text="Manage your outlet network." />
         <QuickLink to="/users" icon={Users} color="bg-emerald-100 text-emerald-700" title="Users & roles" text="Who can access each workspace." />
       </section>
 

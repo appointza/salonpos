@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { getRewardById } from "@/lib/loyalty/loyalty-account";
 import { WHEEL_SEGMENTS } from "@/lib/qr-loyalty";
@@ -31,8 +32,8 @@ export function enrichWheelSegments(db: Db, segments: Row[]) {
   });
 }
 
-export function getWheelSegmentsForOutlet(db: Db, orgId: string, locationId: string) {
-  const all = (db[WHEEL_SEGMENTS] ?? []).filter((s) => String(s["orgId"]) === orgId);
+export function getWheelSegmentsForOutlet(db: Db, orgId: EntityId, locationId: EntityId) {
+  const all = (db[WHEEL_SEGMENTS] ?? []).filter((s) => String(s["orgId"]) === String(orgId));
   const here = all.filter((s) => String(s["locationId"]) === locationId);
   const segments = here.length ? here : all;
   return enrichWheelSegments(db, segments);

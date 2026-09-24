@@ -1,9 +1,7 @@
-using Amazon.Runtime.Internal;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 using Krios.Models;
-using Krios.Services;
 
 namespace Krios.Utils
 {

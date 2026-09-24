@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import { useMemo } from "react";
 import { useData, type Db, type Row } from "@/lib/store";
 import { useTenant } from "@/lib/tenant";
@@ -21,7 +22,7 @@ export function referenceRows(db: Db): Row[] {
 export function referenceOptions(
   db: Db,
   referenceType: string,
-  orgId?: string,
+  orgId?: EntityId,
 ): { value: string; label: string }[] {
   const seen = new Set<string>();
   const options: { value: string; label: string }[] = [];

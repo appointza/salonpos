@@ -2,7 +2,7 @@ import { AdminDashboard } from "@/components/dashboards/AdminDashboard";
 import { StaffDashboard } from "@/components/dashboards/StaffDashboard";
 import { StylistDashboard } from "@/components/dashboards/StylistDashboard";
 import { SuperAdminDashboard } from "@/components/dashboards/SuperAdminDashboard";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 const title = "Dashboard — Luxe Salon CRM";
 const description = "Role-specific workspace home: owner, front desk, stylist or platform.";

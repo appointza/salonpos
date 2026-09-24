@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { getCustomerById } from "@/lib/customers/customer-lookup";
 import { getCustomerLoyaltyBalance } from "@/lib/loyalty/loyalty-service";
@@ -119,9 +120,9 @@ function mapPartnerReward(row: Row): WalletReward {
 
 export function buildCustomerWallet(
   db: Db,
-  customerId: string,
+  customerId: EntityId,
   programs: Row[],
-  locationId: string,
+  locationId: EntityId,
   checkinId?: string,
 ): CustomerWallet | null {
   const customer = getCustomerById(db, customerId);

@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 /** Workspace login session — shared by auth + tenant without circular imports. */
 
 export const WORKSPACE_SESSION_KEY = "salon-crm-session-v1";
@@ -7,13 +8,13 @@ export type WorkspaceRole = "SUPER_ADMIN" | "ADMIN" | "STAFF" | "STYLIST";
 
 export type WorkspaceSession = {
   id: string;
-  orgId: string | null;
+  orgId: EntityId | null;
   name: string;
   email: string;
   phone: string;
   role: WorkspaceRole;
   staffId?: string;
-  locationId?: string;
+  locationId?: EntityId;
 };
 
 export function readWorkspaceSession(): WorkspaceSession | null {

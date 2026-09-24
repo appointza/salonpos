@@ -1,18 +1,19 @@
 using Krios.Models.Krios;
-using Krios.Models;
 using Krios.Utils;
 using System.Data.Common;
-using System.Globalization;
 
 namespace Krios.Services.Krios
 {
     public class ReferenceValueService
     {
-        IDbProvider dbprovider;
-        IQueryBuilderProvider querybuilderprovider;
-        RequestState requeststate;
+        private readonly IDbProvider dbprovider;
+        private readonly IQueryBuilderProvider querybuilderprovider;
+        private readonly RequestState requeststate;
 
-        public ReferenceValueService(IDbProvider dbprovider, IQueryBuilderProvider querybuilderprovider, RequestState requeststate)
+        public ReferenceValueService(
+            IDbProvider dbprovider,
+            IQueryBuilderProvider querybuilderprovider,
+            RequestState requeststate)
         {
             this.dbprovider = dbprovider;
             this.querybuilderprovider = querybuilderprovider;
@@ -21,312 +22,194 @@ namespace Krios.Services.Krios
 
         public async Task<List<ReferenceValue>> Select(ReferenceValueSelectReq req)
         {
-            List<ReferenceValue> result = null;
-            using (IDb db = await dbprovider.GetDb())
-            {
-                await db.Connect();
-                result = await SelectTransaction(db, req);
-            }
-            return result;
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+            return await SelectTransaction(db, req);
         }
 
         public async Task<List<ReferenceValue>> SelectTransaction(IDb db, ReferenceValueSelectReq req)
         {
-            List<ReferenceValue> result = new List<ReferenceValue>();
-            string query = @"
-                SELECT
-                    id, category, code, name, short_name, description, value, display_order, parent_id,
-                    metadata, is_system, is_default, status, organization_id, isfactory, is_active,
-                    created_at, updated_at, created_by, updated_by
-                FROM reference_values
+            const string query = @"
+                SELECT ""referenceType"", id, name, value, status, createdby, createdon, updatedby, updatedon, ""orgId"", ""displayOrder""
+                FROM ""referenceValues""
             ";
 
-            var queryBuilder = querybuilderprovider.GetQueryBuilder(query);
+            var qb = querybuilderprovider.GetQueryBuilder(query);
 
-            if (!string.IsNullOrWhiteSpace(req.id) &&
-                long.TryParse(req.id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idFilter))
-                queryBuilder.AddParameter("id", "=", "id", idFilter, DbTypes.Types.Long);
-
-            if (!string.IsNullOrWhiteSpace(req.category))
-                queryBuilder.AddParameter("category", "=", "category", req.category, DbTypes.Types.String);
-
-            if (!string.IsNullOrWhiteSpace(req.code))
-                queryBuilder.AddParameter("code", "=", "code", req.code, DbTypes.Types.String);
+            if (req.id > 0)
+                qb.AddParameter("id", "=", "id", req.id, DbTypes.Types.Long);
+            if (req.orgId > 0)
+                qb.AddParameter(@"""orgId""", "=", "orgId", req.orgId, DbTypes.Types.Long);
+            if (req.locationId > 0)
+                qb.AddParameter(@"""locationId""", "=", "locationId", req.locationId, DbTypes.Types.Long);
 
             if (!string.IsNullOrWhiteSpace(req.status))
-                queryBuilder.AddParameter("status", "=", "status", req.status, DbTypes.Types.String);
+                qb.AddParameter("status", "=", "status", req.status, DbTypes.Types.String);
+            else
+                qb.AddParameter("status", "<>", "status", "Inactive", DbTypes.Types.String);
+            if (!string.IsNullOrWhiteSpace(req.search))
+                qb.AddParameter("name", "ILIKE", "search", "%" + req.search + "%", DbTypes.Types.String);
+            qb.AddOrderBy(QueryBuilder.Order.ASC, "id");
+            var command = qb.GetCommand(db);
 
-            if (req.isdefault.HasValue)
-                queryBuilder.AddParameter("is_default", "=", "is_default", req.isdefault.Value, DbTypes.Types.Boolean);
+            var result = new List<ReferenceValue>();
+            using DbDataReader reader = await db.Execute(command);
+            while (await reader.ReadAsync())
+                result.Add(Map(reader));
 
-            var orgFromReq = req.organizationid;
-            if (string.IsNullOrWhiteSpace(orgFromReq) && requeststate.usercontext?.organisationid > 0)
-                orgFromReq = requeststate.usercontext.organisationid.ToString(CultureInfo.InvariantCulture);
-
-            if (!string.IsNullOrWhiteSpace(orgFromReq) &&
-                long.TryParse(orgFromReq, NumberStyles.Integer, CultureInfo.InvariantCulture, out var orgIdLong))
-                queryBuilder.AddParameter("(organization_id = @organization_id OR organization_id IS NULL)", "organization_id", orgIdLong, DbTypes.Types.Long);
-
-            queryBuilder.AddParameter("is_active", "=", "is_active", true, DbTypes.Types.Boolean);
-            queryBuilder.AddOrderBy(QueryBuilder.Order.ASC, "display_order");
-
-            var command = queryBuilder.GetCommand(db);
-            using (DbDataReader reader = await db.Execute(command))
-            {
-                while (await reader.ReadAsync())
-                {
-                    ReferenceValue temp = new ReferenceValue();
-                    temp.id = reader["id"]?.ToString() ?? "";
-                    temp.category = reader["category"] == DBNull.Value ? "" : reader["category"].ToString();
-                    temp.code = reader["code"] == DBNull.Value ? "" : reader["code"].ToString();
-                    temp.name = reader["name"] == DBNull.Value ? "" : reader["name"].ToString();
-                    temp.shortname = reader["short_name"] == DBNull.Value ? "" : reader["short_name"].ToString();
-                    temp.description = reader["description"] == DBNull.Value ? "" : reader["description"].ToString();
-                    temp.value = reader["value"] == DBNull.Value ? "" : reader["value"].ToString();
-                    temp.displayorder = reader["display_order"] == DBNull.Value ? 0 : Convert.ToInt32(reader["display_order"]);
-                    temp.parentid = reader["parent_id"] == DBNull.Value ? "" : reader["parent_id"].ToString();
-                    temp.metadata_json = reader["metadata"] == DBNull.Value ? "{}" : reader["metadata"].ToString();
-                    temp.issystem = reader["is_system"] != DBNull.Value && Convert.ToBoolean(reader["is_system"]);
-                    temp.isdefault = reader["is_default"] != DBNull.Value && Convert.ToBoolean(reader["is_default"]);
-                    temp.status = reader["status"] == DBNull.Value ? "" : reader["status"].ToString();
-                    temp.organizationid = reader["organization_id"] == DBNull.Value ? "" : reader["organization_id"].ToString();
-                    temp.isfactory = reader["isfactory"] != DBNull.Value && Convert.ToBoolean(reader["isfactory"]);
-                    temp.isactive = reader["is_active"] != DBNull.Value && Convert.ToBoolean(reader["is_active"]);
-                    temp.createdat = reader["created_at"] == DBNull.Value ? DateTime.MinValue : Convert.ToDateTime(reader["created_at"]);
-                    temp.updatedat = reader["updated_at"] == DBNull.Value ? DateTime.MinValue : Convert.ToDateTime(reader["updated_at"]);
-                    temp.createdby = reader["created_by"] == DBNull.Value ? "" : reader["created_by"].ToString();
-                    temp.updatedby = reader["updated_by"] == DBNull.Value ? "" : reader["updated_by"].ToString();
-
-                    result.Add(temp);
-                }
-            }
             return result;
         }
 
-        public async Task<ReferenceValue> Insert(ReferenceValue value)
+        public async Task<ReferenceValue> Insert(ReferenceValue entity)
         {
-            using (IDb db = await dbprovider.GetDb())
-            {
-                await db.Connect();
-                await InsertTransaction(db, value);
-            }
-            return value;
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+            await InsertTransaction(db, entity);
+            return entity;
         }
 
-        public async Task InsertTransaction(IDb db, ReferenceValue value)
+        public async Task InsertTransaction(IDb db, ReferenceValue entity)
         {
-            if (string.IsNullOrWhiteSpace(value.category) || string.IsNullOrWhiteSpace(value.code) || string.IsNullOrWhiteSpace(value.name))
-                throw new AppException(AppException.ErrorCodes.BadRequest, "Category, code, and name are required.");
-
-            value.category = NormalizeReferenceCategory(value.category);
-
-            string query = @"
-                INSERT INTO reference_values (
-                    category, code, name, short_name, description, value, display_order, parent_id,
-                    metadata, is_system, is_default, status, organization_id, isfactory, is_active,
-                    created_at, updated_at, created_by, updated_by
+            const string query = @"
+                INSERT INTO ""referenceValues"" (
+                    ""referenceType"", name, value, status, createdby, createdon, updatedby, updatedon, ""orgId"", ""displayOrder""
                 )
                 VALUES (
-                    @category, @code, @name, @short_name, @description, @value, @display_order, @parent_id,
-                    @metadata, @is_system, @is_default, @status, @organization_id, @isfactory, @is_active,
-                    @created_at, @updated_at, @created_by, @updated_by
+                    @referenceType, @name, @value, @status, @createdby, @createdon, @updatedby, @updatedon, @orgId, @displayOrder
                 )
                 RETURNING id;
             ";
 
-            DateTime now = DateTime.UtcNow;
-            value.displayorder = value.displayorder < 0 ? 0 : value.displayorder;
-            value.status = string.IsNullOrWhiteSpace(value.status) ? "active" : value.status;
-            value.isactive = true;
-            value.issystem = false;
-            value.createdat = now;
-            value.updatedat = now;
-            value.createdby = ResolveActor(value.createdby);
-            value.updatedby = value.createdby;
+            var today = DateTime.UtcNow.Date;
+            var actor = requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : "system";
+            entity.status = string.IsNullOrWhiteSpace(entity.status) ? "Active" : entity.status;
+            if (entity.createdon == null) entity.createdon = today;
+            if (entity.updatedon == null) entity.updatedon = today;
+            if (string.IsNullOrWhiteSpace(entity.createdby)) entity.createdby = actor;
+            if (string.IsNullOrWhiteSpace(entity.updatedby)) entity.updatedby = actor;
 
-            if (!value.issystem && string.IsNullOrWhiteSpace(value.organizationid) && requeststate.usercontext?.organisationid > 0)
-                value.organizationid = requeststate.usercontext.organisationid.ToString(CultureInfo.InvariantCulture);
+            var cmd = db.GetCommand(query);
+            Bind(cmd, db, entity, includeId: false);
 
-            DbCommand command = db.GetCommand(query);
-            db.AddParameter(command, "category", DbTypes.Types.String).Value = value.category ?? "";
-            db.AddParameter(command, "code", DbTypes.Types.String).Value = value.code ?? "";
-            db.AddParameter(command, "name", DbTypes.Types.String).Value = value.name ?? "";
-            db.AddParameter(command, "short_name", DbTypes.Types.String).Value = value.shortname ?? "";
-            db.AddParameter(command, "description", DbTypes.Types.String).Value = value.description ?? "";
-            db.AddParameter(command, "value", DbTypes.Types.String).Value = value.value ?? "";
-            db.AddParameter(command, "display_order", DbTypes.Types.Integer).Value = value.displayorder;
-            db.AddParameter(command, "parent_id", DbTypes.Types.String).Value = string.IsNullOrWhiteSpace(value.parentid) ? DBNull.Value : value.parentid;
-            db.AddParameter(command, "metadata", DbTypes.Types.Json).Value = value.metadata_json ?? "{}";
-            db.AddParameter(command, "is_system", DbTypes.Types.Boolean).Value = value.issystem;
-            db.AddParameter(command, "is_default", DbTypes.Types.Boolean).Value = value.isdefault;
-            db.AddParameter(command, "status", DbTypes.Types.String).Value = value.status ?? "active";
-            BindOrganizationId(db, command, value.organizationid);
-            db.AddParameter(command, "isfactory", DbTypes.Types.Boolean).Value = value.isfactory;
-            db.AddParameter(command, "is_active", DbTypes.Types.Boolean).Value = value.isactive;
-            db.AddParameter(command, "created_at", DbTypes.Types.DateTime).Value = value.createdat;
-            db.AddParameter(command, "updated_at", DbTypes.Types.DateTime).Value = value.updatedat;
-            db.AddParameter(command, "created_by", DbTypes.Types.String).Value = value.createdby ?? "";
-            db.AddParameter(command, "updated_by", DbTypes.Types.String).Value = value.updatedby ?? "";
-
-            using (DbDataReader reader = await db.Execute(command))
-            {
-                if (await reader.ReadAsync())
-                {
-                    value.id = Convert.ToInt64(reader["id"]).ToString(CultureInfo.InvariantCulture);
-                }
-            }
+            using var reader = await db.Execute(cmd);
+            if (await reader.ReadAsync())
+                entity.id = Convert.ToInt64(reader["id"]);
         }
 
-        public async Task<ReferenceValue> Update(ReferenceValue value)
+        public async Task<ReferenceValue> Update(ReferenceValue entity)
         {
-            using (IDb db = await dbprovider.GetDb())
-            {
-                await db.Connect();
-                await UpdateTransaction(db, value);
-            }
-            return value;
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+            await UpdateTransaction(db, entity);
+            return entity;
         }
 
-        public async Task<bool> UpdateTransaction(IDb db, ReferenceValue value)
+        public async Task<bool> UpdateTransaction(IDb db, ReferenceValue entity)
         {
-            if (string.IsNullOrWhiteSpace(value.id) ||
-                !long.TryParse(value.id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idLong))
-                throw new AppException(AppException.ErrorCodes.BadRequest, "Reference value id is required.");
-
-            await EnsureNotSystemLocked(db, idLong, "edited");
-
-            value.issystem = false;
-            value.category = NormalizeReferenceCategory(value.category);
-
-            string query = @"
-                UPDATE reference_values
-                SET
-                    category = @category,
-                    code = @code,
+            const string query = @"
+                UPDATE ""referenceValues"" SET
+                    ""referenceType"" = @referenceType,
                     name = @name,
-                    short_name = @short_name,
-                    description = @description,
                     value = @value,
-                    display_order = @display_order,
-                    parent_id = @parent_id,
-                    metadata = @metadata,
-                    is_system = @is_system,
-                    is_default = @is_default,
                     status = @status,
-                    organization_id = @organization_id,
-                    isfactory = @isfactory,
-                    is_active = @is_active,
-                    updated_at = @updated_at,
-                    updated_by = @updated_by
+                    createdby = @createdby,
+                    createdon = @createdon,
+                    updatedby = @updatedby,
+                    updatedon = @updatedon,
+                    ""orgId"" = @orgId,
+                    ""displayOrder"" = @displayOrder
                 WHERE id = @id
             ";
 
-            value.updatedat = DateTime.UtcNow;
-            value.updatedby = ResolveActor(value.updatedby);
-
-            if (!value.issystem && string.IsNullOrWhiteSpace(value.organizationid) && requeststate.usercontext?.organisationid > 0)
-                value.organizationid = requeststate.usercontext.organisationid.ToString(CultureInfo.InvariantCulture);
-
-            DbCommand command = db.GetCommand(query);
-            db.AddParameter(command, "id", DbTypes.Types.Long).Value = idLong;
-            db.AddParameter(command, "category", DbTypes.Types.String).Value = value.category ?? "";
-            db.AddParameter(command, "code", DbTypes.Types.String).Value = value.code ?? "";
-            db.AddParameter(command, "name", DbTypes.Types.String).Value = value.name ?? "";
-            db.AddParameter(command, "short_name", DbTypes.Types.String).Value = value.shortname ?? "";
-            db.AddParameter(command, "description", DbTypes.Types.String).Value = value.description ?? "";
-            db.AddParameter(command, "value", DbTypes.Types.String).Value = value.value ?? "";
-            db.AddParameter(command, "display_order", DbTypes.Types.Integer).Value = value.displayorder;
-            db.AddParameter(command, "parent_id", DbTypes.Types.String).Value = string.IsNullOrWhiteSpace(value.parentid) ? DBNull.Value : value.parentid;
-            db.AddParameter(command, "metadata", DbTypes.Types.Json).Value = value.metadata_json ?? "{}";
-            db.AddParameter(command, "is_system", DbTypes.Types.Boolean).Value = value.issystem;
-            db.AddParameter(command, "is_default", DbTypes.Types.Boolean).Value = value.isdefault;
-            db.AddParameter(command, "status", DbTypes.Types.String).Value = value.status ?? "active";
-            BindOrganizationId(db, command, value.organizationid);
-            db.AddParameter(command, "isfactory", DbTypes.Types.Boolean).Value = value.isfactory;
-            db.AddParameter(command, "is_active", DbTypes.Types.Boolean).Value = value.isactive;
-            db.AddParameter(command, "updated_at", DbTypes.Types.DateTime).Value = value.updatedat;
-            db.AddParameter(command, "updated_by", DbTypes.Types.String).Value = value.updatedby ?? "";
-
-            return await db.ExecuteNonQuery(command) > 0;
+            
+            entity.updatedon = DateTime.UtcNow.Date;
+            entity.updatedby = requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : entity.updatedby;
+            var cmd = db.GetCommand(query);
+            Bind(cmd, db, entity, includeId: true);
+            return await db.ExecuteNonQuery(cmd) > 0;
         }
 
         public async Task<bool> Delete(ReferenceValueDeleteReq req)
         {
-            using (IDb db = await dbprovider.GetDb())
-            {
-                await db.Connect();
-                return await DeleteTransaction(db, req);
-            }
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+            return await DeleteTransaction(db, req);
         }
 
         public async Task<bool> DeleteTransaction(IDb db, ReferenceValueDeleteReq req)
         {
-            if (string.IsNullOrWhiteSpace(req.id) ||
-                !long.TryParse(req.id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idLong))
-                throw new AppException(AppException.ErrorCodes.BadRequest, "Reference value id is required.");
-
-            await EnsureNotSystemLocked(db, idLong, "deleted");
-
-            string query = @"
-                UPDATE reference_values
-                SET is_active = false,
-                    updated_at = @updated_at,
-                    updated_by = @updated_by
+            const string query = @"
+                UPDATE ""referenceValues""
+                SET status = 'Inactive',
+                    updatedby = @updatedby,
+                    updatedon = @updatedon
                 WHERE id = @id
             ";
-
-            var command = db.GetCommand(query);
-            db.AddParameter(command, "id", DbTypes.Types.Long).Value = idLong;
-            db.AddParameter(command, "updated_by", DbTypes.Types.String).Value = ResolveActor(req.updatedby);
-            db.AddParameter(command, "updated_at", DbTypes.Types.DateTime).Value = DateTime.UtcNow;
-
-            return await db.ExecuteNonQuery(command) > 0;
+            
+            var cmd = db.GetCommand(query);
+            db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = req.id;
+            db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value =
+                requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : "system";
+            db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = DateTime.UtcNow.Date;
+            return await db.ExecuteNonQuery(cmd) > 0;
         }
 
-        private static async Task EnsureNotSystemLocked(IDb db, long id, string action)
+        private static ReferenceValue Map(DbDataReader reader)
         {
-            DbCommand check = db.GetCommand("SELECT is_system FROM reference_values WHERE id = @id");
-            db.AddParameter(check, "id", DbTypes.Types.Long).Value = id;
-            using (DbDataReader reader = await db.Execute(check))
+            return new ReferenceValue
             {
-                if (!await reader.ReadAsync())
-                    throw new AppException(AppException.ErrorCodes.BadRequest, "Reference value not found.");
-                var isSystem = reader["is_system"] != DBNull.Value && Convert.ToBoolean(reader["is_system"]);
-                if (isSystem)
-                    throw new AppException(AppException.ErrorCodes.BadRequest, $"System reference values cannot be {action}.");
-            }
+                referenceType = reader["referenceType"]?.ToString() ?? "",
+                id = ReadLong(reader, "id"),
+                name = reader["name"]?.ToString() ?? "",
+                value = reader["value"]?.ToString() ?? "",
+                status = reader["status"]?.ToString() ?? "",
+                createdby = reader["createdby"]?.ToString() ?? "",
+                createdon = ReadDate(reader, "createdon"),
+                updatedby = reader["updatedby"]?.ToString() ?? "",
+                updatedon = ReadDate(reader, "updatedon"),
+                orgId = ReadLong(reader, "orgId"),
+                displayOrder = ReadLong(reader, "displayOrder"),
+            };
         }
 
-        private string ResolveActor(string fromClient = null)
+        private static void Bind(DbCommand cmd, IDb db, ReferenceValue entity, bool includeId)
         {
-            if (!string.IsNullOrWhiteSpace(fromClient) &&
-                !string.Equals(fromClient.Trim(), "system", StringComparison.OrdinalIgnoreCase) &&
-                fromClient.Trim() != "-1")
-                return fromClient.Trim();
-
-            var id = requeststate.usercontext?.userid ?? -1;
-            return id > 0 ? id.ToString() : "system";
+            if (includeId)
+                db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = entity.id;
+            db.AddParameter(cmd, "referenceType", DbTypes.Types.String).Value = entity.referenceType ?? "";
+            db.AddParameter(cmd, "name", DbTypes.Types.String).Value = entity.name ?? "";
+            db.AddParameter(cmd, "value", DbTypes.Types.String).Value = entity.value ?? "";
+            db.AddParameter(cmd, "status", DbTypes.Types.String).Value = entity.status ?? "";
+            db.AddParameter(cmd, "createdby", DbTypes.Types.String).Value = entity.createdby ?? "";
+            db.AddParameter(cmd, "createdon", DbTypes.Types.Date).Value = entity.createdon ?? DateTime.UtcNow.Date;
+            db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value = entity.updatedby ?? "";
+            db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = entity.updatedon ?? DateTime.UtcNow.Date;
+            db.AddParameter(cmd, "orgId", DbTypes.Types.Long).Value = entity.orgId;
+            db.AddParameter(cmd, "displayOrder", DbTypes.Types.Long).Value = entity.displayOrder;
         }
 
-        private static void BindOrganizationId(IDb db, DbCommand command, string organizationid)
+        private static long ReadLong(DbDataReader reader, string column)
         {
-            var p = db.AddParameter(command, "organization_id", DbTypes.Types.Long);
-            if (string.IsNullOrWhiteSpace(organizationid) ||
-                !long.TryParse(organizationid, NumberStyles.Integer, CultureInfo.InvariantCulture, out var oid))
-                p.Value = DBNull.Value;
-            else
-                p.Value = oid;
+            var value = reader[column];
+            return value == DBNull.Value ? 0 : Convert.ToInt64(value);
         }
 
-        /// <summary>Canonical snake_case category (e.g. TERM_STATUS → term_status).</summary>
-        private static string NormalizeReferenceCategory(string category)
+        private static decimal ReadDecimal(DbDataReader reader, string column)
         {
-            if (string.IsNullOrWhiteSpace(category)) return "";
-            var s = category.Trim().ToLowerInvariant();
-            s = s.Replace(' ', '_').Replace('-', '_');
-            if (s == "termstatus")
-                return "term_status";
-            return s;
+            var value = reader[column];
+            return value == DBNull.Value ? 0 : Convert.ToDecimal(value);
+        }
+
+        private static DateTime? ReadDate(DbDataReader reader, string column)
+        {
+            var value = reader[column];
+            return value == DBNull.Value ? null : Convert.ToDateTime(value);
+        }
+
+        private static bool ReadBool(DbDataReader reader, string column)
+        {
+            var value = reader[column];
+            return value != DBNull.Value && Convert.ToBoolean(value);
         }
     }
 }

@@ -50,7 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useData } from "@/lib/store";
 import { useTenant } from "@/lib/tenant";
 import { usePermissions } from "@/lib/permissions";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 const title = "Coupon management — Krios";
 const description = "Create coupon schemes, generate code pools, and track redemptions at POS.";

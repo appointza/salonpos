@@ -398,7 +398,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/franchises"
-                  label="Franchises"
+                  label="Outlets"
                   icon={<Store className="size-4 shrink-0" />}
                   active={isActive("/franchises")}
                 />,

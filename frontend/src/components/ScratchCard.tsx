@@ -7,7 +7,7 @@ type ScratchCardProps = {
   brandName?: string;
   disabled?: boolean;
   completed?: boolean;
-  onBegin: () => string | null;
+  onBegin: () => string | null | Promise<string | null>;
   onRevealed?: (label: string) => void;
 };
 
@@ -134,11 +134,12 @@ export function ScratchCard({ prizeLabel, brandName, disabled, completed, onBegi
 
   function beginIfNeeded() {
     if (beganRef.current || disabled || revealed) return;
-    const label = onBegin();
-    if (!label) return;
-    setLocalLabel(label);
-    beganRef.current = true;
-    setActive(true);
+    void Promise.resolve(onBegin()).then((label) => {
+      if (!label || beganRef.current) return;
+      setLocalLabel(label);
+      beganRef.current = true;
+      setActive(true);
+    });
   }
 
   function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {

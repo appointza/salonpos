@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useData, type Row } from "@/lib/store";
 import { useTenant, type OrgLocation, type Tenant } from "@/lib/tenant";
-import { isSlotFree, slotList } from "@/lib/booking";
+import { isBookableStaff, isPublishedService, isSlotFree, openingWindow, rowsAtLocation, slotsInWindow } from "@/lib/booking";
 import { distanceKm, useCustomerSession } from "@/lib/customer";
 import { upsertCustomerByPhone } from "@/lib/customers/customer-service";
 import { buildAppointmentRow } from "@/lib/appointments/appointment-resolve";
@@ -63,13 +63,12 @@ export function NearbyPage() {
     [tenants, pos],
   );
 
-  const rowsFor = (key: string, s: Studio) =>
-    (allRows[key] ?? []).filter(
-      (r) => String(r["orgId"]) === s.org.orgId && String(r["locationId"]) === s.loc.locationId,
-    );
-
-  const services = picked ? rowsFor("services", picked).filter((s) => String(s["active"] ?? "Yes") !== "No") : [];
-  const staff = picked ? rowsFor("staff", picked).filter((s) => String(s["status"] ?? "Active") === "Active") : [];
+  const services = picked
+    ? rowsAtLocation(allRows["services"] ?? [], picked.org.orgId, picked.loc.locationId).filter(isPublishedService)
+    : [];
+  const staff = picked
+    ? rowsAtLocation(allRows["staff"] ?? [], picked.org.orgId, picked.loc.locationId).filter(isBookableStaff)
+    : [];
   const service = services.find((s) => String(s.id) === serviceId) ?? null;
   const duration = Number(service?.["duration"] ?? 60);
 
@@ -80,17 +79,20 @@ export function NearbyPage() {
 
   const slots = useMemo(() => {
     if (!picked || !service || !staffName) return [];
-    return slotList("09:00", "20:00", 30).map((t) => ({
+    const stylist = staff.find((s) => String(s["name"]) === staffName);
+    const window = openingWindow(allRows["shifts"] ?? [], date, stylist?.id);
+    return slotsInWindow(window.open, window.close, duration).map((t) => ({
       time: t,
       free: isSlotFree(appointments, {
         staff: staffName,
+        staffId: stylist?.id,
         date,
         time: t,
         duration,
         locationId: picked.loc.locationId,
       }),
     }));
-  }, [picked, service, staffName, date, duration, appointments]);
+  }, [picked, service, staffName, date, duration, appointments, staff, allRows]);
 
   const myBookings = (allRows["appointments"] ?? []).filter((a) => {
     if (!customer) return false;
@@ -101,12 +103,13 @@ export function NearbyPage() {
     );
   });
 
-  function book() {
+  async function book() {
     if (!customer || !picked || !service || !staffName || !time)
       return void toast.error("Pick a studio, service, stylist and slot");
     if (
       !isSlotFree(appointments, {
         staff: staffName,
+        staffId: staff.find((s) => String(s["name"]) === staffName)?.id,
         date,
         time,
         duration,
@@ -115,10 +118,10 @@ export function NearbyPage() {
     )
       return void toast.error("That slot was just taken — pick another time");
 
-    const orgCustomers = (allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === picked.org.orgId);
+    const orgCustomers = (allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === String(picked.org.orgId));
     const customerRow =
-      findCustomerByPhone(orgCustomers, customer.phone) ??
-      upsertCustomerByPhone(
+      findCustomerByPhone(orgCustomers, customer.phone, picked.loc.locationId) ??
+      (await upsertCustomerByPhone(
         { db: allRows, create, update },
         {
           orgId: picked.org.orgId,
@@ -128,7 +131,7 @@ export function NearbyPage() {
           outlet: picked.loc.name,
           lastVisit: date,
         },
-      );
+      ));
     const staffRow = staff.find((s) => String(s["name"]) === staffName) ?? null;
     const appt = buildAppointmentRow({
       customer: customerRow,

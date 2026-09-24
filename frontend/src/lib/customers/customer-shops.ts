@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db } from "@/lib/store";
 import { normalizePhone } from "@/lib/customers/customer-lookup";
 import { buildCustomerWallet } from "@/lib/rewards/customer-wallet";
@@ -13,13 +14,13 @@ export type ShopCoupon = {
 
 export type CustomerShopVisit = {
   key: string;
-  orgId: string;
+  orgId: EntityId;
   orgName: string;
-  locationId: string;
+  locationId: EntityId;
   locationName: string;
   city: string;
   address: string;
-  customerId: string | null;
+  customerId: EntityId | null;
   points: number;
   tier: string;
   stampsCurrent: number;
@@ -31,22 +32,22 @@ export type CustomerShopVisit = {
 };
 
 type ShopAccumulator = {
-  orgId: string;
-  locationId: string;
-  customerId: string | null;
+  orgId: EntityId;
+  locationId: EntityId;
+  customerId: EntityId | null;
   visits: number;
   lastVisit: string;
 };
 
-function shopKey(orgId: string, locationId: string) {
+function shopKey(orgId: EntityId, locationId: EntityId) {
   return `${orgId}::${locationId}`;
 }
 
-function orgName(db: Db, orgId: string) {
+function orgName(db: Db, orgId: EntityId) {
   return String((db["organizations"] ?? []).find((o) => String(o["orgId"]) === orgId)?.["name"] ?? orgId);
 }
 
-function locationMeta(db: Db, locationId: string) {
+function locationMeta(db: Db, locationId: EntityId) {
   const loc = (db["locations"] ?? []).find((l) => String(l["locationId"] ?? l.id) === locationId);
   return {
     name: String(loc?.["name"] ?? locationId),
@@ -59,7 +60,7 @@ function phoneMatches(rowPhone: string, digits: string) {
   return normalizePhone(rowPhone) === digits;
 }
 
-function customerMatchesPhone(db: Db, customerId: string, digits: string) {
+function customerMatchesPhone(db: Db, customerId: EntityId, digits: string) {
   if (!customerId) return false;
   const customer = (db["customers"] ?? []).find((c) => String(c.id) === customerId);
   return customer ? phoneMatches(String(customer["phone"] ?? ""), digits) : false;

@@ -1,71 +1,53 @@
-using System.Text.Json.Serialization;
-using System.Text.Json;
-using Krios.Models;
-
 namespace Krios.Models.Krios
 {
     public class Organization
     {
         public long id { get; set; }
-        public string name { get; set; }
-        public string slug { get; set; }
-        public string email { get; set; }
-        public string phone { get; set; }
-        
-        public string type { get; set; } // school, college, etc.
-        public string status { get; set; }
-        public string subscriptionplan { get; set; }
-        public DateTime subscriptionstartdate { get; set; }
-        public DateTime? subscriptionenddate { get; set; }
-        
-        public int maxusers { get; set; }
-        public int maxstudents { get; set; }
-        
-        // Address stored as JSON
-        public string address_json { get; set; }
-        public string logourl { get; set; }
-        public string website { get; set; }
-        
-        public string settings_json { get; set; } // OrganizationSettings
-        
-        // Standard Audit Fields
-        public int version { get; set; }
-        public long createdby { get; set; }
-        public DateTime createdon { get; set; }
-        public long modifiedby { get; set; }
-        public DateTime modifiedon { get; set; }
-        public bool isactive { get; set; }
-        public bool issuspended { get; set; }
-        public string notes { get; set; }
-
-        public AttributesData attributes { get; set; } = new AttributesData();
-        [JsonIgnore]
-        public string attributes_json
-        {
-            get { return JsonSerializer.Serialize(attributes); }
-            set
-            {
-                if (!string.IsNullOrEmpty(value) && value != "null")
-                    attributes = JsonSerializer.Deserialize<AttributesData>(value);
-            }
-        }
-        
-        public class AttributesData
-        {
-             // Extensible data
-        }
+        public long orgId { get; set; }
+        public long locationId { get; set; }
+        public string name { get; set; } = "";
+        public string slug { get; set; } = "";
+        public string domain { get; set; } = "";
+        public string website { get; set; } = "";
+        public string businessType { get; set; } = "";
+        public string brandColor { get; set; } = "";
+        public decimal pointsPerRupee { get; set; }
+        public decimal rupeesPerPoint { get; set; }
+        public string whatsappPhoneNumberId { get; set; } = "";
+        public string whatsappBusinessAccountId { get; set; } = "";
+        public string whatsappDisplayNumber { get; set; } = "";
+        public string whatsappApiKey { get; set; } = "";
+        public string whatsappWebhookToken { get; set; } = "";
+        public string whatsappApiVersion { get; set; } = "";
+        public string whatsappConnected { get; set; } = "";
+        public string status { get; set; } = "";
+        public string createdby { get; set; } = "";
+        public DateTime? createdon { get; set; }
+        public string updatedby { get; set; } = "";
+        public DateTime? updatedon { get; set; }
+        public decimal earnUnitRupees { get; set; }
+        public decimal pointsPerUnit { get; set; }
+        public decimal loyaltyMinSpend { get; set; }
+        public string rewardWheelWeights { get; set; } = "";
+        public string rewardScratchWeights { get; set; } = "";
+        public string rewardCustomerTierWeights { get; set; } = "";
+        public string publicBookingShowPrizeWheel { get; set; } = "";
+        public string publicBookingShowScratchCard { get; set; } = "";
     }
 
     public class OrganizationSelectReq
     {
         public long id { get; set; }
-        public string slug { get; set; }
-        public string status { get; set; }
+        public long orgId { get; set; }
+        public long locationId { get; set; }
+        public string slug { get; set; } = "";
+        public string status { get; set; } = "";
+        public string search { get; set; } = "";
     }
 
     public class OrganizationDeleteReq
     {
         public long id { get; set; }
-        public int version { get; set; }
+        public long orgId { get; set; }
     }
 }

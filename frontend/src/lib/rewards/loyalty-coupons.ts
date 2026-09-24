@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { customerName } from "@/lib/customers/customer-lookup";
 import { getRewardById } from "@/lib/loyalty/loyalty-account";
@@ -8,7 +9,7 @@ export type LoyaltyCouponStatus = "Active" | "Redeemed" | "Expired";
 export type LoyaltyCoupon = {
   id: string;
   code: string;
-  customerId: string;
+  customerId: EntityId;
   customerName: string;
   type: "Offer" | "Partner" | "Wheel" | "Scratch" | "Stamp";
   title: string;
@@ -17,8 +18,8 @@ export type LoyaltyCoupon = {
   issuedAt: string;
   redeemedAt: string;
   expiresAt: string;
-  orgId: string;
-  locationId: string;
+  orgId: EntityId;
+  locationId: EntityId;
   refCollection: string;
 };
 
@@ -142,12 +143,12 @@ function mapStamp(db: Db, row: Row): LoyaltyCoupon {
 
 export function listLoyaltyCoupons(
   db: Db,
-  scope?: { orgId?: string; locationId?: string },
+  scope?: { orgId?: EntityId; locationId?: EntityId },
 ): LoyaltyCoupon[] {
   const inScope = (row: Row) => {
-    if (scope?.orgId && String(row["orgId"] ?? "") !== scope.orgId) return false;
+    if (scope?.orgId && String(row["orgId"] ?? "") !== String(scope.orgId)) return false;
     if (scope?.locationId && scope.locationId !== "all" && row["locationId"]) {
-      if (String(row["locationId"]) !== scope.locationId) return false;
+      if (String(row["locationId"]) !== String(scope.locationId)) return false;
     }
     return true;
   };

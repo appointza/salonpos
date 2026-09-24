@@ -1,80 +1,85 @@
 using Krios.Models;
-using CampusModels = Krios.Models.Krios;
+using Krios.Models.Krios;
 using Krios.Services.Krios;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Krios.Controllers.Krios
 {
-    [Route("api/krios/[controller]")]
+    [Route("api/[controller]")]
     [ApiController]
     public class ReferenceValueController : ControllerBase
     {
         ILogger<ReferenceValueController> logger;
-        ReferenceValueService referenceValueService;
+        ReferenceValueService referencevalueService;
 
-        public ReferenceValueController(ILogger<ReferenceValueController> logger, ReferenceValueService referenceValueService)
+        public ReferenceValueController(ILogger<ReferenceValueController> logger, ReferenceValueService referencevalueService)
         {
             this.logger = logger;
-            this.referenceValueService = referenceValueService;
+            this.referencevalueService = referencevalueService;
         }
 
         [HttpGet("Entity")]
-        public async Task<ActionResult<ActionRes<CampusModels.ReferenceValue>>> Entity()
+        public async Task<ActionResult<ActionRes<ReferenceValue>>> Entity()
         {
-            ActionRes<CampusModels.ReferenceValue> result = new ActionRes<CampusModels.ReferenceValue>()
+            ActionRes<ReferenceValue> result = new ActionRes<ReferenceValue>()
             {
-                item = new CampusModels.ReferenceValue()
+               item = new ReferenceValue()
             };
 
             return Ok(result);
         }
 
         [HttpPost("Select")]
-        public async Task<ActionResult<ActionRes<List<CampusModels.ReferenceValue>>>> Select(ActionReq<CampusModels.ReferenceValueSelectReq> req)
+        public async Task<ActionResult<ActionRes<List<ReferenceValue>>>> Select(ActionReq<ReferenceValueSelectReq> req)
         {
-            ActionRes<List<CampusModels.ReferenceValue>> result = new ActionRes<List<CampusModels.ReferenceValue>>();
-            result.item = await referenceValueService.Select(req.item);
+            ActionRes<List<ReferenceValue>> result = new ActionRes<List<ReferenceValue>>();
+
+            result.item = await referencevalueService.Select(req.item);
+
             return Ok(result);
         }
 
         [HttpPost("Insert")]
-        public async Task<ActionResult<ActionRes<CampusModels.ReferenceValue>>> Insert(ActionReq<CampusModels.ReferenceValue> req)
+        public async Task<ActionResult<ActionRes<ReferenceValue>>> Insert(ActionReq<ReferenceValue> req)
         {
-            ActionRes<CampusModels.ReferenceValue> result = new ActionRes<CampusModels.ReferenceValue>();
-            result.item = await referenceValueService.Insert(req.item);
+            ActionRes<ReferenceValue> result = new ActionRes<ReferenceValue>();
+
+            result.item = await referencevalueService.Insert(req.item);
+
             return Ok(result);
         }
 
         [HttpPost("Update")]
-        public async Task<ActionResult<ActionRes<CampusModels.ReferenceValue>>> Update(ActionReq<CampusModels.ReferenceValue> req)
+        public async Task<ActionResult<ActionRes<ReferenceValue>>> Update(ActionReq<ReferenceValue> req)
         {
-            ActionRes<CampusModels.ReferenceValue> result = new ActionRes<CampusModels.ReferenceValue>();
-            result.item = await referenceValueService.Update(req.item);
+            ActionRes<ReferenceValue> result = new ActionRes<ReferenceValue>();
+
+            result.item = await referencevalueService.Update(req.item);
+
             return Ok(result);
         }
 
         [HttpPost("Save")]
-        public async Task<ActionResult<ActionRes<CampusModels.ReferenceValue>>> Save(ActionReq<CampusModels.ReferenceValue> req)
+        public async Task<ActionResult<ActionRes<ReferenceValue>>> Save(ActionReq<ReferenceValue> req)
         {
-            ActionRes<CampusModels.ReferenceValue> result = new ActionRes<CampusModels.ReferenceValue>();
+            ActionRes<ReferenceValue> result = new ActionRes<ReferenceValue>();
 
-            if (!string.IsNullOrWhiteSpace(req.item.id))
-            {
-                result.item = await referenceValueService.Update(req.item);
-            }
-            else
-            {
-                result.item = await referenceValueService.Insert(req.item);
+            if(req.item.id > 0){
+                result.item = await referencevalueService.Update(req.item);
+            }else{
+                result.item = await referencevalueService.Insert(req.item);
             }
 
             return Ok(result);
         }
 
         [HttpPost("Delete")]
-        public async Task<ActionResult<ActionRes<bool>>> Delete(ActionReq<CampusModels.ReferenceValueDeleteReq> req)
+        public async Task<ActionResult<ActionRes<bool>>> Delete(ActionReq<ReferenceValueDeleteReq> req)
         {
             ActionRes<bool> result = new ActionRes<bool>();
-            result.item = await referenceValueService.Delete(req.item);
+
+            result.item = await referencevalueService.Delete(req.item);
+
             return Ok(result);
         }
     }

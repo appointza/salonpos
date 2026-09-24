@@ -32,8 +32,8 @@ export function NewAppointmentDialog({
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState("10:00");
 
-  const services = (allRows["services"] ?? []).filter((s) => String(s["orgId"]) === orgId);
-  const staffRows = (allRows["staff"] ?? []).filter((s) => String(s["orgId"]) === orgId);
+  const services = (allRows["services"] ?? []).filter((s) => String(s["orgId"]) === String(orgId));
+  const staffRows = (allRows["staff"] ?? []).filter((s) => String(s["orgId"]) === String(orgId));
   const customers = (allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === orgId);
   const outlet =
     location?.name ??

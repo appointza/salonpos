@@ -1,7 +1,7 @@
 import { CrudPage } from "@/components/CrudPage";
 import { GoogleReviewsPanel } from "@/components/GoogleReviewsPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { modules } from "@/lib/modules";
 
 const title = "Feedback — Luxe Salon CRM";

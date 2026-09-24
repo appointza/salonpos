@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { customerName } from "@/lib/customers/customer-lookup";
 import { getRewardById } from "@/lib/loyalty/loyalty-account";
@@ -5,7 +6,7 @@ import { CUSTOMER_REWARDS } from "@/lib/rewards/customer-reward-service";
 
 export type UnifiedCustomerReward = {
   id: string;
-  customerId: string;
+  customerId: EntityId;
   customerName: string;
   title: string;
   description: string;
@@ -13,7 +14,7 @@ export type UnifiedCustomerReward = {
   status: string;
   issuedAt: string;
   expiresAt: string;
-  invoiceId: string;
+  invoiceId: EntityId;
   refCollection: "customerRewards" | "wheelSpins";
 };
 
@@ -96,7 +97,7 @@ export function listUnifiedCustomerRewards(db: Db, customerId?: string) {
   return rows.sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
 }
 
-export function listAvailableUnifiedRewards(db: Db, customerId: string) {
+export function listAvailableUnifiedRewards(db: Db, customerId: EntityId) {
   const day = today();
   return listUnifiedCustomerRewards(db, customerId).filter((r) => {
     if (r.status !== "Available") return false;

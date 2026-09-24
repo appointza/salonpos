@@ -1,5 +1,6 @@
 using Krios.Models.Krios;
 using Krios.Utils;
+using System.Data.Common;
 
 namespace Krios.Services.Krios
 {
@@ -19,322 +20,241 @@ namespace Krios.Services.Krios
             if (string.IsNullOrWhiteSpace(req.email) || string.IsNullOrWhiteSpace(req.password))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Email and password are required.");
 
-            using (IDb db = await dbprovider.GetDb())
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+
+            var user = await GetUserByEmail(db, req.email.Trim());
+            if (user == null)
+                throw new AppException(AppException.ErrorCodes.InvalidCredential, "Invalid email or password.");
+
+            string passwordHash = cryptography.CalculateSHA256Hash(req.password);
+            if (!string.Equals(user.passwordhash, passwordHash, StringComparison.OrdinalIgnoreCase))
+                throw new AppException(AppException.ErrorCodes.InvalidCredential, "Invalid email or password.");
+
+            if (string.Equals(user.status, "Inactive", StringComparison.OrdinalIgnoreCase))
+                throw new AppException(AppException.ErrorCodes.InvalidCredential, "User is not active.");
+
+            var org = await GetOrganization(db, user.orgId);
+            await TouchLastLogin(db, user.id);
+
+            return new UserLoginRes
             {
-                await db.Connect();
-
-                var user = await GetUserByEmail(db, req.email.Trim());
-                if (user == null)
-                    throw new AppException(AppException.ErrorCodes.InvalidCredential, "Invalid email or password.");
-
-                string passwordHash = cryptography.CalculateSHA256Hash(req.password);
-                if (!string.Equals(user.passwordHash, passwordHash, StringComparison.OrdinalIgnoreCase))
-                    throw new AppException(AppException.ErrorCodes.InvalidCredential, "Invalid email or password.");
-
-                if (!string.Equals(user.status, "active", StringComparison.OrdinalIgnoreCase))
-                    throw new AppException(AppException.ErrorCodes.InvalidCredential, "User is not active.");
-
-                var org = await GetOrganization(db, user.organizationId);
-
-                // When role is staff, resolve staff.id from staff table (by email + org) for use as classteacherid / staff_id in APIs
-                string staffId = "";
-                if (string.Equals(user.role, "staff", StringComparison.OrdinalIgnoreCase))
-                {
-                    var resolvedStaffId = await GetStaffIdByEmailAndOrg(db, user.email, user.organizationId);
-                    if (!string.IsNullOrWhiteSpace(resolvedStaffId))
-                        staffId = resolvedStaffId;
-                }
-
-                return new UserLoginRes
-                {
-                    userId = user.id,
-                    email = user.email,
-                    role = user.role,
-                    organizationId = user.organizationId,
-                    organizationName = org?.Name ?? "",
-                    organizationSlug = org?.Slug ?? "",
-                    staffId = staffId
-                };
-            }
+                userId = user.id,
+                email = user.email,
+                name = user.name,
+                role = user.role,
+                organizationId = user.orgId,
+                locationId = user.locationId,
+                organizationName = org?.name ?? "",
+                organizationSlug = org?.slug ?? "",
+            };
         }
 
         public async Task<UserLoginRes> UpdateProfile(UserProfileUpdateReq req)
         {
-            if (string.IsNullOrWhiteSpace(req.userId))
+            if (req.userId <= 0)
                 throw new AppException(AppException.ErrorCodes.BadRequest, "User id is required.");
             if (string.IsNullOrWhiteSpace(req.currentPassword))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Current password is required.");
 
-            using (IDb db = await dbprovider.GetDb())
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+
+            var user = await GetUserById(db, req.userId);
+            if (user == null)
+                throw new AppException(AppException.ErrorCodes.UserNotFound, "User not found.");
+
+            string currentHash = cryptography.CalculateSHA256Hash(req.currentPassword);
+            if (!string.Equals(user.passwordhash, currentHash, StringComparison.OrdinalIgnoreCase))
+                throw new AppException(AppException.ErrorCodes.InvalidCredential, "Current password is incorrect.");
+
+            string targetEmail = user.email;
+            if (!string.IsNullOrWhiteSpace(req.newEmail))
             {
-                await db.Connect();
-
-                var user = await GetUserById(db, req.userId.Trim());
-                if (user == null)
-                    throw new AppException(AppException.ErrorCodes.UserNotFound, "User not found.");
-
-                string currentHash = cryptography.CalculateSHA256Hash(req.currentPassword);
-                if (!string.Equals(user.passwordHash, currentHash, StringComparison.OrdinalIgnoreCase))
-                    throw new AppException(AppException.ErrorCodes.InvalidCredential, "Current password is incorrect.");
-
-                string targetEmail = user.email;
-                if (!string.IsNullOrWhiteSpace(req.newEmail))
+                targetEmail = req.newEmail.Trim();
+                if (targetEmail.Length < 3 || targetEmail.IndexOf('@') < 1)
+                    throw new AppException(AppException.ErrorCodes.BadRequest, "Enter a valid email address.");
+                if (!targetEmail.Equals(user.email, StringComparison.OrdinalIgnoreCase)
+                    && await EmailTakenByAnotherUser(db, targetEmail, user.id))
                 {
-                    targetEmail = req.newEmail.Trim();
-                    if (targetEmail.Length < 3 || targetEmail.IndexOf('@') < 1)
-                        throw new AppException(AppException.ErrorCodes.BadRequest, "Enter a valid email address.");
-                    if (!targetEmail.Equals(user.email, StringComparison.OrdinalIgnoreCase)
-                        && await EmailTakenByAnotherUser(db, targetEmail, user.id))
-                    {
-                        throw new AppException(AppException.ErrorCodes.BadRequest, "That email is already in use.");
-                    }
-                }
-
-                string targetPasswordHash = user.passwordHash;
-                if (!string.IsNullOrWhiteSpace(req.newPassword))
-                {
-                    if (req.newPassword.Length < 6)
-                        throw new AppException(AppException.ErrorCodes.BadRequest, "New password must be at least 6 characters.");
-                    targetPasswordHash = cryptography.CalculateSHA256Hash(req.newPassword);
-                }
-
-                string targetUsername = UsernameFromEmail(targetEmail);
-
-                await UpdateUserProfileRow(db, user.id, targetEmail, targetUsername, targetPasswordHash);
-
-                if (string.Equals(user.role, "staff", StringComparison.OrdinalIgnoreCase)
-                    && !string.IsNullOrWhiteSpace(user.profileId))
-                {
-                    await SyncStaffEmail(db, user.profileId, user.organizationId, targetEmail);
-                }
-
-                var org = await GetOrganization(db, user.organizationId);
-                string staffId = "";
-                if (string.Equals(user.role, "staff", StringComparison.OrdinalIgnoreCase))
-                {
-                    var resolved = await GetStaffIdByEmailAndOrg(db, targetEmail, user.organizationId);
-                    if (!string.IsNullOrWhiteSpace(resolved))
-                        staffId = resolved;
-                }
-
-                return new UserLoginRes
-                {
-                    userId = user.id,
-                    email = targetEmail,
-                    role = user.role,
-                    organizationId = user.organizationId,
-                    organizationName = org?.Name ?? "",
-                    organizationSlug = org?.Slug ?? "",
-                    staffId = staffId
-                };
-            }
-        }
-
-        private sealed class UserRow
-        {
-            public string id { get; set; } = "";
-            public string email { get; set; } = "";
-            public string role { get; set; } = "";
-            public string status { get; set; } = "";
-            public string organizationId { get; set; } = "";
-            public string passwordHash { get; set; } = "";
-            public string profileId { get; set; } = "";
-            public string username { get; set; } = "";
-        }
-
-        private static async Task<UserRow?> GetUserByEmail(IDb db, string email)
-        {
-            string query = @"
-                SELECT id, email, role, status, organization_id, password_hash, profile_id, username
-                FROM users
-                WHERE lower(email) = lower(@email)
-                  AND is_active = true
-                LIMIT 1;
-            ";
-
-            var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
-
-            using (var reader = await db.Execute(cmd))
-            {
-                if (await reader.ReadAsync())
-                {
-                    return MapUserRow(reader);
+                    throw new AppException(AppException.ErrorCodes.BadRequest, "That email is already in use.");
                 }
             }
 
-            return null;
-        }
-
-        private static async Task<UserRow?> GetUserById(IDb db, string userId)
-        {
-            string query = @"
-                SELECT id, email, role, status, organization_id, password_hash, profile_id, username
-                FROM users
-                WHERE id = @id
-                  AND is_active = true
-                LIMIT 1;
-            ";
-
-            var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "id", DbTypes.Types.String).Value = userId;
-
-            using (var reader = await db.Execute(cmd))
+            string targetPasswordHash = user.passwordhash;
+            if (!string.IsNullOrWhiteSpace(req.newPassword))
             {
-                if (await reader.ReadAsync())
-                    return MapUserRow(reader);
+                if (req.newPassword.Length < 6)
+                    throw new AppException(AppException.ErrorCodes.BadRequest, "New password must be at least 6 characters.");
+                targetPasswordHash = cryptography.CalculateSHA256Hash(req.newPassword);
             }
 
-            return null;
-        }
+            string targetName = string.IsNullOrWhiteSpace(req.newName) ? user.name : req.newName.Trim();
+            await UpdateUserProfileRow(db, user.id, targetEmail, targetName, targetPasswordHash);
 
-        private static UserRow MapUserRow(System.Data.Common.DbDataReader reader)
-        {
-            return new UserRow
+            var org = await GetOrganization(db, user.orgId);
+            return new UserLoginRes
             {
-                id = reader["id"]?.ToString() ?? "",
-                email = reader["email"]?.ToString() ?? "",
-                role = reader["role"]?.ToString() ?? "",
-                status = reader["status"]?.ToString() ?? "",
-                organizationId = reader["organization_id"]?.ToString() ?? "",
-                passwordHash = reader["password_hash"]?.ToString() ?? "",
-                profileId = reader["profile_id"]?.ToString() ?? "",
-                username = reader["username"]?.ToString() ?? ""
+                userId = user.id,
+                email = targetEmail,
+                name = targetName,
+                role = user.role,
+                organizationId = user.orgId,
+                locationId = user.locationId,
+                organizationName = org?.name ?? "",
+                organizationSlug = org?.slug ?? "",
             };
         }
 
-        private static string UsernameFromEmail(string email)
+        private static async Task<User?> GetUserByEmail(IDb db, string email)
         {
-            if (string.IsNullOrWhiteSpace(email))
-                return "";
-            int at = email.IndexOf('@');
-            string local = at > 0 ? email.Substring(0, at) : email;
-            local = local.Trim().Replace(" ", "_", StringComparison.Ordinal);
-            return local.Length > 0 ? local : email;
+            const string query = @"
+                SELECT id, ""orgId"", ""locationId"", name, email, role, outlet,
+                       permissions, ""lastLogin"", status, passwordhash,
+                       createdby, createdon, updatedby, updatedon
+                FROM users
+                WHERE lower(email) = lower(@email)
+                  AND status <> 'Inactive'
+                LIMIT 1;
+            ";
+
+            var cmd = db.GetCommand(query);
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
+
+            using var reader = await db.Execute(cmd);
+            return await reader.ReadAsync() ? MapUser(reader) : null;
         }
 
-        private static async Task<bool> EmailTakenByAnotherUser(IDb db, string email, string excludeUserId)
+        private static async Task<User?> GetUserById(IDb db, long userId)
         {
-            string query = @"
+            const string query = @"
+                SELECT id, ""orgId"", ""locationId"", name, email, role, outlet,
+                       permissions, ""lastLogin"", status, passwordhash,
+                       createdby, createdon, updatedby, updatedon
+                FROM users
+                WHERE id = @id
+                  AND status <> 'Inactive'
+                LIMIT 1;
+            ";
+
+            var cmd = db.GetCommand(query);
+            db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = userId;
+
+            using var reader = await db.Execute(cmd);
+            return await reader.ReadAsync() ? MapUser(reader) : null;
+        }
+
+        private static async Task<bool> EmailTakenByAnotherUser(IDb db, string email, long excludeUserId)
+        {
+            const string query = @"
                 SELECT id FROM users
                 WHERE lower(email) = lower(@email)
                   AND id <> @exclude_id
-                  AND is_active = true
+                  AND status <> 'Inactive'
                 LIMIT 1;
             ";
             var cmd = db.GetCommand(query);
             db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
-            db.AddParameter(cmd, "exclude_id", DbTypes.Types.String).Value = excludeUserId;
+            db.AddParameter(cmd, "exclude_id", DbTypes.Types.Long).Value = excludeUserId;
 
-            using (var reader = await db.Execute(cmd))
-            {
-                return await reader.ReadAsync();
-            }
+            using var reader = await db.Execute(cmd);
+            return await reader.ReadAsync();
         }
 
-        private static async Task UpdateUserProfileRow(IDb db, string userId, string email, string username, string passwordHash)
+        private static async Task UpdateUserProfileRow(IDb db, long userId, string email, string name, string passwordHash)
         {
-            string query = @"
+            const string query = @"
                 UPDATE users
                 SET email = @email,
-                    username = @username,
-                    password_hash = @password_hash,
-                    updated_at = @updated_at
+                    name = @name,
+                    passwordhash = @passwordhash,
+                    updatedby = @updatedby,
+                    updatedon = @updatedon
                 WHERE id = @id
-                  AND is_active = true;
+                  AND status <> 'Inactive';
             ";
             var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "id", DbTypes.Types.String).Value = userId;
+            db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = userId;
             db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
-            db.AddParameter(cmd, "username", DbTypes.Types.String).Value = username ?? "";
-            db.AddParameter(cmd, "password_hash", DbTypes.Types.String).Value = passwordHash ?? "";
-            db.AddParameter(cmd, "updated_at", DbTypes.Types.DateTime).Value = DateTime.UtcNow;
-
+            db.AddParameter(cmd, "name", DbTypes.Types.String).Value = name ?? "";
+            db.AddParameter(cmd, "passwordhash", DbTypes.Types.String).Value = passwordHash ?? "";
+            db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value = userId.ToString();
+            db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = DateTime.UtcNow.Date;
             await db.ExecuteNonQuery(cmd);
         }
 
-        private static async Task SyncStaffEmail(IDb db, string staffId, string organizationId, string email)
+        private static async Task TouchLastLogin(IDb db, long userId)
         {
-            if (string.IsNullOrWhiteSpace(staffId) || string.IsNullOrWhiteSpace(organizationId))
-                return;
-
-            string query = @"
-                UPDATE staff
-                SET email = @email,
-                    updated_at = @updated_at
-                WHERE staff_id = @staff_id
-                  AND organization_id = @organization_id
-                  AND is_active = true;
+            const string query = @"
+                UPDATE users
+                SET ""lastLogin"" = @lastLogin,
+                    updatedon = @updatedon
+                WHERE id = @id;
             ";
             var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email.Trim();
-            db.AddParameter(cmd, "staff_id", DbTypes.Types.String).Value = staffId;
-            db.AddParameter(cmd, "organization_id", DbTypes.Types.String).Value = organizationId;
-            db.AddParameter(cmd, "updated_at", DbTypes.Types.DateTime).Value = DateTime.UtcNow;
-
+            db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = userId;
+            db.AddParameter(cmd, "lastLogin", DbTypes.Types.String).Value = DateTime.UtcNow.ToString("o");
+            db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = DateTime.UtcNow.Date;
             await db.ExecuteNonQuery(cmd);
         }
 
-        private static async Task<(string Name, string Slug)?> GetOrganization(IDb db, string organizationId)
+        private static async Task<Organization?> GetOrganization(IDb db, long organizationId)
         {
-            if (string.IsNullOrWhiteSpace(organizationId))
-                return null;
+            if (organizationId <= 0) return null;
 
-            string query = @"
-                SELECT name, slug
+            const string query = @"
+                SELECT id, ""orgId"", ""locationId"", name, slug, domain, website,
+                       ""businessType"", ""brandColor"", ""pointsPerRupee"", ""rupeesPerPoint"",
+                       ""whatsappPhoneNumberId"", ""whatsappBusinessAccountId"", ""whatsappDisplayNumber"",
+                       ""whatsappApiKey"", ""whatsappWebhookToken"", ""whatsappApiVersion"", ""whatsappConnected"",
+                       status, createdby, createdon, updatedby, updatedon,
+                       ""earnUnitRupees"", ""pointsPerUnit"", ""loyaltyMinSpend"",
+                       ""rewardWheelWeights"", ""rewardScratchWeights"", ""rewardCustomerTierWeights"",
+                       ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard""
                 FROM organizations
                 WHERE id = @id
-                  AND is_active = true
+                  AND status <> 'Inactive'
                 LIMIT 1;
             ";
 
             var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "id", DbTypes.Types.String).Value = organizationId;
+            db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = organizationId;
 
-            using (var reader = await db.Execute(cmd))
+            using var reader = await db.Execute(cmd);
+            if (!await reader.ReadAsync()) return null;
+
+            return new Organization
             {
-                if (await reader.ReadAsync())
-                {
-                    return (
-                        reader["name"]?.ToString() ?? "",
-                        reader["slug"]?.ToString() ?? ""
-                    );
-                }
-            }
-
-            return null;
+                id = ReadLong(reader, "id"),
+                orgId = ReadLong(reader, "orgId"),
+                locationId = ReadLong(reader, "locationId"),
+                name = reader["name"]?.ToString() ?? "",
+                slug = reader["slug"]?.ToString() ?? "",
+            };
         }
 
-        /// <summary>Look up staff.id by email and organization_id for staff login.</summary>
-        private static async Task<string?> GetStaffIdByEmailAndOrg(IDb db, string email, string organizationId)
+        private static User MapUser(DbDataReader reader)
         {
-            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(organizationId))
-                return null;
-
-            string query = @"
-                SELECT staff_id
-                FROM staff
-                WHERE lower(email) = lower(@email)
-                  AND organization_id = @organization_id
-                  AND is_active = true
-                LIMIT 1;
-            ";
-
-            var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
-            db.AddParameter(cmd, "organization_id", DbTypes.Types.String).Value = organizationId;
-
-            using (var reader = await db.Execute(cmd))
+            return new User
             {
-                if (await reader.ReadAsync())
-                {
-                    var id = reader["staff_id"]?.ToString();
-                    if (!string.IsNullOrWhiteSpace(id))
-                        return id;
-                }
-            }
+                id = ReadLong(reader, "id"),
+                orgId = ReadLong(reader, "orgId"),
+                locationId = ReadLong(reader, "locationId"),
+                name = reader["name"]?.ToString() ?? "",
+                email = reader["email"]?.ToString() ?? "",
+                role = reader["role"]?.ToString() ?? "",
+                outlet = reader["outlet"]?.ToString() ?? "",
+                permissions = reader["permissions"]?.ToString() ?? "",
+                lastLogin = reader["lastLogin"]?.ToString() ?? "",
+                status = reader["status"]?.ToString() ?? "",
+                passwordhash = reader["passwordhash"]?.ToString() ?? "",
+            };
+        }
 
-            return null;
+        private static long ReadLong(DbDataReader reader, string column)
+        {
+            var value = reader[column];
+            return value == DBNull.Value ? 0 : Convert.ToInt64(value);
         }
     }
 }

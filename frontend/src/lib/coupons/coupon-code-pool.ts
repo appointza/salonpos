@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import type { CouponRule } from "@/lib/coupons/coupon-schema";
 import { VOUCHERS } from "@/lib/vouchers/voucher-service";
@@ -9,14 +10,14 @@ export type CouponPoolCode = {
   code: string;
   status: CouponCodeStatus;
   poolIndex: number;
-  customerId: string;
+  customerId: EntityId;
   customerName: string;
   customerPhone: string;
   issuedAt: string;
   redeemedAt: string;
-  invoiceId: string;
+  invoiceId: EntityId;
   discountAmount: number;
-  locationId: string;
+  locationId: EntityId;
   locationName: string;
 };
 
@@ -72,7 +73,7 @@ export function resolvePoolCodeStatus(voucher: Row, scheme?: CouponRule | Row): 
   return "Available";
 }
 
-export function poolCodesForCoupon(db: Db, couponId: string): Row[] {
+export function poolCodesForCoupon(db: Db, couponId: EntityId): Row[] {
   return (db[VOUCHERS] ?? []).filter((v) => str(v, "couponId") === couponId);
 }
 
@@ -85,7 +86,7 @@ export function hasCodePoolConfigured(coupon: Row) {
   return shouldGenerateCodePool(coupon);
 }
 
-export function couponPoolStats(db: Db, couponId: string, scheme?: CouponRule | Row): CouponPoolStats {
+export function couponPoolStats(db: Db, couponId: EntityId, scheme?: CouponRule | Row): CouponPoolStats {
   const rows = poolCodesForCoupon(db, couponId);
   const expected = scheme ? couponQuantity(scheme as Row) : rows.length;
   let used = 0;
@@ -112,9 +113,9 @@ export function couponPoolStats(db: Db, couponId: string, scheme?: CouponRule | 
 
 export function listCouponPoolCodes(
   db: Db,
-  couponId: string,
+  couponId: EntityId,
   scheme?: CouponRule | Row,
-  locations?: { locationId: string; name: string }[],
+  locations?: { locationId: EntityId; name: string }[],
 ): CouponPoolCode[] {
   const customers = db["customers"] ?? [];
   const customerById = new Map(customers.map((c) => [String(c.id), c]));
@@ -215,7 +216,7 @@ export function syncCouponCodePool(
   return { generated, total: limit };
 }
 
-export function couponHasCodePool(db: Db, couponId: string) {
+export function couponHasCodePool(db: Db, couponId: EntityId) {
   return poolCodesForCoupon(db, couponId).some((v) => str(v, "poolGenerated") === "Yes");
 }
 

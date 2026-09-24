@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { getCustomerById } from "@/lib/customers/customer-lookup";
 import { patchCustomer } from "@/lib/customers/customer-service";
@@ -11,10 +12,10 @@ export const SCRATCH_PLAYS = "scratchPlays";
 export type ScratchStore = LoyaltyStore;
 
 export type ProcessScratchInput = {
-  customerId: string;
+  customerId: EntityId;
   prize: Row;
-  locationId: string;
-  orgId: string;
+  locationId: EntityId;
+  orgId: EntityId;
   programId?: string;
   source: "public" | "qr";
   checkinId?: string;
@@ -33,7 +34,7 @@ function playDate(row: Row) {
   return String(row["createdAt"] ?? row["createdon"] ?? "").slice(0, 10);
 }
 
-export function customerScratchedToday(db: Db, customerId: string, onDate?: string) {
+export function customerScratchedToday(db: Db, customerId: EntityId, onDate?: string) {
   const day = onDate ?? new Date().toISOString().slice(0, 10);
   const plays = (db[SCRATCH_PLAYS] ?? []).filter((s) => String(s["customerId"]) === customerId);
   if (plays.some((s) => playDate(s) === day)) return true;
@@ -41,7 +42,7 @@ export function customerScratchedToday(db: Db, customerId: string, onDate?: stri
   return Boolean(customer && String(customer["lastScratchAt"] ?? "") === day);
 }
 
-export function getTodayScratchPlay(db: Db, customerId: string, onDate?: string) {
+export function getTodayScratchPlay(db: Db, customerId: EntityId, onDate?: string) {
   const day = onDate ?? new Date().toISOString().slice(0, 10);
   return (
     (db[SCRATCH_PLAYS] ?? []).find(
@@ -126,6 +127,24 @@ export function processScratchResult(store: ScratchStore, input: ProcessScratchI
   }
 
   return { ok: true, label, play, balanceAfter };
+}
+
+export function redeemScratchPlayAtPos(
+  store: ScratchStore,
+  input: { playId: string; invoiceId: EntityId; discountAmount: number },
+) {
+  const play = (store.db[SCRATCH_PLAYS] ?? []).find((s) => String(s.id) === input.playId);
+  if (!play) return { ok: false, error: "Scratch prize not found" };
+  if (String(play["status"]) !== "Pending") return { ok: false, duplicate: true, error: "Scratch prize already used" };
+
+  store.update(SCRATCH_PLAYS, input.playId, {
+    ...play,
+    status: "Redeemed",
+    invoiceId: input.invoiceId,
+    discountAmount: input.discountAmount,
+    redeemedAt: new Date().toISOString().slice(0, 10),
+  });
+  return { ok: true };
 }
 
 export function scratchPlayDiscountAmount(play: Row, subtotal: number) {

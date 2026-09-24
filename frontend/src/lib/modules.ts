@@ -1,5 +1,3 @@
-import seed from "@/data/salonData.json";
-
 export type FieldType = "text" | "number" | "date" | "time" | "textarea" | "select";
 
 export type Field = {
@@ -22,26 +20,24 @@ export type ModuleDef = {
   fields: Field[];
 };
 
-const unique = (values: string[]) => [...new Set(values.filter(Boolean))];
-const outlets = ["All", ...unique(seed.locations.map((l) => l.name))];
-const staffNames = unique(seed.staff.map((s) => s.name));
-const customerNames = unique(seed.customers.map((c) => c.name));
-const membershipPlanNames = unique(seed.membershipPlans.map((p) => p.name));
-const workspaceRoleNames = unique(
-  ((seed as { roles?: { name: string }[] }).roles ?? []).map((r) => r.name).concat([
-    "Owner",
-    "Franchise Manager",
-    "Outlet Manager",
-    "Stylist",
-    "Receptionist",
-  ]),
-);
+/** Static form defaults — live options come from API via CrudPage `selectOptions`. */
+const outlets = ["All"];
+const staffNames: string[] = [];
+const customerNames: string[] = [];
+const membershipPlanNames: string[] = [];
+const workspaceRoleNames = [
+  "Owner",
+  "Outlet Manager",
+  "Stylist",
+  "Receptionist",
+  "Admin",
+];
 
 export const modules = {
   customers: {
     key: "customers",
     title: "Customers",
-    subtitle: "Customer master, households, tiers, wallet and loyalty balances.",
+    subtitle: "Customer profiles per organisation and outlet. Same phone at another outlet is a separate profile.",
     idPrefix: "C-",
     fields: [
       { name: "name", label: "Full name", table: true },
@@ -55,7 +51,7 @@ export const modules = {
       { name: "points", label: "Loyalty points", type: "number", table: true, form: false },
       { name: "walletBalance", label: "Wallet balance", type: "number", money: true, table: true },
       { name: "membershipId", label: "Membership", table: true, form: false },
-      { name: "outlet", label: "Home outlet", type: "select", options: outlets, table: true },
+      { name: "outlet", label: "Outlet", type: "select", options: outlets, table: true },
       { name: "lastVisit", label: "Last visit", type: "date", table: true },
       { name: "notes", label: "Notes", type: "textarea" },
     ],
@@ -174,7 +170,7 @@ export const modules = {
       { name: "sellPrice", label: "Retail price", type: "number", money: true, table: true },
       { name: "batch", label: "Batch / lot" },
       { name: "expiry", label: "Expiry", type: "date" },
-      { name: "vendorId", label: "Preferred vendor", table: true },
+      { name: "vendorId", label: "Preferred vendor", type: "select", table: true },
     ],
   },
   vendors: {
@@ -542,7 +538,7 @@ export const modules = {
   },
   franchises: {
     key: "franchises",
-    title: "Franchises",
+    title: "Outlets",
     subtitle: "Outlet network, ownership, GSTIN and royalty terms.",
     idPrefix: "FR-",
     fields: [
@@ -551,7 +547,7 @@ export const modules = {
         name: "type",
         label: "Type",
         type: "select",
-        options: ["Company Owned", "Franchise"],
+        options: ["Company Owned", "Licensed outlet"],
         table: true,
         badge: true,
       },
@@ -619,7 +615,7 @@ export const modules = {
   roles: {
     key: "roles",
     title: "Roles & permissions",
-    subtitle: "Create roles and set view / edit access per screen. Seeded from the users you already have.",
+    subtitle: "Create roles and set view / edit access per screen.",
     idPrefix: "RL-",
     fields: [
       { name: "name", label: "Role name", table: true },
@@ -706,7 +702,7 @@ export const navSections: { label: string; items: { to: string; label: string; i
   {
     label: "Network",
     items: [
-      { to: "/franchises", label: "Franchises", icon: "Store" },
+      { to: "/franchises", label: "Outlets", icon: "Store" },
       { to: "/brand-apps", label: "White-Label Apps", icon: "Smartphone" },
       { to: "/users", label: "Users", icon: "ShieldCheck" },
       { to: "/roles", label: "Roles & permissions", icon: "Lock" },

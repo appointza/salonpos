@@ -1,15 +1,12 @@
 import { useEffect } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { PublicBooking } from "@/components/PublicBooking";
 import { useTenant } from "@/lib/tenant";
 import { Button } from "@/components/ui/button";
 
-const title = "Book online — Salon booking page";
-const description = "Public salon booking page: pick a location, service and stylist, then confirm your appointment online.";
-
 export function Page() {
-  const { orgSlug } = Route.useParams();
-  const { loc } = Route.useSearch();
+  const { orgSlug } = useParams({ from: "/$orgSlug" });
+  const { loc } = useSearch({ from: "/$orgSlug" });
   const { tenants, org, setOrgId } = useTenant();
   const match = tenants.find((t) => t.slug === orgSlug);
 
@@ -33,5 +30,5 @@ export function Page() {
     );
   }
 
-  return <PublicBooking showSwitcher={false} initialLocationId={loc} />;
+  return <PublicBooking showSwitcher={false} initialLocationId={loc} bookingOrgId={match.orgId} />;
 }

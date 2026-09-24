@@ -2,13 +2,13 @@ import { Building2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/lib/tenant";
 
 export function OrgLocationSwitcher({ compact = false }: { compact?: boolean }) {
   const { user } = useAuth();
   const { tenants, org, location, locationId, setOrgId, setLocationId, scopeLabel } = useTenant();
-  const lockOrg = Boolean(user && user.role !== "SUPER_ADMIN" && user.orgId);
+  const lockOrg = Boolean(user && user.role !== "SUPER_ADMIN" && String(user.orgId));
   const lockLocation = user?.role === "STYLIST" && Boolean(user.locationId);
 
   return (
@@ -26,10 +26,10 @@ export function OrgLocationSwitcher({ compact = false }: { compact?: boolean }) 
         </div>
       ) : (
         <Select
-          value={org.orgId}
+          value={String(org.orgId)}
           onValueChange={(v) => {
-            setOrgId(v);
-            const next = tenants.find((t) => t.orgId === v);
+            setOrgId(Number(v));
+            const next = tenants.find((t) => String(t.orgId) === v);
             toast.success(`Switched to ${next?.name ?? "organisation"}`, { description: "Showing all locations" });
           }}
         >
@@ -39,7 +39,7 @@ export function OrgLocationSwitcher({ compact = false }: { compact?: boolean }) 
           </SelectTrigger>
           <SelectContent>
             {tenants.map((t) => (
-              <SelectItem key={t.orgId} value={t.orgId}>
+              <SelectItem key={t.orgId} value={String(t.orgId)}>
                 {t.name}
               </SelectItem>
             ))}
@@ -60,10 +60,10 @@ export function OrgLocationSwitcher({ compact = false }: { compact?: boolean }) 
         </div>
       ) : (
         <Select
-          value={locationId}
+          value={String(locationId)}
           onValueChange={(v) => {
-            setLocationId(v);
-            const loc = org.locations.find((l) => l.locationId === v);
+            setLocationId(v === "all" ? v : Number(v));
+            const loc = org.locations.find((l) => String(l.locationId) === v);
             toast.success(v === "all" ? "Showing all locations" : `Location: ${loc?.name}`, {
               description: v === "all" ? org.name : `${loc?.code} · ${loc?.city}`,
             });
@@ -76,7 +76,7 @@ export function OrgLocationSwitcher({ compact = false }: { compact?: boolean }) 
           <SelectContent>
             <SelectItem value="all">All locations</SelectItem>
             {org.locations.map((l) => (
-              <SelectItem key={l.locationId} value={l.locationId}>
+              <SelectItem key={l.locationId} value={String(l.locationId)}>
                 {l.name} · {l.code}
               </SelectItem>
             ))}

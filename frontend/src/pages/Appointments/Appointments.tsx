@@ -1,7 +1,10 @@
+import { Link } from "@tanstack/react-router";
+import { Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { CrudPage } from "@/components/CrudPage";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { modules } from "@/lib/modules";
 import { resolveStaffForUser } from "@/lib/staff-scope";
 import { enrichAppointmentRow } from "@/lib/appointments/appointment-resolve";
@@ -24,7 +27,7 @@ export function Page() {
   const { update } = useCollection("appointments");
   const isStylist = user?.role === "STYLIST";
   const me = resolveStaffForUser(
-    (allRows["staff"] ?? []).filter((s) => String(s["orgId"]) === orgId),
+    (allRows["staff"] ?? []).filter((s) => String(s["orgId"]) === String(orgId)),
     user,
   );
   const myName = String(me?.["name"] ?? user?.name ?? "");
@@ -34,6 +37,13 @@ export function Page() {
 
   function withAppointmentIds(row: Row) {
     return enrichAppointmentRow(row, customers, services, staffRows);
+  }
+
+  function canBill(row: Row) {
+    const status = String(row["status"] ?? "");
+    if (status === "Completed" || status === "Cancelled" || status === "No-show") return false;
+    if (row["invoiceId"] || row["invoice"]) return false;
+    return true;
   }
 
   function setStatus(row: Row, status: string) {
@@ -81,6 +91,18 @@ export function Page() {
         field.name === "staff" && isStylist && myName ? [{ value: myName, label: myName }] : undefined
       }
       lockedFields={isStylist ? ["staff", "outlet"] : []}
+      rowActions={(row) =>
+        canBill(row) ? (
+          <Button asChild size="sm" variant="secondary" className="mr-1 h-8">
+            <Link to="/pos" search={{ appointment: String(row.id) }}>
+              <Receipt className="size-3.5" />
+              Bill
+            </Link>
+          </Button>
+        ) : String(row["status"]) === "Completed" || row["invoiceId"] || row["invoice"] ? (
+          <span className="mr-1 text-xs text-muted-foreground">Billed</span>
+        ) : null
+      }
       renderCell={(field, row, text) => {
         if (field.name !== "status" || !isStylist) return undefined;
         return (

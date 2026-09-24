@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DashHeader, DashStat, QuickLink, sortAppointments } from "@/components/dashboards/shared";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { shiftOn } from "@/lib/hr";
 import { resolveStaffForUser } from "@/lib/staff-scope";
 import { useData } from "@/lib/store";
@@ -23,7 +23,7 @@ export function StylistDashboard() {
   const { user } = useAuth();
   const { org, location, scopeLabel } = useTenant();
   const me = resolveStaffForUser(
-    (allRows["staff"] ?? []).filter((s) => String(s["orgId"]) === orgId),
+    (allRows["staff"] ?? []).filter((s) => String(s["orgId"]) === String(orgId)),
     user,
   );
   const appointments = sortAppointments(db["appointments"] ?? []);

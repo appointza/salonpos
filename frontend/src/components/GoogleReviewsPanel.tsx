@@ -15,7 +15,7 @@ import {
   mapsApiKey,
   mapsListingUrl,
   reviewRowsFromLive,
-  reviewsFromSeed,
+  reviewsFromRows,
   summaryFromStore,
 } from "@/lib/google-places";
 
@@ -50,7 +50,7 @@ export function GoogleReviewsPanel() {
   );
 
   const persistSync = useCallback(
-    (loc: Row, reviews: Row[], meta: { rating: number; reviewCount: number; mapsUrl: string; source: "google" | "demo" }) => {
+    (loc: Row, reviews: Row[], meta: { rating: number; reviewCount: number; mapsUrl: string; source: "google" | "stored" }) => {
       replaceGoogleReviews(String(loc["locationId"] ?? loc.id), reviews, locationSyncMeta(meta));
     },
     [replaceGoogleReviews],
@@ -60,7 +60,7 @@ export function GoogleReviewsPanel() {
     async (loc: Row, reason: "auto" | "manual") => {
       const locId = String(loc["locationId"] ?? loc.id);
       const placeId = locationPlaceId(loc);
-      const existing = reviewsFromSeed(stored, locId);
+      const existing = reviewsFromRows(stored, locId);
       setBusyId(locId);
       try {
         if (key && placeId) {
@@ -91,11 +91,11 @@ export function GoogleReviewsPanel() {
             rating: Number(loc["googleRating"] ?? 0) || (existing.length ? existing.reduce((s, r) => s + r.rating, 0) / existing.length : 0),
             reviewCount: Number(loc["googleReviewCount"] ?? existing.length),
             mapsUrl: String(loc["googleMapsUrl"] ?? "") || mapsListingUrl(loc),
-            source: "demo",
+            source: "stored",
           },
         );
         if (reason === "manual") {
-          toast.message(key ? "Add a Place ID in Settings to pull live comments" : "Stored demo comments refreshed", {
+          toast.message(key ? "Add a Place ID in Settings to pull live comments" : "Stored reviews refreshed", {
             description: "Set VITE_GOOGLE_MAPS_API_KEY to pull from Google.",
           });
         }
@@ -185,7 +185,7 @@ function PlaceCard({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={card.source === "google" ? "default" : "secondary"}>
-            {card.source === "google" ? "Stored from Google" : "Stored demo"}
+            {card.source === "google" ? "Stored from Google" : "Stored locally"}
           </Badge>
           <Button variant="outline" size="sm" disabled={busy} onClick={onRefresh}>
             <RefreshCw className={busy ? "animate-spin" : ""} />

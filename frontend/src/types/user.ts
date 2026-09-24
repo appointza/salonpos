@@ -1,1 +1,1 @@
-export type { Role, SessionUser, Organization } from "@/lib/auth";
+export type { Role, SessionUser, Organization } from "@/context/AuthContext";

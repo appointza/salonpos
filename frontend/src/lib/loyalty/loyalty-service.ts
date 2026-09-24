@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { addExpiry } from "@/lib/loyalty-rules";
 import { getCustomerById } from "@/lib/customers/customer-lookup";
@@ -13,23 +14,37 @@ export type LoyaltyStore = {
 export type LoyaltyTxType = "Earn" | "Redeem" | "Adjust" | "Expire" | "Reverse";
 
 export type PostLoyaltyTransactionInput = {
-  customerId: string;
+  customerId: EntityId;
   type: LoyaltyTxType;
   points: number;
   source: string;
   referenceId: string;
   programId?: string;
-  locationId?: string;
+  locationId?: EntityId;
   expiresOn?: string;
   reason?: string;
-  orgId?: string;
+  orgId?: EntityId;
   /** Skip duplicate guard (use with care). */
   allowDuplicate?: boolean;
   /** Link to originating business record (invoice, spin, etc.). */
   invoiceId?: string;
 };
 
-export function getCustomerLoyaltyBalance(db: Db, customerId: string) {
+export function loyaltyTransactionsForCustomer(db: Db, customerId: EntityId) {
+  return (db[LOYALTY_TX] ?? []).filter((t) => String(t["customerId"]) === String(customerId));
+}
+
+export function getCustomerLoyaltyBalance(db: Db, customerId: EntityId) {
+  const txs = loyaltyTransactionsForCustomer(db, customerId);
+  if (txs.length > 0) {
+    const latest = [...txs].sort((a, b) => {
+      const idDiff = Number(b.id) - Number(a.id);
+      if (idDiff !== 0) return idDiff;
+      return String(b["createdon"] ?? "").localeCompare(String(a["createdon"] ?? ""));
+    })[0];
+    const after = latest?.["balanceAfter"];
+    if (after !== undefined && after !== "") return Number(after);
+  }
   return Number(getCustomerById(db, customerId)?.["points"] ?? 0);
 }
 
@@ -131,11 +146,11 @@ export function postLoyaltyTransaction(
 export function postLoyaltyReversal(
   store: LoyaltyStore,
   input: {
-    customerId: string;
+    customerId: EntityId;
     originalSource: string;
     originalReferenceId: string;
-    orgId?: string;
-    locationId?: string;
+    orgId?: EntityId;
+    locationId?: EntityId;
     reason?: string;
   },
 ): { ok: boolean; reversed: number; balanceAfter: number; error?: string } {

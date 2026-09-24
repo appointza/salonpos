@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 
 export function resolveAppointmentCustomerId(appointment: Row, customers: Row[]) {
@@ -36,7 +37,7 @@ export type BuildAppointmentInput = {
   service: Row;
   staffName: string;
   staff?: Row | null;
-  locationId: string;
+  locationId: EntityId;
   outlet: string;
   date: string;
   time: string;

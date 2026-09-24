@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
-import { Link, } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
   CalendarDays,
@@ -17,14 +18,56 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buildCustomerDetail, membershipAvailabilityLabel } from "@/lib/customers/customer-detail";
-import { useData } from "@/lib/store";
+import { useApi } from "@/hooks/useApi";
 import { useTenant } from "@/lib/tenant";
+import { toRow } from "@/lib/entity-row";
+import type { Row } from "@/lib/store";
+import { customerService } from "@/services/customer.service";
 
 export function CustomerDetailPage() {
-  const { customerId } = Route.useParams();
-  const { allRows } = useData();
+  const { customerId } = useParams({ from: "/_app/customers/$customerId" });
+  const { allRows, applyCache } = useApi();
   const { org } = useTenant();
   const detail = buildCustomerDetail(allRows, customerId);
+  const [loyaltyRows, setLoyaltyRows] = useState<Row[] | null>(null);
+  const [loyaltyPoints, setLoyaltyPoints] = useState<{ balance: number; earned: number; redeemed: number } | null>(null);
+
+  useEffect(() => {
+    const oid = Number(org.orgId);
+    const cid = Number(customerId);
+    if (!oid || !cid || !detail) {
+      setLoyaltyRows(null);
+      setLoyaltyPoints(null);
+      return;
+    }
+    let cancelled = false;
+    void customerService.loyaltySummary({ orgId: oid, customerId: cid }).then((res) => {
+      if (cancelled) return;
+      if (res.errorMessage) {
+        setLoyaltyRows(null);
+        setLoyaltyPoints(null);
+        return;
+      }
+      const txs = (res.transactions ?? []).map((t) => toRow(t));
+      setLoyaltyRows(txs);
+      setLoyaltyPoints({ balance: res.points, earned: res.earned, redeemed: res.redeemed });
+      applyCache((prev) => ({
+        ...prev,
+        customers: (prev["customers"] ?? []).map((c) =>
+          String(c.id) === String(cid) ? { ...c, points: res.points } : c,
+        ),
+        loyaltyTransactions: [
+          ...txs,
+          ...(prev["loyaltyTransactions"] ?? []).filter(
+            (t) => String(t["customerId"]) !== String(cid),
+          ),
+        ],
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [org.orgId, customerId, applyCache]);
 
   if (!detail) {
     return (
@@ -39,8 +82,18 @@ export function CustomerDetailPage() {
     );
   }
 
-  const { customer, points, memberships, loyaltyTransactions, invoices, appointments, checkins, wheelSpins, offerRedemptions, partnerCoupons, products, feedback } =
+  const { customer, points, memberships, loyaltyTransactions, invoices, appointments, checkins, wheelSpins, scratchPlays, offerRedemptions, partnerCoupons, products, feedback } =
     detail;
+  const pointsDisplay = loyaltyPoints ?? points;
+  const loyaltyLedger = loyaltyRows ?? loyaltyTransactions;
+  const unclaimedRewards = [
+    ...wheelSpins
+      .filter((w) => String(w["status"]) === "Pending")
+      .map((w) => ({ id: `w-${w.id}`, primary: `Wheel · ${String(w["label"] ?? "Prize")}` })),
+    ...scratchPlays
+      .filter((w) => String(w["status"]) === "Pending")
+      .map((w) => ({ id: `s-${w.id}`, primary: `Scratch · ${String(w["label"] ?? "Prize")}` })),
+  ];
   const upcoming = appointments.filter((a) => String(a["status"]) !== "Completed" && String(a["status"]) !== "Cancelled");
   const past = appointments.filter((a) => String(a["status"]) === "Completed" || String(a["status"]) === "Cancelled");
 
@@ -71,7 +124,12 @@ export function CustomerDetailPage() {
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Star} label="Loyalty points" value={points.balance.toLocaleString("en-IN")} hint={`+${points.earned} earned · −${points.redeemed} redeemed`} />
+        <StatCard
+          icon={Star}
+          label="Loyalty points"
+          value={pointsDisplay.balance.toLocaleString("en-IN")}
+          hint={`+${pointsDisplay.earned} earned · −${pointsDisplay.redeemed} redeemed`}
+        />
         <StatCard icon={IndianRupee} label="Wallet" value={`₹${Number(customer["walletBalance"] ?? 0).toLocaleString("en-IN")}`} hint="Prepaid balance" />
         <StatCard icon={RotateCcw} label="Visits" value={String(customer["totalVisits"] ?? customer["visits"] ?? 0)} hint={`Stamps ${Number(customer["stampsCurrent"] ?? 0)} · Last ${String(customer["lastVisit"] ?? "—")}`} />
         <StatCard icon={Gift} label="Packages" value={String(memberships.filter((m) => m.isLive).length)} hint={`${memberships.length} total enrollment${memberships.length === 1 ? "" : "s"}`} />
@@ -84,7 +142,7 @@ export function CustomerDetailPage() {
             <Field label="Birthday" value={String(customer["birthday"] ?? "—")} />
             <Field label="Anniversary" value={String(customer["anniversary"] ?? "—")} />
             <Field label="Household" value={String(customer["household"] ?? "—")} />
-            <Field label="Home outlet" value={String(customer["outlet"] ?? "—")} />
+            <Field label="Outlet" value={String(customer["outlet"] ?? "—")} />
             <Field label="Referral code" value={String(customer["referralCode"] ?? "—")} />
             <Field label="Marketing consent" value={String(customer["marketingConsent"] ?? "—")} />
             <Field label="Last wheel prize" value={String(customer["lastWheelPrize"] ?? "—")} />
@@ -140,8 +198,8 @@ export function CustomerDetailPage() {
       </div>
 
       <Section title="Loyalty ledger" icon={Star}>
-        {loyaltyTransactions.length === 0 ? (
-          <Empty text="No loyalty transactions yet." />
+        {loyaltyLedger.length === 0 ? (
+          <Empty text="No loyalty transactions yet — points are added when you complete a sale on POS." />
         ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
@@ -156,7 +214,7 @@ export function CustomerDetailPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loyaltyTransactions.map((t) => (
+                {loyaltyLedger.map((t) => (
                   <TableRow key={String(t.id)}>
                     <TableCell className="text-xs">{String(t["createdon"] ?? "—")}</TableCell>
                     <TableCell>
@@ -255,7 +313,21 @@ export function CustomerDetailPage() {
         </Section>
       </div>
 
-      {(offerRedemptions.length > 0 || partnerCoupons.length > 0 || wheelSpins.length > 0 || feedback.length > 0) && (
+      <Section title="Rewards to claim" icon={Gift}>
+        {unclaimedRewards.length === 0 ? (
+          <Empty text="No pending prize. Scratch and wheel discounts show here until they are applied on the next POS bill." />
+        ) : (
+          <ItemList
+            items={unclaimedRewards.map((r) => ({
+              id: r.id,
+              primary: r.primary,
+              secondary: "Pending · claim on the next POS bill",
+            }))}
+          />
+        )}
+      </Section>
+
+      {(offerRedemptions.length > 0 || partnerCoupons.length > 0 || wheelSpins.length > 0 || scratchPlays.length > 0 || feedback.length > 0) && (
         <div className="grid gap-6 lg:grid-cols-2">
           {offerRedemptions.length > 0 ? (
             <Section title="QR offers" icon={Gift}>
@@ -275,6 +347,17 @@ export function CustomerDetailPage() {
                   id: String(c.id),
                   primary: String(c["offer"] ?? c["couponCode"] ?? "Coupon"),
                   secondary: `${String(c["status"] ?? "")} · ${String(c["direction"] ?? "")} · ${String(c["issuedAt"] ?? "")}`,
+                }))}
+              />
+            </Section>
+          ) : null}
+          {scratchPlays.length > 0 ? (
+            <Section title="Scratch card" icon={Sparkles}>
+              <ItemList
+                items={scratchPlays.map((w) => ({
+                  id: String(w.id),
+                  primary: String(w["label"] ?? "Prize"),
+                  secondary: `${String(w["status"] ?? "")} · ${String(w["createdAt"] ?? "")} · ${String(w["rewardType"] ?? "")}`,
                 }))}
               />
             </Section>

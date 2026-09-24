@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Db, Row } from "@/lib/store";
 import { getCustomerById } from "@/lib/customers/customer-lookup";
 import { patchCustomer } from "@/lib/customers/customer-service";
@@ -10,10 +11,10 @@ export const WHEEL_SPINS = "wheelSpins";
 export type WheelStore = LoyaltyStore;
 
 export type ProcessWheelSpinInput = {
-  customerId: string;
+  customerId: EntityId;
   segment: Row;
-  locationId: string;
-  orgId: string;
+  locationId: EntityId;
+  orgId: EntityId;
   programId?: string;
   source: "public" | "qr";
   checkinId?: string;
@@ -33,7 +34,7 @@ function spinDate(row: Row) {
 }
 
 /** Whether the customer already spun today (wheelSpins ledger + legacy lastWheelAt). */
-export function customerSpunToday(db: Db, customerId: string, onDate?: string) {
+export function customerSpunToday(db: Db, customerId: EntityId, onDate?: string) {
   const day = onDate ?? new Date().toISOString().slice(0, 10);
   const spins = (db[WHEEL_SPINS] ?? []).filter((s) => String(s["customerId"]) === customerId);
   if (spins.some((s) => spinDate(s) === day)) return true;
@@ -41,7 +42,7 @@ export function customerSpunToday(db: Db, customerId: string, onDate?: string) {
   return Boolean(customer && String(customer["lastWheelAt"] ?? "") === day);
 }
 
-export function getTodayWheelSpin(db: Db, customerId: string, onDate?: string) {
+export function getTodayWheelSpin(db: Db, customerId: EntityId, onDate?: string) {
   const day = onDate ?? new Date().toISOString().slice(0, 10);
   return (
     (db[WHEEL_SPINS] ?? []).find(
@@ -52,7 +53,7 @@ export function getTodayWheelSpin(db: Db, customerId: string, onDate?: string) {
 
 export function canCustomerSpin(
   db: Db,
-  customerId: string,
+  customerId: EntityId,
   wheelProgram: Row | null,
   checkinId?: string,
 ): { ok: boolean; reason?: string } {
@@ -152,7 +153,7 @@ export function processWheelSpinResult(store: WheelStore, input: ProcessWheelSpi
   return { ok: true, label, spin, balanceAfter };
 }
 
-export function getPendingWheelSpins(db: Db, customerId: string) {
+export function getPendingWheelSpins(db: Db, customerId: EntityId) {
   return (db[WHEEL_SPINS] ?? []).filter(
     (s) => String(s["customerId"]) === customerId && String(s["status"]) === "Pending",
   );
@@ -168,7 +169,7 @@ export function wheelSpinDiscountAmount(spin: Row, subtotal: number) {
 
 export function redeemWheelSpinAtPos(
   store: WheelStore,
-  input: { spinId: string; invoiceId: string; discountAmount: number },
+  input: { spinId: string; invoiceId: EntityId; discountAmount: number },
 ) {
   const spin = (store.db[WHEEL_SPINS] ?? []).find((s) => String(s.id) === input.spinId);
   if (!spin) return { ok: false, error: "Wheel spin not found" };

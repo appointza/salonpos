@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import { useMemo, useState } from "react";
 import { AlertCircle, TicketPercent, X } from "lucide-react";
 import { toast } from "sonner";
@@ -28,10 +29,10 @@ export function PosCouponInput({
 }: {
   customer: Row | null;
   cart: BillLine[];
-  orgId: string;
-  locationId: string;
+  orgId: EntityId;
+  locationId: EntityId;
   payment: string;
-  staffId: string;
+  staffId: EntityId;
   discount: number;
   membershipDiscount: number;
   allRows: Record<string, Row[]>;

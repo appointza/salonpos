@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SpinWheel } from "@/components/SpinWheel";
-import { useData, type Row } from "@/lib/store";
+import { useApi, type Row } from "@/hooks/useApi";
 import { upsertCustomerByPhone } from "@/lib/customers/customer-service";
 import { normalizePhone } from "@/lib/customers/customer-lookup";
 import {
@@ -25,8 +26,8 @@ import { autoApproveCheckin, hasApprovedCheckinToday } from "@/lib/checkins/chec
 import { customerSpunToday, processWheelSpinResult } from "@/lib/wheel/wheel-service";
 
 export function QrCheckinPage() {
-  const { locationId } = Route.useParams();
-  const { allRows, create, update } = useData();
+  const { locationId } = useParams({ from: "/qr/$locationId" });
+  const { allRows, create, update } = useApi();
   const location = (allRows["locations"] ?? []).find((l) => String(l["locationId"] ?? l.id) === locationId);
   const orgId = String(location?.["orgId"] ?? "");
   const org = (allRows["organizations"] ?? []).find((o) => String(o["orgId"]) === orgId);
@@ -42,8 +43,11 @@ export function QrCheckinPage() {
   const [cart, setCart] = useState<string[]>([]);
 
   const customers = useMemo(
-    () => (allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === orgId),
-    [allRows, orgId],
+    () =>
+      (allRows["customers"] ?? []).filter(
+        (c) => String(c["orgId"]) === orgId && String(c["locationId"]) === String(locationId),
+      ),
+    [allRows, orgId, locationId],
   );
   const programs = useMemo(
     () => activePrograms((allRows["loyalty"] ?? []).filter((p) => String(p["orgId"]) === orgId), locationId),
@@ -52,14 +56,14 @@ export function QrCheckinPage() {
   const services = useMemo(
     () =>
       (allRows["services"] ?? []).filter(
-        (s) => String(s["orgId"]) === orgId && String(s["active"] ?? "Yes") !== "No",
+        (s) => String(s["orgId"]) === String(orgId) && String(s["active"] ?? "Yes") !== "No",
       ),
     [allRows, orgId],
   );
   const segments = useMemo(
     () =>
       (allRows[WHEEL_SEGMENTS] ?? []).filter(
-        (s) => String(s["orgId"]) === orgId && String(s["programId"] ?? "LY-WHEEL") === "LY-WHEEL",
+        (s) => String(s["orgId"]) === String(orgId) && String(s["programId"] ?? "LY-WHEEL") === "LY-WHEEL",
       ),
     [allRows, orgId],
   );
@@ -72,7 +76,7 @@ export function QrCheckinPage() {
   );
   const checkins = allRows[QR_CHECKINS] ?? [];
   const mine = checkins.find((c) => String(c.id) === checkinId);
-  const existing = findCustomerByPhone(customers, phone);
+  const existing = findCustomerByPhone(customers, phone, locationId);
   const stamp = programOfType(programs, "Stamp Card");
   const wheel = programOfType(programs, "Spin the Wheel");
   const stampsHave = Number((existing ?? {})["stampsCurrent"] ?? 0);
@@ -161,11 +165,12 @@ export function QrCheckinPage() {
           <Button
             className="w-full"
             onClick={() => {
+              void (async () => {
               if (!name.trim()) return void toast.error("Enter your name");
               if (!consent) return void toast.error("Consent is required");
               let customer = existing;
               if (!customer) {
-                customer = upsertCustomerByPhone(
+                customer = await upsertCustomerByPhone(
                   { db: allRows, create, update },
                   {
                     orgId,
@@ -258,6 +263,7 @@ export function QrCheckinPage() {
               });
               setCheckinId(id);
               toast.success("You're checked in!", { description: result.notes });
+              })();
             }}
           >
             Check in now

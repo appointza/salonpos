@@ -1,3 +1,4 @@
+import type { EntityId } from "@/lib/ids";
 import type { Row } from "@/lib/store";
 
 export type GoogleReview = {
@@ -7,18 +8,18 @@ export type GoogleReview = {
   comment: string;
   relativeTime: string;
   outlet: string;
-  locationId: string;
+  locationId: EntityId;
   live: boolean;
 };
 
 export type GooglePlaceSummary = {
   placeId: string;
-  locationId: string;
+  locationId: EntityId;
   outlet: string;
   rating: number;
   reviewCount: number;
   mapsUrl: string;
-  source: "google" | "demo";
+  source: "google" | "stored";
   syncedAt: string;
   stale: boolean;
   reviews: GoogleReview[];
@@ -76,9 +77,9 @@ export function mapsListingUrl(row: Row) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
-export function reviewsFromSeed(rows: Row[], locationId: string): GoogleReview[] {
+export function reviewsFromRows(rows: Row[], locationId: EntityId): GoogleReview[] {
   return rows
-    .filter((r) => !locationId || locationId === "all" || String(r["locationId"]) === locationId)
+    .filter((r) => !locationId || locationId === "all" || String(r["locationId"]) === String(locationId))
     .map((r) => ({
       id: String(r.id),
       author: String(r["author"] ?? "Google user"),
@@ -115,11 +116,11 @@ export function formatSyncedAgo(syncedAt: string, now = Date.now()) {
 
 export function summaryFromStore(location: Row, stored: Row[]): GooglePlaceSummary {
   const locationId = String(location["locationId"] ?? location.id);
-  const reviews = reviewsFromSeed(stored, locationId);
+  const reviews = reviewsFromRows(stored, locationId);
   const storedRating = Number(location["googleRating"] ?? 0);
   const storedCount = Number(location["googleReviewCount"] ?? 0);
   const avg = storedRating || (reviews.length ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0);
-  const source = String(location["googleSyncSource"] ?? "demo") === "google" ? "google" : "demo";
+  const source = String(location["googleSyncSource"] ?? "stored") === "google" ? "google" : "stored";
   const syncedAt = locationSyncedAt(location);
   return {
     placeId: locationPlaceId(location),
@@ -159,7 +160,7 @@ export function locationSyncMeta(input: {
   rating: number;
   reviewCount: number;
   mapsUrl: string;
-  source: "google" | "demo";
+  source: "google" | "stored";
 }): Record<string, string | number> {
   return {
     googleRating: input.rating,

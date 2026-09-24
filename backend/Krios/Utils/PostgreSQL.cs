@@ -347,6 +347,10 @@ namespace Krios.Utils
                         pgParameter = new NpgsqlParameter(parameterName, NpgsqlTypes.NpgsqlDbType.Date);
                         position = command.Parameters.Add(pgParameter);
                         break;
+                    case DbTypes.Types.Time:
+                        pgParameter = new NpgsqlParameter(parameterName, NpgsqlTypes.NpgsqlDbType.Time);
+                        position = command.Parameters.Add(pgParameter);
+                        break;
                     case DbTypes.Types.Decimal:
                         pgParameter = new NpgsqlParameter(parameterName, NpgsqlTypes.NpgsqlDbType.Numeric);
                         position = command.Parameters.Add(pgParameter);

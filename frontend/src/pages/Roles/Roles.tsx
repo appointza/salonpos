@@ -1,10 +1,14 @@
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { CrudPage } from "@/components/CrudPage";
 import { UsersRolesSubnav } from "@/components/UsersRolesSubnav";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { defaultRoleRows } from "@/lib/default-roles";
 import { modules } from "@/lib/modules";
 import { joinPaths, PERMISSION_SCREENS, permissionSummary, splitPaths } from "@/lib/permissions";
-import type { Row } from "@/lib/store";
+import { useCollection, type Row } from "@/lib/store";
+import { useTenant } from "@/lib/tenant";
 
 const title = "Roles & permissions — Luxe Salon CRM";
 const description = "Create roles and set view or edit access for each screen.";
@@ -127,11 +131,35 @@ function PermissionMatrix({
 }
 
 export function Page() {
+  const { orgId } = useTenant();
+  const { rows, create, loading } = useCollection("roles");
+  const seeding = useRef(false);
+
+  useEffect(() => {
+    if (loading || rows.length > 0 || seeding.current || !orgId) return;
+    seeding.current = true;
+    void (async () => {
+      try {
+        for (const row of defaultRoleRows(orgId)) {
+          await create(row);
+        }
+        toast.success("Default roles loaded", {
+          description: "Owner, Outlet Manager, Stylist and Receptionist are ready to assign on Users.",
+        });
+      } catch {
+        seeding.current = false;
+      }
+    })();
+  }, [loading, rows.length, orgId, create]);
+
   return (
     <div className="space-y-6">
       <UsersRolesSubnav />
       <CrudPage
-        module={modules.roles}
+        module={{
+          ...modules.roles,
+          subtitle: "Control which screens each role can view and edit. Built-in roles are created automatically.",
+        }}
         newButtonLabel="New role"
         displayValue={(field, row) => {
           if (field.name === "view" || field.name === "edit") {
@@ -145,8 +173,13 @@ export function Page() {
           code: row["code"] || "STAFF",
           builtIn: "No",
           status: row["status"] || "Active",
-          view: "/dashboard",
-          edit: "",
+          view: "/dashboard,/front-desk",
+          edit: "/dashboard",
+        })}
+        prepareSave={(row) => ({
+          ...row,
+          view: String(row["view"] ?? ""),
+          edit: String(row["edit"] ?? ""),
         })}
         validate={(row) => {
           if (!String(row["name"] ?? "").trim()) return "Give the role a name";

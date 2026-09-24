@@ -11,7 +11,7 @@ export function PrizeWheelPage() {
         key: "wheelSegments",
         title: "Prize wheel",
         subtitle:
-          "Set segment labels, prize types and weights. Bronze–Platinum mix is controlled in Settings → Reward tier distribution.",
+          "Label is the name on the wheel. Prize type and value are claimed on the next POS bill. Which tiers spin this wheel is set in Settings → Reward tiers.",
         idPrefix: "WS-",
         fields: [
           { name: "label", label: "Label", type: "select", table: true },
