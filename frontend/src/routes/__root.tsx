@@ -7,10 +7,10 @@ import {
   HeadContent,
 } from "@tanstack/react-router";
 
-import { DataProvider } from "@/lib/store";
+import { DataProvider } from "@/store";
 import { AuthProvider } from "@/context/AuthContext";
-import { TenantProvider } from "@/lib/tenant";
-import { ListViewProvider } from "@/lib/list-view";
+import { TenantProvider } from "@/tenant";
+import { ListViewProvider } from "@/list-view";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {

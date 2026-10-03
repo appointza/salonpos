@@ -55,6 +55,7 @@ namespace Krios.Models.Krios
     public class InvoiceRewardRefs
     {
         public long wheelSpinId { get; set; }
+        public long scratchPlayId { get; set; }
         public long offerRedemptionId { get; set; }
         public long partnerCouponId { get; set; }
     }

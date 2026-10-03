@@ -1,4 +1,4 @@
-import type { EntityId } from "@/lib/ids";
+import type { EntityId } from "@/ids";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -6,10 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCollection, useData } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
-import { useListView } from "@/lib/list-view";
-import { deriveAttendanceRows, monthRange, payrollForStaff } from "@/lib/hr";
+import { useCollection, useData } from "@/store";
+import { useTenant } from "@/tenant";
+import { useListView } from "@/list-view";
+import { deriveAttendanceRows, monthRange, payrollForStaff } from "@/pages/Attendance/hr";
 
 const title = "Payroll — Luxe Salon CRM";
 const description = "Net pay from staff salary, attendance/leave and the commission ledger.";
@@ -26,7 +26,7 @@ export function Page() {
   const { rows: leaves } = useCollection("leaves");
   const { rows: commissions } = useCollection("commissions");
   const { rows: payroll } = useCollection("payroll");
-  const [period, setPeriod] = useState("2026-08");
+  const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
 
   const { from, to } = monthRange(period);
   const attendance = useMemo(
@@ -48,8 +48,9 @@ export function Page() {
       update("payroll", String(existing.id), { ...existing, status, payDate });
     } else {
       create("payroll", {
-        id: `PR-${period.replace("-", "")}-${staffId.replace(/\D/g, "")}`,
+        id: `PR-${period.replace("-", "")}-${String(staffId).replace(/\D/g, "")}`,
         staffId,
+        locationId: calc.locationId,
         period,
         incentive: calc.incentive,
         extraDeductions: calc.extraDeductions,
@@ -67,8 +68,9 @@ export function Page() {
     if (existing) update("payroll", String(existing.id), { ...existing, [field]: value });
     else
       create("payroll", {
-        id: `PR-${period.replace("-", "")}-${staffId.replace(/\D/g, "")}`,
+        id: `PR-${period.replace("-", "")}-${String(staffId).replace(/\D/g, "")}`,
         staffId,
+        locationId: calc.locationId,
         period,
         incentive: field === "incentive" ? value : calc.incentive,
         extraDeductions: field === "extraDeductions" ? value : calc.extraDeductions,
@@ -108,6 +110,7 @@ export function Page() {
               </p>
               <dl className="mt-3 space-y-1.5 text-sm">
                 <div className="flex justify-between"><dt className="text-muted-foreground">Base</dt><dd>{money(r.baseSalary)}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted-foreground">Services</dt><dd>{r.serviceCount}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">Commission</dt><dd>{money(r.commission)}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">OT</dt><dd>{money(r.overtimePay)}</dd></div>
                 <div className="flex justify-between gap-3">
@@ -147,6 +150,7 @@ export function Page() {
               <TableHead>Leave</TableHead>
               <TableHead>Absent</TableHead>
               <TableHead>Base</TableHead>
+              <TableHead>Services</TableHead>
               <TableHead>Commission</TableHead>
               <TableHead>OT</TableHead>
               <TableHead>Incentive</TableHead>
@@ -168,6 +172,7 @@ export function Page() {
                 <TableCell>{r.leaveDays}</TableCell>
                 <TableCell>{r.absentDays}</TableCell>
                 <TableCell>{money(r.baseSalary)}</TableCell>
+                <TableCell>{r.serviceCount}</TableCell>
                 <TableCell>{money(r.commission)}</TableCell>
                 <TableCell>{money(r.overtimePay)}</TableCell>
                 <TableCell className="w-28">

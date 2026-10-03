@@ -5,13 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CrudPage } from "@/components/CrudPage";
+import { CrudPage, type ModuleDef } from "@/components/CrudPage";
 import { StockFlowNote } from "@/components/StockFlowNote";
-import { modules } from "@/lib/modules";
-import { useCollection, useData, type Row } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
-import { useListView } from "@/lib/list-view";
-import { signedQty, skuName, useStockService } from "@/lib/stock";
+import { useCollection, useData, type Row } from "@/store";
+import { useTenant } from "@/tenant";
+import { useListView } from "@/list-view";
+import { signedQty, skuName, useStockService } from "@/pages/Inventory/stock";
 
 const title = "Inventory — Luxe Salon CRM";
 const description = "Remaining stock is Opening + Purchases − Sales − Used. Movements are the audit trail.";
@@ -21,8 +20,28 @@ const TABS = [
   { key: "ledger", label: "Stock movements" },
 ] as const;
 
+const inventoryModule: ModuleDef = {
+  key: "inventory",
+  title: "Inventory",
+  subtitle: "Retail, back-bar and consumable stock with reorder levels.",
+  idPrefix: "SKU-",
+  fields: [
+    { name: "name", label: "Item name", table: true },
+    { name: "category", label: "Category", type: "select", options: ["Retail", "Back-bar", "Consumable"], table: true, badge: true },
+    { name: "brand", label: "Brand" },
+    { name: "outlet", label: "Outlet", type: "select", options: ["All"], table: true },
+    { name: "stock", label: "Remaining", type: "number", table: true, form: false },
+    { name: "reorderLevel", label: "Reorder level", type: "number", table: true },
+    { name: "unitCost", label: "Unit cost", type: "number", money: true },
+    { name: "sellPrice", label: "Retail price", type: "number", money: true, table: true },
+    { name: "batch", label: "Batch / lot" },
+    { name: "expiry", label: "Expiry", type: "date" },
+    { name: "vendorId", label: "Preferred vendor", type: "select", table: true },
+  ],
+};
+
 function StockAdjustPanel({ editing }: { editing: Row }) {
-  const stock = useStockService();
+  const stock = useStockService({ prefetchRemaining: true });
   const skuId = String(editing.id);
   const current = stock.remaining(skuId);
   const [qty, setQty] = useState("");
@@ -72,10 +91,10 @@ function StockAdjustPanel({ editing }: { editing: Row }) {
 
 export function Page() {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("catalogue");
-  const stock = useStockService();
+  const stock = useStockService({ prefetchRemaining: true });
   const { allRows } = useData();
   const { orgId } = useTenant();
-  const inlineFields = modules.inventory.fields.filter((f) => f.table && f.name !== "stock").map((f) => f.name);
+  const inlineFields = inventoryModule.fields.filter((f) => f.table && f.name !== "stock").map((f) => f.name);
   const vendors = useMemo(
     () => (allRows["vendors"] ?? []).filter((v) => String(v["orgId"]) === String(orgId)),
     [allRows, orgId],
@@ -112,7 +131,7 @@ export function Page() {
       </div>
       {tab === "catalogue" ? (
         <CrudPage
-          module={modules.inventory}
+          module={inventoryModule}
           inlineEditable={inlineFields}
           selectOptions={(field) => (field.name === "vendorId" ? vendorOptions : undefined)}
           displayValue={(field, row) => {
@@ -131,7 +150,7 @@ export function Page() {
 
 function MovementLedger() {
   const { view } = useListView();
-  const stock = useStockService();
+  const stock = useStockService({ prefetchRemaining: true });
   const { rows: customers } = useCollection("customers");
   const nameOf = (id: string) => {
     if (!id) return "—";

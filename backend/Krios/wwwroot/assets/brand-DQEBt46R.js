@@ -1,0 +1,1 @@
+var e=`Krios`,t=`/krios-logo.png`;function n(t){return`${t} — ${e}`}export{e as n,n as r,t};

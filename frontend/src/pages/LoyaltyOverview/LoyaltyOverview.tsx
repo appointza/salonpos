@@ -1,8 +1,8 @@
 import { Link, } from "@tanstack/react-router";
 import { ArrowRight, Gift, QrCode, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useData } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+import { useData } from "@/store";
+import { useTenant } from "@/tenant";
 
 const today = () => new Date().toISOString().slice(0, 10);
 

@@ -20,6 +20,7 @@ namespace Krios.Services.Krios
         private readonly CommissionService commissionService;
         private readonly AppointmentService appointmentService;
         private readonly WheelSpinService wheelSpinService;
+        private readonly WheelSegmentService wheelSegmentService;
         private readonly CouponService couponService;
         private readonly InventoryService inventoryService;
         private readonly InventoryStockService inventoryStockService;
@@ -39,6 +40,7 @@ namespace Krios.Services.Krios
             CommissionService commissionService,
             AppointmentService appointmentService,
             WheelSpinService wheelSpinService,
+            WheelSegmentService wheelSegmentService,
             CouponService couponService,
             InventoryService inventoryService,
             InventoryStockService inventoryStockService)
@@ -57,6 +59,7 @@ namespace Krios.Services.Krios
             this.commissionService = commissionService;
             this.appointmentService = appointmentService;
             this.wheelSpinService = wheelSpinService;
+            this.wheelSegmentService = wheelSegmentService;
             this.couponService = couponService;
             this.inventoryService = inventoryService;
             this.inventoryStockService = inventoryStockService;
@@ -247,6 +250,17 @@ namespace Krios.Services.Krios
                 {
                     await db.RollbackTransaction();
                     return new InvoiceCompleteSaleRes { quote = quote, errorMessage = stockCheck.errorMessage };
+                }
+
+                if (req.appointmentId > 0)
+                {
+                    var appts = await appointmentService.SelectTransaction(db, new AppointmentSelectReq { id = req.appointmentId });
+                    var appt = appts.FirstOrDefault();
+                    if (appt != null && string.Equals(appt.status, "Completed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await db.RollbackTransaction();
+                        return new InvoiceCompleteSaleRes { errorMessage = "This appointment is already billed" };
+                    }
                 }
 
                 var invoice = new Invoice
@@ -457,6 +471,7 @@ namespace Krios.Services.Krios
             res.membershipDiscount = membershipDiscount;
 
             decimal afterMember = Math.Max(0, res.subtotal - res.membershipDiscount - res.otherDiscount);
+            var cartLines = req.lines.Select(l => (l.id, l.name, l.price, l.qty));
 
             decimal rewardTotal = 0;
             if (req.rewards?.wheelSpinId > 0)
@@ -465,10 +480,24 @@ namespace Krios.Services.Krios
                 var spin = spins.FirstOrDefault();
                 if (spin != null && string.Equals(spin.status, "Pending", StringComparison.OrdinalIgnoreCase))
                 {
-                    var amount = Math.Min(wheelSpinService.WheelSpinDiscountAmount(spin, afterMember), afterMember);
+                    var prizeType = spin.rewardType;
+                    var prizeValue = spin.rewardValue;
+                    var prizeLabel = spin.label;
+                    if (spin.segmentId > 0)
+                    {
+                        var segments = await wheelSegmentService.SelectTransaction(db, new WheelSegmentSelectReq { id = spin.segmentId });
+                        var segment = segments.FirstOrDefault();
+                        if (segment != null)
+                        {
+                            if (string.IsNullOrWhiteSpace(prizeType)) prizeType = segment.prizeType;
+                            if (prizeValue <= 0) prizeValue = segment.prizeValue;
+                            if (string.IsNullOrWhiteSpace(prizeLabel)) prizeLabel = segment.label;
+                        }
+                    }
+                    var amount = Math.Min(PrizeDiscount.Amount(prizeType, prizeValue, prizeLabel, afterMember, cartLines), afterMember);
                     if (amount > 0)
                     {
-                        res.rewardLines.Add(new InvoiceDiscountLine { label = $"Wheel · {spin.label}", amount = amount });
+                        res.rewardLines.Add(new InvoiceDiscountLine { label = $"Wheel · {prizeLabel}", amount = amount });
                         rewardTotal += amount;
                     }
                 }

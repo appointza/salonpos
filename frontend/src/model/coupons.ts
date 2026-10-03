@@ -217,6 +217,7 @@ export class CouponValidateAtPosRes {
   ok: boolean = false;
   reason: string = "";
   couponId: number = 0;
+  voucherId: number = 0;
   code: string = "";
   title: string = "";
   amount: number = 0;
@@ -226,8 +227,11 @@ export class CouponValidateAtPosRes {
 export class CouponClaimAtPosReq {
   orgId: number = 0;
   couponId: number = 0;
+  voucherId: number = 0;
   customerId: number = 0;
   invoiceId: number = 0;
+  locationId: number = 0;
+  code: string = "";
   discountAmount: number = 0;
 }
 

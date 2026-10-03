@@ -1,4 +1,5 @@
 import axios, { type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
+import { applyApiErrorMessage } from "@/utils/api-error";
 import { authTokenStore } from "@/utils/auth-token.util";
 import { environment } from "@/utils/environment.util";
 
@@ -116,8 +117,13 @@ async function refreshAccessToken(): Promise<string> {
 }
 
 const axiosInstance = axios.create({
-  baseURL: environment.baseurl,
   headers: { Accept: "application/json" },
+});
+
+axiosInstance.interceptors.request.use((config) => {
+  const base = environment.baseurl;
+  if (base) config.baseURL = base;
+  return config;
 });
 
 axiosInstance.interceptors.response.use(
@@ -135,7 +141,7 @@ axiosInstance.interceptors.response.use(
   },
   async (error: { config?: QueueConfig; response?: AxiosResponse }) => {
     const originalRequest = error.config;
-    if (!originalRequest) return Promise.reject(error);
+    if (!originalRequest) return Promise.reject(applyApiErrorMessage(error));
 
     if (error.response?.status === 401 && !originalRequest.retry) {
       if (isRefreshing) {
@@ -194,7 +200,7 @@ axiosInstance.interceptors.response.use(
       return Promise.resolve(error.response);
     }
 
-    return Promise.reject(error);
+    return Promise.reject(applyApiErrorMessage(error));
   },
 );
 

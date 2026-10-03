@@ -1,0 +1,1 @@
+import{t as e}from"./krios-base.service-BAxh3IcJ.js";var t=new class extends e{constructor(){super(`Appointment`)}},n=new class extends e{constructor(){super(`Service`)}},r=new class extends e{constructor(){super(`Shift`)}},i=new class extends e{constructor(){super(`Staff`)}};export{t as i,r as n,n as r,i as t};

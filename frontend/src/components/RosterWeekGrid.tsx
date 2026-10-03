@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Row } from "@/lib/store";
-import { staffName } from "@/lib/hr";
+import type { Row } from "@/store";
+import { staffName } from "@/pages/Attendance/hr";
 
 function weekDates(anchor = new Date()) {
   const start = new Date(anchor);

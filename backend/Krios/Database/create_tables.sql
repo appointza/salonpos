@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS organizations (
   "rewardScratchWeights" TEXT,
   "rewardCustomerTierWeights" TEXT,
   "publicBookingShowPrizeWheel" VARCHAR(255),
-  "publicBookingShowScratchCard" VARCHAR(255)
+  "publicBookingShowScratchCard" VARCHAR(255),
+  "bookingRules" TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_organizations_org ON organizations ("orgId");
@@ -288,6 +289,10 @@ CREATE TABLE IF NOT EXISTS shifts (
   "staffId" BIGINT
 );
 
+ALTER TABLE shifts
+  ADD COLUMN IF NOT EXISTS "splitStart" TIME,
+  ADD COLUMN IF NOT EXISTS "splitEnd" TIME;
+
 CREATE INDEX IF NOT EXISTS idx_shifts_org ON shifts ("orgId");
 CREATE INDEX IF NOT EXISTS idx_shifts_loc ON shifts ("locationId");
 
@@ -326,6 +331,9 @@ CREATE TABLE IF NOT EXISTS leaves (
   "staffId" BIGINT,
   days INTEGER
 );
+
+ALTER TABLE leaves
+  ADD COLUMN IF NOT EXISTS "coverStaffId" BIGINT;
 
 CREATE INDEX IF NOT EXISTS idx_leaves_org ON leaves ("orgId");
 CREATE INDEX IF NOT EXISTS idx_leaves_loc ON leaves ("locationId");
@@ -734,6 +742,7 @@ CREATE TABLE IF NOT EXISTS users (
   "locationId" BIGINT,
   name VARCHAR(255),
   email VARCHAR(255),
+  phone VARCHAR(255),
   role VARCHAR(255),
   outlet VARCHAR(255),
   permissions TEXT,

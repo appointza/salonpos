@@ -2,8 +2,8 @@ import { Gift, RotateCcw, Sparkles, Star, TicketPercent } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SpinWheel } from "@/components/SpinWheel";
-import type { Row } from "@/lib/store";
-import type { CustomerWallet } from "@/lib/rewards/customer-wallet";
+import type { Row } from "@/store";
+import type { CustomerWallet } from "@/pages/Loyalty/rewards/customer-wallet";
 
 export function CustomerLoyaltyWallet({
   salonName,

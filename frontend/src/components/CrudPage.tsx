@@ -26,12 +26,34 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, type Row } from "@/lib/store";
+import { useCollection, type Row } from "@/store";
 import { useAuth } from "@/hooks/useAuth";
-import { useTenant } from "@/lib/tenant";
-import { useListView } from "@/lib/list-view";
-import { usePermissions } from "@/lib/permissions";
-import type { Field, ModuleDef } from "@/lib/modules";
+import { useTenant } from "@/tenant";
+import { useListView } from "@/list-view";
+import { usePermissions } from "@/pages/Roles/permissions";
+
+export type FieldType = "text" | "number" | "date" | "time" | "textarea" | "select";
+
+export type Field = {
+  name: string;
+  label: string;
+  type?: FieldType;
+  options?: string[];
+  table?: boolean;
+  form?: boolean;
+  badge?: boolean;
+  money?: boolean;
+  /** Full width in the edit dialog (two-column grid). */
+  wide?: boolean;
+};
+
+export type ModuleDef = {
+  key: string;
+  title: string;
+  subtitle: string;
+  idPrefix: string;
+  fields: Field[];
+};
 
 function formatValue(field: Field, value: string | number | undefined) {
   if (value === undefined || value === "") return "—";
@@ -57,15 +79,18 @@ export function CrudPage({
   extraToolbar,
   newButtonLabel = "New record",
   prepareNew,
+  prepareEdit,
   validate,
   displayValue,
   renderCell,
+  renderFormField,
   selectOptions,
   prepareSave,
   onSaved,
   canCreate = true,
   canEdit = true,
   canDelete = true,
+  hideTitle = false,
   readOnly = false,
   lockedFields = [],
   inlineEditable = true,
@@ -82,15 +107,22 @@ export function CrudPage({
   extraToolbar?: (ctx: { openNew: (overrides?: Partial<Row>) => void }) => ReactNode;
   newButtonLabel?: string;
   prepareNew?: (row: Row) => Row;
+  prepareEdit?: (row: Row) => Row;
   validate?: (row: Row, isNew: boolean) => string | null;
   displayValue?: (field: Field, row: Row) => string | undefined;
   renderCell?: (field: Field, row: Row, text: string) => ReactNode;
-  selectOptions?: (field: Field) => { value: string; label: string }[] | undefined;
+  renderFormField?: (
+    field: Field,
+    editing: Row,
+    setEditing: (row: Row) => void,
+  ) => ReactNode | undefined;
+  selectOptions?: (field: Field, row?: Row) => { value: string; label: string }[] | undefined;
   prepareSave?: (row: Row) => Row;
   onSaved?: (row: Row, isNew: boolean) => void;
   canCreate?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
+  hideTitle?: boolean;
   readOnly?: boolean;
   lockedFields?: string[];
   /** Enable click-to-edit cells in table view. true = all table fields; or pass field names. */
@@ -99,7 +131,7 @@ export function CrudPage({
   inlineSaveMode?: "auto" | "manual";
   rowActions?: (row: Row) => ReactNode;
 }) {
-  const { rows, create, update, remove } = useCollection(module.key);
+  const { rows, create, update, remove } = useCollection(module.key, { refetchOnMount: true });
   const { rows: franchiseRows } = useCollection("franchises");
   const { org, location, locationId, scopeLabel } = useTenant();
   const { user } = useAuth();
@@ -269,7 +301,7 @@ export function CrudPage({
     const editRow = effectiveRow(row);
     const custom = renderCell?.(field, editRow, text);
     if (custom) return custom;
-    const opts = selectOptions?.(field) ?? field.options?.map((o) => ({ value: o, label: o }));
+    const opts = selectOptions?.(field, editRow) ?? field.options?.map((o) => ({ value: o, label: o }));
     if (field.type === "select" && opts?.length) {
       const raw = String(editRow[field.name] ?? "");
       const selected = opts.some((o) => o.value === raw) ? raw : (opts.find((o) => o.value === "0")?.value ?? raw);
@@ -319,9 +351,13 @@ export function CrudPage({
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl tracking-tight text-foreground">{module.title}</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{module.subtitle}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          {!hideTitle && (
+            <>
+              <h1 className="font-display text-3xl tracking-tight text-foreground">{module.title}</h1>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{module.subtitle}</p>
+            </>
+          )}
+          <div className={`${hideTitle ? "mt-0" : "mt-3"} flex flex-wrap items-center gap-2 text-xs`}>
             <Badge variant="secondary" className="font-normal">
               Org · {org.name}
             </Badge>
@@ -387,7 +423,7 @@ export function CrudPage({
                         aria-label={`${readOnly ? "View" : "Edit"} ${String(row.id)}`}
                         onClick={() => {
                           setIsNew(false);
-                          setEditing({ ...row });
+                          setEditing(prepareEdit ? prepareEdit({ ...row }) : { ...row });
                         }}
                       >
                         <Pencil className="size-4" />
@@ -484,7 +520,7 @@ export function CrudPage({
                         aria-label={`${readOnly ? "View" : "Edit"} ${String(row.id)}`}
                         onClick={() => {
                           setIsNew(false);
-                          setEditing({ ...row });
+                          setEditing(prepareEdit ? prepareEdit({ ...row }) : { ...row });
                         }}
                       >
                         <Pencil className="size-4" />
@@ -557,13 +593,22 @@ export function CrudPage({
               {formFields.map((f) => {
                 const value = editing[f.name] ?? "";
                 const locked = readOnly || lockedFields.includes(f.name);
-                const selectOpts = selectOptions?.(f) ?? (f.options ?? []).map((o) => ({ value: o, label: o }));
+                const customField = renderFormField?.(f, editing, setEditing);
+                if (customField === null) return null;
+                if (customField !== undefined) {
+                  return (
+                    <div key={f.name} className="sm:col-span-2">
+                      {customField}
+                    </div>
+                  );
+                }
+                const selectOpts = selectOptions?.(f, editing) ?? (f.options ?? []).map((o) => ({ value: o, label: o }));
                 const raw = String(value ?? "");
                 const selected = selectOpts.some((o) => o.value === raw)
                   ? raw
                   : (selectOpts.find((o) => o.value === "0")?.value ?? raw);
                 return (
-                  <div key={f.name} className={f.type === "textarea" ? "sm:col-span-2" : ""}>
+                  <div key={f.name} className={f.type === "textarea" || f.wide ? "sm:col-span-2" : ""}>
                     <Label htmlFor={f.name} className="mb-1.5">
                       {f.label}
                     </Label>
@@ -608,7 +653,9 @@ export function CrudPage({
                   </div>
                 );
               })}
-              {extraFields?.({ editing, setEditing, rows, isNew })}
+              {extraFields ? (
+                <div className="sm:col-span-2">{extraFields({ editing, setEditing, rows, isNew })}</div>
+              ) : null}
             </div>
           )}
           <DialogFooter>

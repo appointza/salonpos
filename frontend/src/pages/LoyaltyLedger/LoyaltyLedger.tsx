@@ -1,8 +1,9 @@
 import { Badge } from "@/components/ui/badge";
+import { GrowthTabsLayout } from "@/components/GrowthTabsLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { customerName } from "@/lib/customers/customer-lookup";
-import { useCollection, useData } from "@/lib/store";
-import { useListView } from "@/lib/list-view";
+import { customerName } from "@/pages/Customers/customer-lookup";
+import { useCollection, useData } from "@/store";
+import { useListView } from "@/list-view";
 
 export function LedgerPage() {
   const { view } = useListView();
@@ -11,11 +12,16 @@ export function LedgerPage() {
   const nameOf = (id: string) => customerName(allRows, id);
 
   if (txs.length === 0) {
-    return <p className="text-sm text-muted-foreground">No loyalty transactions yet. Complete a POS sale.</p>;
+    return (
+      <GrowthTabsLayout>
+        <p className="text-sm text-muted-foreground">No loyalty transactions yet. Complete a POS sale.</p>
+      </GrowthTabsLayout>
+    );
   }
 
   if (view === "card") {
     return (
+      <GrowthTabsLayout>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {txs.map((t) => (
           <div key={String(t.id)} className="rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -35,10 +41,12 @@ export function LedgerPage() {
           </div>
         ))}
       </div>
+      </GrowthTabsLayout>
     );
   }
 
   return (
+    <GrowthTabsLayout>
     <div className="rounded-xl border border-border bg-card shadow-sm">
       <Table>
         <TableHeader>
@@ -77,5 +85,6 @@ export function LedgerPage() {
         </TableBody>
       </Table>
     </div>
+    </GrowthTabsLayout>
   );
 }

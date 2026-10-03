@@ -125,3 +125,25 @@ export class CustomerLoyaltySummaryRes {
   transactions: Record<string, unknown>[] = [];
   errorMessage: string = "";
 }
+
+export class CustomerPosLookupReq {
+  orgId: number = 0;
+  locationId: number = 0;
+  customerId: number = 0;
+  phone: string = "";
+}
+
+export class CustomerPosLookupRes {
+  customer: CustomerRes | null = null;
+  memberships: Record<string, unknown>[] = [];
+  membershipPlans: Record<string, unknown>[] = [];
+  membershipUsage: Record<string, unknown>[] = [];
+  vouchers: Record<string, unknown>[] = [];
+  scratchPlays: Record<string, unknown>[] = [];
+  wheelSpins: Record<string, unknown>[] = [];
+  qrOfferRedemptions: Record<string, unknown>[] = [];
+  qrOffers: Record<string, unknown>[] = [];
+  partnerCoupons: Record<string, unknown>[] = [];
+  loyalty: Record<string, unknown>[] = [];
+  errorMessage: string = "";
+}

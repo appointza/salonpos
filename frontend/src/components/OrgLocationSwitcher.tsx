@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import { useTenant } from "@/lib/tenant";
+import { useTenant } from "@/tenant";
 
 export function OrgLocationSwitcher({ compact = false }: { compact?: boolean }) {
   const { user } = useAuth();

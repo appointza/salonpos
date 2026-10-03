@@ -1,0 +1,1 @@
+import{t as e}from"./krios-base.service-BAxh3IcJ.js";var t=new class extends e{constructor(){super(`Location`)}},n=new class extends e{constructor(){super(`Organization`)}async register(e){return this.postAction(`Register`,e,!0)}};export{t as n,n as t};

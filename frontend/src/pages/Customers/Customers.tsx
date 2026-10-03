@@ -28,16 +28,19 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuth";
-import { usePermissions } from "@/lib/permissions";
-import { collapseCustomersByPhone, findCustomerByPhoneInOrg } from "@/lib/customers/customer-lookup";
-import { getCustomerLoyaltyBalance } from "@/lib/loyalty/loyalty-service";
-import { useCollection, useData, type Row } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+import { useTenant } from "@/tenant";
+import { CustomerRes } from "@/model/customers";
+import { MembershipRes } from "@/model/memberships";
+import { MembershipPlanRes } from "@/model/membershipPlans";
+import { CustomerService } from "@/services/customer.service";
+import { MembershipService } from "@/services/membership.service";
+import { MembershipPlanService } from "@/services/membershipPlan.service";
 
-const title = "Customers — Luxe Salon CRM";
-const description = "Manage salon customer profiles, households, loyalty tiers and wallet balances.";
 const NONE = "__none__";
 const PAGE_SIZE = 20;
+const customerService = new CustomerService();
+const membershipService = new MembershipService();
+const membershipPlanService = new MembershipPlanService();
 
 export function CustomersLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -46,7 +49,33 @@ export function CustomersLayout() {
   return <CustomersListPage />;
 }
 
-type ListRow = Row & { membershipLabel: string; displayPoints: number };
+function dateInput(value: string | undefined) {
+  if (!value) return "";
+  return String(value).slice(0, 10);
+}
+
+function apiDate(value: string | undefined): string | null {
+  const s = String(value ?? "").trim();
+  if (!s) return null;
+  return s.slice(0, 10);
+}
+
+function phoneDigits(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  return digits.length <= 10 ? digits : digits.slice(-10);
+}
+
+function emptyCustomer(orgId: number, locationId: number, outlet: string): CustomerRes {
+  const row = new CustomerRes();
+  row.orgId = orgId;
+  row.locationId = locationId;
+  row.outlet = outlet;
+  row.gender = "Female";
+  row.tier = "Silver";
+  return row;
+}
+
+type ListRow = CustomerRes & { membershipLabel: string };
 
 const CustomerRow = memo(function CustomerRow({
   row,
@@ -58,25 +87,25 @@ const CustomerRow = memo(function CustomerRow({
   row: ListRow;
   allowEdit: boolean;
   onView: (id: string) => void;
-  onEdit: (row: Row) => void;
+  onEdit: (row: CustomerRes) => void;
   onDelete: (id: string) => void;
 }) {
   return (
     <TableRow className="cursor-pointer hover:bg-muted/40" onClick={() => onView(String(row.id))}>
       <TableCell className="font-medium">
         <Link to="/customers/$customerId" params={{ customerId: String(row.id) }} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
-          {String(row["name"] ?? "—")}
+          {row.name || "—"}
         </Link>
       </TableCell>
-      <TableCell>{String(row["phone"] ?? "—")}</TableCell>
+      <TableCell>{row.phone || "—"}</TableCell>
       <TableCell>
-        <Badge variant="secondary">{String(row["tier"] ?? "—")}</Badge>
+        <Badge variant="secondary">{row.tier || "—"}</Badge>
       </TableCell>
-      <TableCell>{Number(row.displayPoints ?? row["points"] ?? 0).toLocaleString("en-IN")}</TableCell>
-      <TableCell>₹{Number(row["walletBalance"] ?? 0).toLocaleString("en-IN")}</TableCell>
+      <TableCell>{Number(row.points ?? 0).toLocaleString("en-IN")}</TableCell>
+      <TableCell>₹{Number(row.walletBalance ?? 0).toLocaleString("en-IN")}</TableCell>
       <TableCell>{row.membershipLabel}</TableCell>
-      <TableCell>{String(row["outlet"] ?? "—")}</TableCell>
-      <TableCell>{String(row["lastVisit"] ?? "—")}</TableCell>
+      <TableCell>{row.outlet || "—"}</TableCell>
+      <TableCell>{dateInput(row.lastVisit) || "—"}</TableCell>
       <TableCell className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
         <Button variant="ghost" size="icon" aria-label={`View ${String(row.id)}`} asChild>
           <Link to="/customers/$customerId" params={{ customerId: String(row.id) }}>
@@ -100,53 +129,63 @@ const CustomerRow = memo(function CustomerRow({
 
 function CustomersListPage() {
   const navigate = useNavigate();
-  const { rows, create, update, remove } = useCollection("customers");
-  const { rows: franchiseRows } = useCollection("franchises");
-  const { db, allRows, orgId } = useData();
-  const { org, location, locationId, scopeLabel } = useTenant();
+  const { org, location, locationId, orgId, scopeLabel } = useTenant();
   const { user } = useAuth();
-  const { canEditHere } = usePermissions();
-  const allowEdit = user?.role === "SUPER_ADMIN" || canEditHere;
+  const allowEdit = user?.role !== "STYLIST";
   const lockOutlet = user?.role === "STYLIST" && Boolean(user.locationId || location?.locationId);
 
-  const outlets = useMemo(() => {
-    if (franchiseRows.length > 0) {
-      return franchiseRows.map((o) => ({
-        name: String(o["name"] ?? ""),
-        locationId: String(o["locationId"] ?? ""),
-      }));
-    }
-    return org.locations.map((l) => ({
-      name: l.name,
-      locationId: String(l.locationId),
-    }));
-  }, [franchiseRows, org.locations]);
+  const outlets = useMemo(
+    () =>
+      org.locations.map((l) => ({
+        name: l.name,
+        locationId: Number(l.locationId) || 0,
+      })),
+    [org.locations],
+  );
 
   const defaultOutlet = useMemo(() => {
     if (locationId !== "all") {
-      return outlets.find((o) => o.locationId === String(locationId)) ?? outlets[0];
+      return outlets.find((o) => o.locationId === Number(locationId)) ?? outlets[0];
     }
     return outlets[0];
   }, [outlets, locationId]);
 
-  const applyOutlet = useCallback(
-    (row: Row, outletName: string): Row => {
-      const match = outlets.find((o) => o.name === outletName);
-      return {
-        ...row,
-        outlet: outletName,
-        locationId: match?.locationId ?? row["locationId"] ?? defaultOutlet?.locationId ?? "",
-      };
-    },
-    [outlets, defaultOutlet],
-  );
-
+  const [isLoading, setIsLoading] = useState(false);
+  const [customers, setCustomers] = useState<CustomerRes[]>([]);
+  const [memberships, setMemberships] = useState<MembershipRes[]>([]);
+  const [plans, setPlans] = useState<MembershipPlanRes[]>([]);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [page, setPage] = useState(0);
-  const [editing, setEditing] = useState<Row | null>(null);
+  const [editing, setEditing] = useState<CustomerRes | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const oid = Number(orgId) || 0;
+
+  const load = async () => {
+    if (!oid) return;
+    try {
+      setIsLoading(true);
+      const req = { orgId: oid };
+      const [customerRows, membershipRows, planRows] = await Promise.all([
+        customerService.select(req),
+        membershipService.select(req),
+        membershipPlanService.select(req),
+      ]);
+      setCustomers(customerRows ?? []);
+      setMemberships(membershipRows ?? []);
+      setPlans(planRows ?? []);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load customers");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, [oid]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 300);
@@ -157,51 +196,66 @@ function CustomersListPage() {
     setPage(0);
   }, [debouncedQuery, locationId]);
 
-  const memberships = useMemo(
-    () => (allRows["memberships"] ?? []).filter((m) => String(m["orgId"]) === orgId),
-    [allRows, orgId],
-  );
-  const plans = useMemo(
-    () => (allRows["membershipPlans"] ?? []).filter((p) => String(p["orgId"]) === orgId),
-    [allRows, orgId],
-  );
+  const applyOutlet = (row: CustomerRes, outletName: string): CustomerRes => {
+    const match = outlets.find((o) => o.name === outletName);
+    return {
+      ...row,
+      outlet: outletName,
+      locationId: match?.locationId ?? row.locationId,
+    };
+  };
 
-  const membershipMap = useMemo(() => {
-    const map = new Map<string, Row>();
-    for (const m of memberships) map.set(String(m.id), m);
-    return map;
-  }, [memberships]);
+  const scopedCustomers = useMemo(() => {
+    return customers.filter((c) => {
+      if (Number(c.orgId) !== oid) return false;
+      if (locationId === "all") return true;
+      return Number(c.locationId) === Number(locationId);
+    });
+  }, [customers, oid, locationId]);
+
+  const uniqueRows = useMemo(() => {
+    const best = new Map<string, CustomerRes>();
+    for (const row of scopedCustomers) {
+      const digits = phoneDigits(row.phone ?? "");
+      const key = digits.length >= 10 ? digits : `id:${row.id}`;
+      if (!best.has(key)) best.set(key, row);
+    }
+    return [...best.values()];
+  }, [scopedCustomers]);
 
   const planMap = useMemo(() => {
-    const map = new Map<string, Row>();
+    const map = new Map<string, MembershipPlanRes>();
     for (const p of plans) {
       map.set(String(p.id), p);
-      map.set(String(p["name"]), p);
+      map.set(String(p.name), p);
     }
     return map;
   }, [plans]);
 
-  const uniqueRows = useMemo(() => collapseCustomersByPhone(rows), [rows]);
+  const membershipMap = useMemo(() => {
+    const map = new Map<string, MembershipRes>();
+    for (const m of memberships) map.set(String(m.id), m);
+    return map;
+  }, [memberships]);
 
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
     if (!q) return uniqueRows;
-    return uniqueRows.filter((r) => Object.values(r).some((v) => String(v).toLowerCase().includes(q)));
+    return uniqueRows.filter((r) =>
+      [r.name, r.phone, r.email, r.outlet, r.tier, r.notes].some((v) => String(v ?? "").toLowerCase().includes(q)),
+    );
   }, [uniqueRows, debouncedQuery]);
 
   const enhancedRows = useMemo<ListRow[]>(() => {
     return filtered.map((row) => {
-      const mem = membershipMap.get(String(row["membershipId"] ?? ""));
-      const plan = mem
-        ? (planMap.get(String(mem["planId"] ?? "")) ?? planMap.get(String(mem["plan"] ?? "")))
-        : undefined;
+      const mem = membershipMap.get(String(row.membershipId ?? ""));
+      const plan = mem ? (planMap.get(String(mem.planId ?? "")) ?? planMap.get(String(mem.plan ?? ""))) : undefined;
       return {
         ...row,
-        membershipLabel: plan ? String(plan["name"]) : mem ? String(mem["plan"] ?? mem.id) : "—",
-        displayPoints: getCustomerLoyaltyBalance(allRows, String(row.id)),
+        membershipLabel: plan ? plan.name : mem ? String(mem.plan || mem.id) : "—",
       };
     });
-  }, [filtered, membershipMap, planMap, allRows]);
+  }, [filtered, membershipMap, planMap]);
 
   const totalPages = Math.max(1, Math.ceil(enhancedRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -210,28 +264,19 @@ function CustomersListPage() {
     [enhancedRows, safePage],
   );
 
-  const editingData = useMemo(() => {
-    if (!editing) return null;
-    const membership = membershipMap.get(String(editing["membershipId"] ?? ""));
-    const plan = membership
-      ? (planMap.get(String(membership["planId"] ?? "")) ?? planMap.get(String(membership["plan"] ?? "")))
-      : undefined;
-    const cid = String(editing.id);
-    return {
-      membership,
-      plan,
-      options: memberships.filter((m) => {
-        const owner = String(m["customerId"] ?? "");
-        return !owner || owner === cid || String(m.id) === String(editing["membershipId"] ?? "");
-      }),
-      invoices: (allRows["invoices"] ?? []).filter((i) => String(i["customerId"]) === cid).slice(0, 5),
-      txs: (allRows["loyaltyTransactions"] ?? []).filter((t) => String(t["customerId"]) === cid).slice(0, 6),
-      products: (allRows["stockMovements"] ?? []).filter((m) => {
-        const type = String(m["type"]);
-        return String(m["customerId"]) === cid && (type === "Sale" || type === "Used");
-      }),
-    };
-  }, [editing, membershipMap, planMap, memberships, allRows]);
+  const membershipOptions = useMemo(() => {
+    if (!editing) return [];
+    const cid = Number(editing.id) || 0;
+    return memberships.filter((m) => {
+      const owner = Number(m.customerId) || 0;
+      return !owner || owner === cid || Number(m.id) === Number(editing.membershipId);
+    });
+  }, [editing, memberships]);
+
+  const editingMembership = editing ? membershipMap.get(String(editing.membershipId ?? "")) : undefined;
+  const editingPlan = editingMembership
+    ? (planMap.get(String(editingMembership.planId ?? "")) ?? planMap.get(String(editingMembership.plan ?? "")))
+    : undefined;
 
   const onView = useCallback(
     (id: string) => {
@@ -240,7 +285,7 @@ function CustomersListPage() {
     [navigate],
   );
 
-  const onEdit = useCallback((row: Row) => {
+  const onEdit = useCallback((row: CustomerRes) => {
     setIsNew(false);
     setEditing({ ...row });
   }, []);
@@ -248,6 +293,65 @@ function CustomersListPage() {
   const onDelete = useCallback((id: string) => {
     setDeleteId(id);
   }, []);
+
+  const saveCustomer = async () => {
+    if (!editing) return;
+    if (!editing.name.trim()) {
+      toast.error("Enter a name");
+      return;
+    }
+    const outletName = (editing.outlet || defaultOutlet?.name || "").trim();
+    if (!outletName) {
+      toast.error("Select an outlet first");
+      return;
+    }
+    const payload = applyOutlet({ ...editing, orgId: oid, membershipId: Number(editing.membershipId) || 0 }, outletName);
+    if (!Number(payload.locationId)) {
+      toast.error("Outlet has no location — check Outlets page");
+      return;
+    }
+    if (isNew && payload.phone.trim()) {
+      const digits = phoneDigits(payload.phone);
+      const existing = customers.find((c) => Number(c.orgId) === oid && phoneDigits(c.phone) === digits && digits.length >= 10);
+      if (existing) {
+        toast.error("This phone already has a customer. Bill the service on that profile.");
+        return;
+      }
+    }
+    try {
+      setIsLoading(true);
+      await customerService.save({
+        ...payload,
+        birthday: apiDate(payload.birthday),
+        anniversary: apiDate(payload.anniversary),
+        lastVisit: apiDate(payload.lastVisit),
+        createdon: apiDate(payload.createdon),
+        updatedon: apiDate(payload.updatedon),
+      } as CustomerRes);
+      toast.success(isNew ? "Customer created" : "Customer updated");
+      setEditing(null);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Save failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteCustomer = async () => {
+    if (!deleteId) return;
+    try {
+      setIsLoading(true);
+      await customerService.delete({ id: Number(deleteId), orgId: oid });
+      toast.success("Customer deleted");
+      setDeleteId(null);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Delete failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -284,24 +388,9 @@ function CustomersListPage() {
             size="sm"
             onClick={() => {
               setIsNew(true);
-              setEditing({
-                id: 0,
-                name: "",
-                phone: "",
-                email: "",
-                gender: "Female",
-                birthday: "",
-                anniversary: "",
-                household: "",
-                tier: "Silver",
-                points: 0,
-                walletBalance: 0,
-                membershipId: 0,
-                outlet: defaultOutlet?.name ?? "",
-                lastVisit: "",
-                notes: "",
-                locationId: defaultOutlet?.locationId ?? (locationId === "all" ? 0 : Number(locationId) || 0),
-              });
+              setEditing(
+                emptyCustomer(oid, defaultOutlet?.locationId ?? 0, defaultOutlet?.name ?? ""),
+              );
             }}
           >
             <Plus /> New customer
@@ -316,12 +405,12 @@ function CustomersListPage() {
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search customers…" className="pl-9" />
           </div>
           <p className="text-xs tracking-wide text-muted-foreground uppercase">
-            {enhancedRows.length} of {rows.length} · page {safePage + 1} / {totalPages}
+            {isLoading ? "Loading…" : `${enhancedRows.length} of ${scopedCustomers.length} · page ${safePage + 1} / ${totalPages}`}
           </p>
         </div>
 
         {enhancedRows.length === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">No records found.</p>
+          <p className="py-12 text-center text-sm text-muted-foreground">{isLoading ? "Loading customers…" : "No records found."}</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -383,19 +472,19 @@ function CustomersListPage() {
               </div>
               <div>
                 <Label className="mb-1.5">Full name</Label>
-                <Input value={String(editing["name"] ?? "")} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+                <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
               </div>
               <div>
                 <Label className="mb-1.5">Phone</Label>
-                <Input value={String(editing["phone"] ?? "")} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} />
+                <Input value={editing.phone} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} />
               </div>
               <div>
                 <Label className="mb-1.5">Email</Label>
-                <Input value={String(editing["email"] ?? "")} onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
+                <Input value={editing.email} onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
               </div>
               <div>
                 <Label className="mb-1.5">Gender</Label>
-                <Select value={String(editing["gender"] ?? "")} onValueChange={(v) => setEditing({ ...editing, gender: v })}>
+                <Select value={editing.gender} onValueChange={(v) => setEditing({ ...editing, gender: v })}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -408,19 +497,19 @@ function CustomersListPage() {
               </div>
               <div>
                 <Label className="mb-1.5">Birthday</Label>
-                <Input type="date" value={String(editing["birthday"] ?? "")} onChange={(e) => setEditing({ ...editing, birthday: e.target.value })} />
+                <Input type="date" value={dateInput(editing.birthday)} onChange={(e) => setEditing({ ...editing, birthday: e.target.value })} />
               </div>
               <div>
                 <Label className="mb-1.5">Anniversary</Label>
-                <Input type="date" value={String(editing["anniversary"] ?? "")} onChange={(e) => setEditing({ ...editing, anniversary: e.target.value })} />
+                <Input type="date" value={dateInput(editing.anniversary)} onChange={(e) => setEditing({ ...editing, anniversary: e.target.value })} />
               </div>
               <div>
                 <Label className="mb-1.5">Household / family</Label>
-                <Input value={String(editing["household"] ?? "")} onChange={(e) => setEditing({ ...editing, household: e.target.value })} />
+                <Input value={editing.household} onChange={(e) => setEditing({ ...editing, household: e.target.value })} />
               </div>
               <div>
                 <Label className="mb-1.5">Tier</Label>
-                <Select value={String(editing["tier"] ?? "")} onValueChange={(v) => setEditing({ ...editing, tier: v })}>
+                <Select value={editing.tier} onValueChange={(v) => setEditing({ ...editing, tier: v })}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -435,7 +524,7 @@ function CustomersListPage() {
                 <Label className="mb-1.5">Wallet balance</Label>
                 <Input
                   type="number"
-                  value={String(editing["walletBalance"] ?? 0)}
+                  value={String(editing.walletBalance ?? 0)}
                   onChange={(e) => setEditing({ ...editing, walletBalance: Number(e.target.value) })}
                 />
               </div>
@@ -446,15 +535,14 @@ function CustomersListPage() {
                     readOnly
                     className="bg-muted"
                     value={
-                      outlets.find((o) => o.locationId === String(editing["locationId"] ?? ""))?.name ??
-                      String(editing["outlet"] ?? location?.name ?? "—")
+                      outlets.find((o) => o.locationId === Number(editing.locationId))?.name ??
+                      editing.outlet ??
+                      location?.name ??
+                      "—"
                     }
                   />
                 ) : outlets.length > 0 ? (
-                  <Select
-                    value={String(editing["outlet"] ?? "")}
-                    onValueChange={(v) => setEditing(applyOutlet(editing, v))}
-                  >
+                  <Select value={editing.outlet} onValueChange={(v) => setEditing(applyOutlet(editing, v))}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select outlet…" />
                     </SelectTrigger>
@@ -467,134 +555,59 @@ function CustomersListPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input
-                    readOnly
-                    className="bg-muted"
-                    value="No outlets — add one under Outlets first"
-                  />
+                  <Input readOnly className="bg-muted" value="No outlets — add one under Outlets first" />
                 )}
               </div>
               <div>
                 <Label className="mb-1.5">Last visit</Label>
-                <Input type="date" value={String(editing["lastVisit"] ?? "")} onChange={(e) => setEditing({ ...editing, lastVisit: e.target.value })} />
+                <Input type="date" value={dateInput(editing.lastVisit)} onChange={(e) => setEditing({ ...editing, lastVisit: e.target.value })} />
               </div>
               <div>
                 <Label className="mb-1.5">Membership</Label>
                 <Select
-                  value={String(editing["membershipId"] ?? "") || NONE}
-                  onValueChange={(v) => setEditing({ ...editing, membershipId: v === NONE ? "" : v })}
+                  value={editing.membershipId ? String(editing.membershipId) : NONE}
+                  onValueChange={(v) => setEditing({ ...editing, membershipId: v === NONE ? 0 : Number(v) })}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="No membership" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NONE}>No membership</SelectItem>
-                    {(editingData?.options ?? []).map((m) => {
-                      const optionPlan = planMap.get(String(m["planId"] ?? "")) ?? planMap.get(String(m["plan"] ?? ""));
+                    {membershipOptions.map((m) => {
+                      const optionPlan = planMap.get(String(m.planId ?? "")) ?? planMap.get(String(m.plan ?? ""));
                       return (
                         <SelectItem key={String(m.id)} value={String(m.id)}>
-                          {String(optionPlan?.["name"] ?? m["plan"] ?? m.id)} · {String(m.id)}
+                          {optionPlan?.name ?? m.plan ?? m.id} · {String(m.id)}
                         </SelectItem>
                       );
                     })}
                   </SelectContent>
                 </Select>
-                {editingData?.membership ? (
+                {editingMembership ? (
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    {String(editingData.plan?.["name"] ?? editingData.membership["plan"] ?? "")} · {String(editingData.membership["status"])} ·{" "}
-                    {String(editingData.membership["startDate"] ?? "")} → {String(editingData.membership["endDate"] ?? "")}
+                    {editingPlan?.name ?? editingMembership.plan} · {editingMembership.status} · {dateInput(editingMembership.startDate)} →{" "}
+                    {dateInput(editingMembership.endDate)}
                   </p>
                 ) : null}
               </div>
               <div className="sm:col-span-2">
                 <Label className="mb-1.5">Notes</Label>
-                <Textarea value={String(editing["notes"] ?? "")} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} />
+                <Textarea value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} />
               </div>
               <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm sm:col-span-2">
                 <p className="font-medium">Balances (updated by POS)</p>
                 <p className="mt-1 text-muted-foreground">
-                  Loyalty {getCustomerLoyaltyBalance(allRows, String(editing.id)).toLocaleString("en-IN")} pts · wallet ₹
-                  {Number(editing["walletBalance"] ?? 0).toLocaleString("en-IN")}
+                  Loyalty {Number(editing.points ?? 0).toLocaleString("en-IN")} pts · wallet ₹
+                  {Number(editing.walletBalance ?? 0).toLocaleString("en-IN")}
                 </p>
               </div>
-              {editingData && editingData.invoices.length > 0 ? (
-                <div>
-                  <p className="mb-1.5 text-sm font-medium">Recent invoices</p>
-                  <ul className="space-y-1 text-xs text-muted-foreground">
-                    {editingData.invoices.map((inv) => (
-                      <li key={String(inv.id)}>
-                        {String(inv.id)} · {String(inv["date"])} · ₹{Number(inv["total"] ?? 0).toLocaleString("en-IN")}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {editingData && editingData.txs.length > 0 ? (
-                <div>
-                  <p className="mb-1.5 text-sm font-medium">Loyalty ledger</p>
-                  <ul className="space-y-1 text-xs text-muted-foreground">
-                    {editingData.txs.map((t) => (
-                      <li key={String(t.id)}>
-                        {String(t["type"])} {Number(t["points"] ?? 0)} pts · {String(t["invoiceId"] ?? "")}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {editingData && editingData.products.length > 0 ? (
-                <div className="sm:col-span-2">
-                  <p className="mb-1.5 text-sm font-medium">Products used / sold</p>
-                  <ul className="space-y-1 text-sm text-muted-foreground">
-                    {editingData.products.map((p) => (
-                      <li key={String(p.id)}>
-                        {String(p["skuName"] ?? p["skuId"] ?? p.id)} · {String(p["type"])} · {String(p["quantity"] ?? p["qtyOut"] ?? "")}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
             </div>
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>
               Cancel
             </Button>
-            <Button
-              onClick={() => {
-                void (async () => {
-                  if (!editing) return;
-                  if (!String(editing["name"] ?? "").trim()) return void toast.error("Enter a name");
-                  const outletName = String(editing["outlet"] ?? defaultOutlet?.name ?? "").trim();
-                  if (!outletName) return void toast.error("Select an outlet first");
-                  const payload = applyOutlet({ ...editing, membershipId: editing["membershipId"] || 0 }, outletName);
-                  if (!Number(payload["locationId"])) {
-                    return void toast.error("Outlet has no location — check Outlets page");
-                  }
-                  if (isNew && String(payload["phone"] ?? "").trim()) {
-                    const existing = findCustomerByPhoneInOrg(
-                      allRows["customers"] ?? [],
-                      String(payload["phone"]),
-                      orgId,
-                    );
-                    if (existing) {
-                      return void toast.error("This phone already has a customer. Bill the service on that profile.");
-                    }
-                  }
-                  try {
-                    if (isNew) {
-                      await create(payload);
-                      toast.success("Customer created");
-                    } else {
-                      await update(String(editing.id), payload);
-                      toast.success("Customer updated", { description: String(editing.id) });
-                    }
-                    setEditing(null);
-                  } catch {
-                    /* store shows error toast */
-                  }
-                })();
-              }}
-            >
+            <Button disabled={isLoading} onClick={() => void saveCustomer()}>
               {isNew ? "Create customer" : "Save changes"}
             </Button>
           </DialogFooter>
@@ -605,21 +618,11 @@ function CustomersListPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this customer?</AlertDialogTitle>
-            <AlertDialogDescription>{deleteId} will be removed from the demo dataset.</AlertDialogDescription>
+            <AlertDialogDescription>{deleteId} will be removed.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (deleteId) {
-                  remove(deleteId);
-                  toast.success("Customer deleted", { description: deleteId });
-                }
-                setDeleteId(null);
-              }}
-            >
-              Delete
-            </AlertDialogAction>
+            <AlertDialogAction onClick={() => void deleteCustomer()}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

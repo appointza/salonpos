@@ -1,14 +1,14 @@
 import { Calendar, Gift, Pencil, Tag, Trash2, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { Row } from "@/lib/store";
+import { useCollection, type Row } from "@/store";
 import {
   getOfferBadgeLabel,
   getOfferHeadline,
   getOfferHighlight,
   getOfferSubtext,
   statusVariant,
-} from "@/lib/offers/offer-display";
+} from "@/pages/Offers/offer-display";
 
 type OfferCardProps = {
   offer: Row;
@@ -19,9 +19,10 @@ type OfferCardProps = {
 };
 
 export function OfferCard({ offer, outletName, onEdit, onDelete, readOnly }: OfferCardProps) {
+  const { rows: services } = useCollection("services");
   const status = String(offer["status"] ?? "Draft");
   const segment = String(offer["eligibleSegment"] ?? "All");
-  const headline = getOfferHeadline(offer);
+  const headline = getOfferHeadline(offer, services);
   const subtext = getOfferSubtext(offer);
   const highlight = getOfferHighlight(offer);
   const isBundle = String(offer["offerType"] ?? "") === "Buy X get free";

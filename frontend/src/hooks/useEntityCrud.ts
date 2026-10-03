@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { rowToEntity, toRow } from "@/lib/entity-row";
-import { ENTITY_SERVICE_MAP } from "@/lib/entity-service-map";
-import type { Row } from "@/lib/store";
+import { rowToEntity, toRow } from "@/entity-row";
+import { ENTITY_SERVICE_MAP } from "@/entity-service-map";
+import type { Row } from "@/store";
 import type { KriosSelectReq } from "@/services/krios-base.service";
-import { useTenant } from "@/lib/tenant";
+import { useTenant } from "@/tenant";
 import { toast } from "sonner";
 
 export function useEntityCrud(collection: string, selectReq?: KriosSelectReq) {

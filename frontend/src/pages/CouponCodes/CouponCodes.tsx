@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { COUPONS_COLLECTION } from "@/lib/coupons/coupon-schema";
+import { COUPONS_COLLECTION } from "@/pages/Coupons/coupon-schema";
 import {
   type CouponCodeStatus,
   couponPoolStats,
@@ -14,14 +14,14 @@ import {
   previewPoolCodes,
   shouldGenerateCodePool,
   syncCouponCodePool,
-} from "@/lib/coupons/coupon-code-pool";
-import { downloadCouponBarcodeSheet, printCouponBarcodes } from "@/lib/coupons/export-coupon-barcodes";
-import { downloadCouponCodesExcel, printCouponCodes } from "@/lib/coupons/export-coupon-codes";
-import { couponHeadline, normalizeCoupon } from "@/lib/coupons/coupon-engine";
+} from "@/pages/Coupons/coupon-code-pool";
+import { downloadCouponBarcodeSheet, printCouponBarcodes } from "@/pages/Coupons/export-coupon-barcodes";
+import { downloadCouponCodesExcel, printCouponCodes } from "@/pages/Coupons/export-coupon-codes";
+import { couponHeadline, normalizeCoupon } from "@/pages/Coupons/coupon-engine";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
-import { useTenant } from "@/lib/tenant";
-import { usePermissions } from "@/lib/permissions";
+import { useTenant } from "@/tenant";
+import { usePermissions } from "@/pages/Roles/permissions";
 import { toast } from "sonner";
 
 const title = "Coupon codes — Krios";

@@ -1,5 +1,5 @@
 import { CrudPage } from "@/components/CrudPage";
-import { COLLECTIONS } from "@/lib/loyalty/schema";
+import { COLLECTIONS } from "@/pages/Loyalty/schema";
 
 export function RewardCatalogPage() {
   return (

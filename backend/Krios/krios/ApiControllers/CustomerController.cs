@@ -90,5 +90,13 @@ namespace Krios.Controllers.Krios
             result.item = await customerService.GetLoyaltySummary(req.item);
             return Ok(result);
         }
+
+        [HttpPost("LookupAtPos")]
+        public async Task<ActionResult<ActionRes<CustomerPosLookupRes>>> LookupAtPos(ActionReq<CustomerPosLookupReq> req)
+        {
+            ActionRes<CustomerPosLookupRes> result = new ActionRes<CustomerPosLookupRes>();
+            result.item = await customerService.LookupAtPos(req.item);
+            return Ok(result);
+        }
     }
 }

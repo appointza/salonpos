@@ -1,0 +1,15 @@
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\bin\Release\net8.0\TakeBuild.exe
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\bin\Release\net8.0\TakeBuild.deps.json
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\bin\Release\net8.0\TakeBuild.runtimeconfig.json
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\bin\Release\net8.0\TakeBuild.dll
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\bin\Release\net8.0\TakeBuild.pdb
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\obj\Release\net8.0\KriosBuilder.GeneratedMSBuildEditorConfig.editorconfig
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\obj\Release\net8.0\KriosBuilder.AssemblyInfoInputs.cache
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\obj\Release\net8.0\KriosBuilder.AssemblyInfo.cs
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\obj\Release\net8.0\KriosBuilder.csproj.CoreCompileInputs.cache
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\obj\Release\net8.0\KriosBuilder.sourcelink.json
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\obj\Release\net8.0\TakeBuild.dll
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\obj\Release\net8.0\refint\TakeBuild.dll
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\obj\Release\net8.0\TakeBuild.pdb
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\obj\Release\net8.0\KriosBuilder.genruntimeconfig.cache
+d:\aravindan\project\freelancer\salonpos\tools\KriosBuilder\obj\Release\net8.0\ref\TakeBuild.dll

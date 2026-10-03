@@ -17,11 +17,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { buildCustomerDetail, membershipAvailabilityLabel } from "@/lib/customers/customer-detail";
+import { buildCustomerDetail, membershipAvailabilityLabel } from "@/pages/Customers/customer-detail";
 import { useApi } from "@/hooks/useApi";
-import { useTenant } from "@/lib/tenant";
-import { toRow } from "@/lib/entity-row";
-import type { Row } from "@/lib/store";
+import { useTenant } from "@/tenant";
+import { toRow } from "@/entity-row";
+import type { Row } from "@/store";
 import { customerService } from "@/services/customer.service";
 
 export function CustomerDetailPage() {

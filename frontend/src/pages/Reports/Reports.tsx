@@ -3,7 +3,7 @@ import { Download } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { downloadCsv } from "@/lib/export-csv";
+import { downloadCsv } from "@/pages/Reports/export-csv";
 import {
   PERIOD_OPTIONS,
   paidInvoices,
@@ -12,9 +12,9 @@ import {
   revenueByStylists,
   summarizeSales,
   type ReportPeriod,
-} from "@/lib/reports/sales-analytics";
-import { useData } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+} from "@/pages/Reports/sales-analytics";
+import { useData } from "@/store";
+import { useTenant } from "@/tenant";
 
 export function Page() {
   const [period, setPeriod] = useState<ReportPeriod>("month");
@@ -75,7 +75,9 @@ export function Page() {
       </section>
 
       <ReportChart title="Revenue by service" data={byService.slice(0, 12)} />
+      <ReportTable title="Services" rows={byService} />
       <ReportChart title="Revenue by stylist" data={byStylist.slice(0, 12)} />
+      <ReportTable title="Stylists" rows={byStylist} />
     </div>
   );
 }
@@ -89,11 +91,46 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ReportTable({ title, rows }: { title: string; rows: { name: string; revenue: number; count: number }[] }) {
+  return (
+    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <h2 className="text-sm font-semibold">{title}</h2>
+      {rows.length === 0 ? (
+        <p className="mt-4 text-sm text-muted-foreground">No paid invoices in this period.</p>
+      ) : (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs tracking-wide text-muted-foreground uppercase">
+                <th className="py-2 font-medium">Name</th>
+                <th className="py-2 text-right font-medium">Count</th>
+                <th className="py-2 text-right font-medium">Revenue</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.name} className="border-b border-border last:border-0">
+                  <td className="py-2">{row.name}</td>
+                  <td className="py-2 text-right tabular-nums">{row.count}</td>
+                  <td className="py-2 text-right tabular-nums">₹{row.revenue.toLocaleString("en-IN")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ReportChart({ title, data }: { title: string; data: { name: string; revenue: number }[] }) {
   return (
     <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
       <h2 className="text-sm font-semibold">{title}</h2>
       <div className="mt-4 h-72">
+        {data.length === 0 ? (
+          <p className="flex h-full items-center justify-center text-sm text-muted-foreground">No paid invoices in this period.</p>
+        ) : (
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
@@ -103,6 +140,7 @@ function ReportChart({ title, data }: { title: string; data: { name: string; rev
             <Bar dataKey="revenue" fill="var(--color-primary)" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+        )}
       </div>
     </section>
   );

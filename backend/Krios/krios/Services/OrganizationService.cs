@@ -39,7 +39,7 @@ namespace Krios.Services.Krios
                     status, createdby, createdon, updatedby, updatedon,
                     ""earnUnitRupees"", ""pointsPerUnit"", ""loyaltyMinSpend"",
                     ""rewardWheelWeights"", ""rewardScratchWeights"", ""rewardCustomerTierWeights"",
-                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard""
+                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"", ""bookingRules""
                 FROM organizations
             ";
 
@@ -93,7 +93,7 @@ namespace Krios.Services.Krios
                     status, createdby, createdon, updatedby, updatedon,
                     ""earnUnitRupees"", ""pointsPerUnit"", ""loyaltyMinSpend"",
                     ""rewardWheelWeights"", ""rewardScratchWeights"", ""rewardCustomerTierWeights"",
-                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard""
+                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"", ""bookingRules""
                 )
                 VALUES (
                     @orgId, @locationId, @name, @slug, @domain, @website,
@@ -103,7 +103,7 @@ namespace Krios.Services.Krios
                     @status, @createdby, @createdon, @updatedby, @updatedon,
                     @earnUnitRupees, @pointsPerUnit, @loyaltyMinSpend,
                     @rewardWheelWeights, @rewardScratchWeights, @rewardCustomerTierWeights,
-                    @publicBookingShowPrizeWheel, @publicBookingShowScratchCard
+                    @publicBookingShowPrizeWheel, @publicBookingShowScratchCard, @bookingRules
                 )
                 RETURNING id;
             ";
@@ -176,7 +176,8 @@ namespace Krios.Services.Krios
                     ""rewardScratchWeights"" = @rewardScratchWeights,
                     ""rewardCustomerTierWeights"" = @rewardCustomerTierWeights,
                     ""publicBookingShowPrizeWheel"" = @publicBookingShowPrizeWheel,
-                    ""publicBookingShowScratchCard"" = @publicBookingShowScratchCard
+                    ""publicBookingShowScratchCard"" = @publicBookingShowScratchCard,
+                    ""bookingRules"" = @bookingRules
                 WHERE id = @id
             ";
 
@@ -248,6 +249,7 @@ namespace Krios.Services.Krios
                 rewardCustomerTierWeights = reader["rewardCustomerTierWeights"]?.ToString() ?? "",
                 publicBookingShowPrizeWheel = reader["publicBookingShowPrizeWheel"]?.ToString() ?? "",
                 publicBookingShowScratchCard = reader["publicBookingShowScratchCard"]?.ToString() ?? "",
+                bookingRules = ReadString(reader, "bookingRules"),
             };
         }
 
@@ -286,6 +288,20 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "rewardCustomerTierWeights", DbTypes.Types.String).Value = org.rewardCustomerTierWeights ?? "";
             db.AddParameter(cmd, "publicBookingShowPrizeWheel", DbTypes.Types.String).Value = org.publicBookingShowPrizeWheel ?? "";
             db.AddParameter(cmd, "publicBookingShowScratchCard", DbTypes.Types.String).Value = org.publicBookingShowScratchCard ?? "";
+            db.AddParameter(cmd, "bookingRules", DbTypes.Types.String).Value = org.bookingRules ?? "";
+        }
+
+        private static string ReadString(DbDataReader reader, string column)
+        {
+            try
+            {
+                var value = reader[column];
+                return value == DBNull.Value ? "" : value?.ToString() ?? "";
+            }
+            catch
+            {
+                return "";
+            }
         }
 
         private static long ReadLong(DbDataReader reader, string column)

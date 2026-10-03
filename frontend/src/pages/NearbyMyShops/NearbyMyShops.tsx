@@ -1,25 +1,15 @@
-import { useEffect, useMemo } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  Gift,
-  LogOut,
-  MapPin,
-  QrCode,
-  Star,
-  Store,
-  TicketPercent,
-} from "lucide-react";
+import { useMemo } from "react";
+import { Link } from "@tanstack/react-router";
+import { Gift, MapPin, QrCode, Star, Store, TicketPercent } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useCustomerSession } from "@/lib/customer";
-import { useData } from "@/lib/store";
-import { getCustomerShopVisits } from "@/lib/customers/customer-shops";
+import { useCustomerSession } from "@/pages/Login/customer-session";
+import { useData } from "@/store";
+import { getCustomerShopVisits } from "@/pages/NearbyMyShops/customer-shops";
 
 export function MyShopsPage() {
-  const navigate = useNavigate();
   const { allRows } = useData();
-  const { customer, ready, signOut } = useCustomerSession();
+  const { customer } = useCustomerSession();
 
   const shops = useMemo(
     () => (customer ? getCustomerShopVisits(allRows, customer.phone) : []),
@@ -35,40 +25,10 @@ export function MyShopsPage() {
     [shops],
   );
 
-  useEffect(() => {
-    if (ready && !customer) void navigate({ to: "/login" });
-  }, [ready, customer, navigate]);
-
-  if (!ready || !customer) return null;
+  if (!customer) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" asChild aria-label="Back to nearby salons">
-              <Link to="/nearby">
-                <ArrowLeft className="size-4" />
-              </Link>
-            </Button>
-            <div>
-              <p className="font-display text-lg leading-tight font-semibold">My shops & rewards</p>
-              <p className="text-xs text-muted-foreground">{customer.phone}</p>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              signOut();
-              void navigate({ to: "/login" });
-            }}
-          >
-            <LogOut /> Sign out
-          </Button>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
+    <div className="space-y-8">
         <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <h1 className="font-display text-2xl font-semibold">Hi {customer.name.split(" ")[0]} 👋</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
@@ -162,7 +122,6 @@ export function MyShopsPage() {
             ))}
           </section>
         )}
-      </main>
     </div>
   );
 }

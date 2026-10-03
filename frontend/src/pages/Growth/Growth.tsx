@@ -14,11 +14,11 @@ import {
 import { GrowthTabsLayout } from "@/components/GrowthTabsLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { listCouponDefinitions } from "@/lib/coupons/coupon-engine";
-import { useLoyaltySettings } from "@/lib/loyalty-settings";
-import { listLoyaltyCoupons } from "@/lib/rewards/loyalty-coupons";
-import { useData } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+import { listCouponDefinitions } from "@/pages/Coupons/coupon-engine";
+import { useLoyaltySettings } from "@/pages/Loyalty/loyalty-settings";
+import { listLoyaltyCoupons } from "@/pages/Loyalty/rewards/loyalty-coupons";
+import { useData } from "@/store";
+import { useTenant } from "@/tenant";
 
 const CRM_MODULES = [
   {

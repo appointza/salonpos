@@ -1,28 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArcElement, Chart, PieController } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
-import type { Row } from "@/lib/store";
-import { pickWheelSegment } from "@/lib/qr-loyalty";
-import { selectWheelSegment } from "@/lib/wheel/wheel-service";
-import type { TierWeights } from "@/lib/reward-distribution";
-import { cn } from "@/lib/utils";
+import type { Row } from "@/store";
+import { pickWheelSegment } from "@/pages/LoyaltyQr/qr-loyalty";
+import { PRIZE_COLOURS } from "@/pages/PrizeWheel/prize-colours";
+import { expandByTierWeight, type TierWeights } from "@/pages/PrizeWheel/reward-distribution";
+import { cn } from "@/utils/utils";
 
 Chart.register(ArcElement, PieController, ChartDataLabels);
 
-const DEFAULT_COLORS = [
-  "#E74C3C",
-  "#7D3C98",
-  "#2E86C1",
-  "#138D75",
-  "#F1C40F",
-  "#D35400",
-  "#8E44AD",
-  "#16A085",
-  "#E67E22",
-  "#2980B9",
-  "#C0392B",
-  "#27AE60",
-];
+const DEFAULT_COLORS = PRIZE_COLOURS.map((c) => c.value);
 
 function segmentDisplay(segment: Row): string {
   const label = String(segment["label"] ?? "").trim();
@@ -58,7 +45,10 @@ export function SpinWheel({
   onSpinStart?: () => Row | null;
   onResult: (segment: Row) => void;
 }) {
-  const slices = segments.filter((s) => String(s["active"] ?? "Yes") !== "No");
+  const slices = useMemo(() => {
+    const active = segments.filter((s) => String(s["active"] ?? "Yes") !== "No");
+    return tierWeights ? expandByTierWeight(active, tierWeights) : active;
+  }, [segments, tierWeights]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart<"pie", number[], string> | null>(null);
   const rotationRef = useRef(0);
@@ -133,9 +123,7 @@ export function SpinWheel({
   const spin = useCallback(() => {
     if (spinningRef.current || disabled || slices.length === 0) return;
 
-    const won =
-      onSpinStart?.() ??
-      (tierWeights ? selectWheelSegment(slices, tierWeights) : pickWheelSegment(slices));
+    const won = onSpinStart?.() ?? pickWheelSegment(slices);
     if (!won) return;
 
     const idx = slices.findIndex((s) => String(s.id) === String(won.id));

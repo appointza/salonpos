@@ -1,9 +1,9 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
-import { resolveLoyaltyRule } from "@/lib/loyalty-rules";
-import { useData } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+import { cn } from "@/utils/utils";
+import { resolveLoyaltyRule } from "@/pages/Loyalty/loyalty-rules";
+import { useData } from "@/store";
+import { useTenant } from "@/tenant";
 
 export const GROWTH_TABS = [
   { to: "/growth", label: "Overview" },

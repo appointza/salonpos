@@ -97,6 +97,7 @@ namespace Krios.Models.Krios
         public bool ok { get; set; }
         public string reason { get; set; } = "";
         public long couponId { get; set; }
+        public long voucherId { get; set; }
         public string code { get; set; } = "";
         public string title { get; set; } = "";
         public decimal amount { get; set; }
@@ -107,8 +108,11 @@ namespace Krios.Models.Krios
     {
         public long orgId { get; set; }
         public long couponId { get; set; }
+        public long voucherId { get; set; }
         public long customerId { get; set; }
         public long invoiceId { get; set; }
+        public long locationId { get; set; }
+        public string code { get; set; } = "";
         public decimal discountAmount { get; set; }
     }
 

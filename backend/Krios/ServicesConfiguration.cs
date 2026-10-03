@@ -13,6 +13,7 @@ namespace Krios
             services.AddScoped<Krios.Services.Krios.OrganizationRegistrationService>();
             services.AddScoped<Krios.Services.Krios.UserService>();
             services.AddScoped<Krios.Services.Krios.UserLoginService>();
+            services.AddScoped<Krios.Services.Krios.AuthService>();
             services.AddScoped<Krios.Services.Krios.LocationService>();
             services.AddScoped<Krios.Services.Krios.CustomerService>();
             services.AddScoped<Krios.Services.Krios.AppointmentService>();

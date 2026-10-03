@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SpinWheel } from "@/components/SpinWheel";
 import { useApi, type Row } from "@/hooks/useApi";
-import { upsertCustomerByPhone } from "@/lib/customers/customer-service";
-import { normalizePhone } from "@/lib/customers/customer-lookup";
+import { upsertCustomerByPhone } from "@/pages/Customers/customer-store";
+import { normalizePhone } from "@/pages/Customers/customer-lookup";
 import {
   DEMO_OTP,
   QR_CHECKINS,
@@ -21,9 +21,11 @@ import {
   programOfType,
   referralCodeFor,
   waCatalogLink,
-} from "@/lib/qr-loyalty";
-import { autoApproveCheckin, hasApprovedCheckinToday } from "@/lib/checkins/checkin-service";
-import { customerSpunToday, processWheelSpinResult } from "@/lib/wheel/wheel-service";
+} from "@/pages/LoyaltyQr/qr-loyalty";
+import { autoApproveCheckin, hasApprovedCheckinToday } from "@/pages/LoyaltyCheckins/checkin-service";
+import { customerSpunToday, processWheelSpinResult } from "@/pages/PrizeWheel/wheel-service";
+import { readServiceDisplaySettings } from "@/pages/Services/service-display-settings";
+import { ServicePriceDisplay } from "@/components/ServicePriceDisplay";
 
 export function QrCheckinPage() {
   const { locationId } = useParams({ from: "/qr/$locationId" });
@@ -31,6 +33,7 @@ export function QrCheckinPage() {
   const location = (allRows["locations"] ?? []).find((l) => String(l["locationId"] ?? l.id) === locationId);
   const orgId = String(location?.["orgId"] ?? "");
   const org = (allRows["organizations"] ?? []).find((o) => String(o["orgId"]) === orgId);
+  const serviceDisplay = useMemo(() => readServiceDisplaySettings(org, orgId), [org, orgId]);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [verified, setVerified] = useState(false);
@@ -358,11 +361,10 @@ export function QrCheckinPage() {
                 const on = cart.includes(line);
                 return (
                   <li key={String(s.id)} className="flex items-center justify-between gap-2 text-sm">
-                    <span>
+                    <span className="flex flex-wrap items-center gap-1.5">
                       {String(s["name"])}
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · ₹{Number(s["price"] ?? 0).toLocaleString("en-IN")}
+                      <span className="inline-flex flex-wrap items-center gap-1.5 text-muted-foreground">
+                        · <ServicePriceDisplay price={Number(s["price"] ?? 0)} settings={serviceDisplay} size="xs" />
                         {s["duration"] ? ` · ${s["duration"]} min` : ""}
                       </span>
                     </span>

@@ -30,7 +30,7 @@ namespace Krios.Services.Krios
         public async Task<List<Shift>> SelectTransaction(IDb db, ShiftSelectReq req)
         {
             const string query = @"
-                SELECT id, ""orgId"", ""locationId"", date, ""startTime"", ""endTime"", ""shiftType"", ""weeklyOff"", status, createdby, createdon, updatedby, updatedon, ""staffId""
+                SELECT id, ""orgId"", ""locationId"", date, ""startTime"", ""endTime"", ""shiftType"", ""weeklyOff"", status, ""splitStart"", ""splitEnd"", createdby, createdon, updatedby, updatedon, ""staffId""
                 FROM shifts
             ";
 
@@ -70,10 +70,10 @@ namespace Krios.Services.Krios
         {
             const string query = @"
                 INSERT INTO shifts (
-                    ""orgId"", ""locationId"", date, ""startTime"", ""endTime"", ""shiftType"", ""weeklyOff"", status, createdby, createdon, updatedby, updatedon, ""staffId""
+                    ""orgId"", ""locationId"", date, ""startTime"", ""endTime"", ""shiftType"", ""weeklyOff"", status, ""splitStart"", ""splitEnd"", createdby, createdon, updatedby, updatedon, ""staffId""
                 )
                 VALUES (
-                    @orgId, @locationId, @date, @startTime, @endTime, @shiftType, @weeklyOff, @status, @createdby, @createdon, @updatedby, @updatedon, @staffId
+                    @orgId, @locationId, @date, @startTime, @endTime, @shiftType, @weeklyOff, @status, @splitStart, @splitEnd, @createdby, @createdon, @updatedby, @updatedon, @staffId
                 )
                 RETURNING id;
             ";
@@ -114,6 +114,8 @@ namespace Krios.Services.Krios
                     ""shiftType"" = @shiftType,
                     ""weeklyOff"" = @weeklyOff,
                     status = @status,
+                    ""splitStart"" = @splitStart,
+                    ""splitEnd"" = @splitEnd,
                     createdby = @createdby,
                     createdon = @createdon,
                     updatedby = @updatedby,
@@ -168,6 +170,8 @@ namespace Krios.Services.Krios
                 shiftType = reader["shiftType"]?.ToString() ?? "",
                 weeklyOff = reader["weeklyOff"]?.ToString() ?? "",
                 status = reader["status"]?.ToString() ?? "",
+                splitStart = reader["splitStart"]?.ToString() ?? "",
+                splitEnd = reader["splitEnd"]?.ToString() ?? "",
                 createdby = reader["createdby"]?.ToString() ?? "",
                 createdon = ReadDate(reader, "createdon"),
                 updatedby = reader["updatedby"]?.ToString() ?? "",
@@ -188,6 +192,8 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "shiftType", DbTypes.Types.String).Value = entity.shiftType ?? "";
             db.AddParameter(cmd, "weeklyOff", DbTypes.Types.String).Value = entity.weeklyOff ?? "";
             db.AddParameter(cmd, "status", DbTypes.Types.String).Value = entity.status ?? "";
+            db.AddParameter(cmd, "splitStart", DbTypes.Types.Time).Value = AsTime(entity.splitStart);
+            db.AddParameter(cmd, "splitEnd", DbTypes.Types.Time).Value = AsTime(entity.splitEnd);
             db.AddParameter(cmd, "createdby", DbTypes.Types.String).Value = entity.createdby ?? "";
             db.AddParameter(cmd, "createdon", DbTypes.Types.Date).Value = entity.createdon ?? DateTime.UtcNow.Date;
             db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value = entity.updatedby ?? "";

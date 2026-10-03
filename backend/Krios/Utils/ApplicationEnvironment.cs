@@ -11,7 +11,7 @@ namespace Krios.Utils
 
     public class ApplicationEnvironmentRedisConfigData
     {
-        public string connection_string { get; set; } = "localhost:6379";
+        public string connection_string { get; set; } = "";
         public string instance_name { get; set; } = "Krios";
         public int default_database { get; set; }
     }

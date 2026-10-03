@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Eye, Gift, Pencil, Plus, Search, TicketPercent, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { CouponForm } from "@/components/CouponForm";
+import { GrowthTabsLayout } from "@/components/GrowthTabsLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,29 +28,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { COUPONS_COLLECTION, emptyCoupon } from "@/lib/coupons/coupon-schema";
+import { COUPONS_COLLECTION, emptyCoupon } from "@/pages/Coupons/coupon-schema";
 import {
   couponConditionsSummary,
   couponHeadline,
   describeCoupon,
   listCouponDefinitions,
   normalizeCoupon,
-} from "@/lib/coupons/coupon-engine";
-import { useListView } from "@/lib/list-view";
-import { listLoyaltyCoupons, type LoyaltyCoupon, type LoyaltyCouponStatus } from "@/lib/rewards/loyalty-coupons";
+} from "@/pages/Coupons/coupon-engine";
+import { useListView } from "@/list-view";
+import { listLoyaltyCoupons, type LoyaltyCoupon, type LoyaltyCouponStatus } from "@/pages/Loyalty/rewards/loyalty-coupons";
 import {
   couponPoolStats,
   discountTypeLabel,
   hasCodePoolConfigured,
+  poolCodesForCoupon,
   shouldGenerateCodePool,
   syncCouponCodePool,
-} from "@/lib/coupons/coupon-code-pool";
-import { issueVoucher } from "@/lib/vouchers/voucher-service";
-import { useCollection, type Row } from "@/lib/store";
+} from "@/pages/Coupons/coupon-code-pool";
+import { issueVoucher } from "@/pages/Coupons/voucher-local";
+import { useCollection, useData, type Row } from "@/store";
+import { toRow } from "@/entity-row";
+import { voucherService } from "@/services/voucher.service";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useData } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
-import { usePermissions } from "@/lib/permissions";
+import { useTenant } from "@/tenant";
+import { usePermissions } from "@/pages/Roles/permissions";
 import { useAuth } from "@/hooks/useAuth";
 
 const title = "Coupon management — Krios";
@@ -78,8 +81,25 @@ function CouponsPage() {
   const allowMutate = user?.role === "SUPER_ADMIN" || canEditHere;
   const { rows, create, update, remove } = useCollection(COUPONS_COLLECTION);
   const { rows: customers } = useCollection("customers");
-  const { allRows, create: createRow } = useData();
+  const { allRows, create: createRow, update: updateRow, reloadCollections } = useData();
   const { view } = useListView();
+  const backfilled = useRef(false);
+
+  useEffect(() => {
+    if (backfilled.current) return;
+    if (!("coupons" in allRows) || !("vouchers" in allRows)) return;
+    const schemes = (allRows[COUPONS_COLLECTION] ?? []).filter(
+      (row) => shouldGenerateCodePool(row) && poolCodesForCoupon(allRows, row.id).length === 0,
+    );
+    if (schemes.length === 0) return;
+    backfilled.current = true;
+    void (async () => {
+      for (const row of schemes) {
+        await syncCouponCodePool({ db: allRows, create: createRow }, row);
+      }
+      await reloadCollections(["vouchers"]);
+    })();
+  }, [allRows, createRow, reloadCollections]);
 
   const [tab, setTab] = useState("manage");
   const [query, setQuery] = useState("");
@@ -154,14 +174,13 @@ function CouponsPage() {
     setEditing({ ...row });
   }
 
-  function save() {
+  async function save() {
     if (!editing) return;
     const code = String(editing["code"] ?? "").trim();
     if (!code) return void toast.error("Scheme reference code is required");
     if (!String(editing["title"] ?? "").trim()) {
       return void toast.error("Coupon name is required");
     }
-    const id = String(editing.id);
     const qty = Math.max(0, Math.floor(Number(editing["couponQuantity"] ?? editing["totalUsageLimit"] ?? 0)));
     const payload = {
       ...editing,
@@ -170,27 +189,36 @@ function CouponsPage() {
       totalUsageLimit: qty,
       usageLimitMode: qty > 0 && String(editing["autoGenerateCodes"] ?? "Yes") === "Yes" ? "limited_total" : editing["usageLimitMode"],
     };
-    if (isNew) {
-      create(payload);
-    } else {
-      update(id, payload);
+    let saved: Row = payload;
+    try {
+      if (isNew) {
+        const next = await create(payload);
+        if (next) saved = next;
+      } else {
+        await update(String(payload.id), payload);
+      }
+    } catch {
+      return;
     }
 
-    if (shouldGenerateCodePool(payload)) {
-      const pool = syncCouponCodePool({ db: allRows, create: createRow }, payload);
-      if (pool.generated > 0) {
-        toast.success(`Coupon saved · ${pool.generated} codes generated`, {
-          description: `${pool.total} unique codes in pool`,
-          action: {
-            label: "View codes",
-            onClick: () => navigate({ to: "/coupons/$couponId", params: { couponId: id } }),
-          },
-        });
-      } else {
-        toast.success(isNew ? "Coupon created" : "Coupon updated", {
-          description: `${pool.total} codes in pool`,
-        });
+    const savedId = String(saved.id);
+    if (shouldGenerateCodePool(saved)) {
+      let voucherRows: Row[] = allRows["vouchers"] ?? [];
+      try {
+        const items = await voucherService.select({ orgId: Number(saved["orgId"]) || Number(org.orgId) });
+        voucherRows = (items ?? []).map((item) => toRow(item as Record<string, unknown>));
+      } catch {
+        await reloadCollections(["vouchers"]);
       }
+      await syncCouponCodePool({ db: { ...allRows, vouchers: voucherRows }, create: createRow }, saved);
+      await reloadCollections(["vouchers"]);
+      toast.success(`Coupon saved · ${qty || "unique"} codes`, {
+        description: "Redeem a pool code at POS. Unused codes stay in the scheme list, not under Issued.",
+        action: {
+          label: "View codes",
+          onClick: () => navigate({ to: "/coupons/$couponId", params: { couponId: savedId } }),
+        },
+      });
     } else if (isNew) {
       toast.success("Coupon created", { description: code });
     } else {
@@ -200,6 +228,7 @@ function CouponsPage() {
   }
 
   return (
+    <GrowthTabsLayout>
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -376,7 +405,8 @@ function CouponsPage() {
 
               {filteredIssued.length === 0 ? (
                 <p className="p-8 text-center text-sm text-muted-foreground">
-                  No issued coupons yet. They appear after QR check-in, wheel wins, or manual issue at POS.
+                  No issued coupons yet. Creating a scheme only fills the code pool. Issue a code to a customer, or
+                  redeem a unique code at POS, then it appears here.
                 </p>
               ) : view === "card" ? (
                 <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
@@ -452,13 +482,13 @@ function CouponsPage() {
             </DialogHeader>
             <div className="space-y-2">
               <Label className="text-sm">Customer</Label>
-              <Select value={issueCustomerId} onValueChange={setIssueCustomerId}>
+              <Select value={issueCustomerId || undefined} onValueChange={setIssueCustomerId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select customer" />
                 </SelectTrigger>
                 <SelectContent>
                   {customers
-                    .filter((c) => String(c["orgId"] ?? "") === org.orgId || !c["orgId"])
+                    .filter((c) => String(c["orgId"] ?? "") === String(org.orgId) || !c["orgId"])
                     .map((c) => (
                       <SelectItem key={String(c.id)} value={String(c.id)}>
                         {String(c["name"])} · {String(c["phone"] ?? c.id)}
@@ -474,7 +504,7 @@ function CouponsPage() {
                   if (!issueSchemeId || !issueCustomerId) return void toast.error("Select a customer");
                   const loc = locationId === "all" ? String(org.locations[0]?.locationId ?? "") : locationId;
                   const result = issueVoucher(
-                    { db: allRows, create: createRow },
+                    { db: allRows, create: createRow, update: updateRow },
                     {
                       couponId: issueSchemeId,
                       customerId: issueCustomerId,
@@ -519,6 +549,7 @@ function CouponsPage() {
           </AlertDialogContent>
         </AlertDialog>
     </div>
+    </GrowthTabsLayout>
   );
 }
 

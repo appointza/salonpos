@@ -1,5 +1,5 @@
 /** Org data cache + Krios API (via DataProvider). Prefer @/services/*.service.ts for direct API calls. */
-export { useData as useApi, useCollection, useData, type Row } from "@/lib/store";
+export { useData as useApi, useCollection, useData, type Row } from "@/store";
 export {
   authApi,
   customerService,

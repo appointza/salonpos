@@ -32,6 +32,7 @@ export class OrganizationRes {
   rewardCustomerTierWeights: string = "";
   publicBookingShowPrizeWheel: string = "";
   publicBookingShowScratchCard: string = "";
+  bookingRules: string = "";
 }
 
 export class CreateOrganizationReq {
@@ -61,6 +62,7 @@ export class CreateOrganizationReq {
   rewardCustomerTierWeights: string = "";
   publicBookingShowPrizeWheel: string = "";
   publicBookingShowScratchCard: string = "";
+  bookingRules: string = "";
 }
 
 export class CreateOrganizationRes extends OrganizationRes {}
@@ -93,6 +95,7 @@ export class UpdateOrganizationReq {
   rewardCustomerTierWeights: string = "";
   publicBookingShowPrizeWheel: string = "";
   publicBookingShowScratchCard: string = "";
+  bookingRules: string = "";
 }
 
 export class UpdateOrganizationRes extends OrganizationRes {}

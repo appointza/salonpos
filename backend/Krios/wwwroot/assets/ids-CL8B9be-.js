@@ -1,0 +1,1 @@
+function e(e){return e==null||e===``?``:String(e)}function t(e){let t=Number(e);return Number.isFinite(t)?t:0}function n(t,n){return e(t)===e(n)}export{e as n,n as r,t};

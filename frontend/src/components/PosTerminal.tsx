@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { Search, UserCheck, Plus, Minus, Trash2, Receipt, Send, X, CalendarCheck } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { Search, UserCheck, Plus, Minus, Trash2, Receipt, Send, X, CalendarCheck, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,41 +16,55 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useCollection, useData, type Row } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
-import { collapseCustomersByPhone, findCustomerByPhoneInOrg, normalizePhone } from "@/lib/customers/customer-lookup";
-import { isValidPhone } from "@/lib/customers/customer-service";
-import { rowToEntity, toRow } from "@/lib/entity-row";
-import { readRewardDistribution, rollCustomerTier } from "@/lib/reward-distribution";
-import { customerService } from "@/services/customer.service";
-import { getCustomerLoyaltyBalance } from "@/lib/loyalty/loyalty-service";
-import { useWhatsAppSender } from "@/lib/whatsapp";
-import { usePostSale, useSaleQuote, type BillLine } from "@/lib/pos";
-import type { RewardRefs } from "@/lib/rewards/reward-quote";
-import { getCustomerRewardOptions, rewardCustomerIds } from "@/lib/rewards/reward-quote";
-import { resolveCustomerRow, resolveServiceRow } from "@/lib/appointments/appointment-resolve";
-import { includedVisitProgress } from "@/lib/membership";
-import { useStockService } from "@/lib/stock";
-import { recipesForService } from "@/lib/service-recipe";
-import type { InventoryMissingProduct } from "@/model/inventory";
-import { staffIdFromName } from "@/lib/hr";
+import { useCollection, useData, type Row } from "@/store";
+import { useTenant } from "@/tenant";
+import { findCustomerByPhoneInOrg, normalizePhone } from "@/pages/Customers/customer-lookup";
+import { isValidPhone } from "@/pages/Customers/customer-store";
+import { rowToEntity, toRow } from "@/entity-row";
+import type { CustomerPosLookupRes, CustomerRes } from "@/model/customers";
+import { customerService, mergePosLookup } from "@/services/customer.service";
+import { getCustomerLoyaltyBalance } from "@/pages/Loyalty/loyalty-service";
+import { useWhatsAppSender } from "@/pages/Campaigns/whatsapp";
+import { usePostSale, useSaleQuote, type BillLine } from "@/pages/Pos/sale";
+import type { RewardRefs } from "@/pages/Loyalty/rewards/reward-quote";
+import { getCustomerRewardOptions, rewardCustomerIds } from "@/pages/Loyalty/rewards/reward-quote";
+import { resolveCustomerRow, resolveServiceRow } from "@/pages/Appointments/appointment-resolve";
+import { includedVisitProgress } from "@/pages/Memberships/membership";
+import { useStockService } from "@/pages/Inventory/stock";
+import { recipesForService } from "@/pages/Services/service-recipe";
+import { staffIdFromName } from "@/pages/Attendance/hr";
 import { PosCouponInput } from "@/components/PosCouponInput";
-import { validateCouponCodeAtPos } from "@/lib/coupons/coupon-pos";
+import { hydrateScratchPrize, hydrateWheelPrize, resolvePrizeService, type PrizeClaim } from "@/pages/PrizeWheel/prize-discount";
+import { formatPrizeValue, prizeTypeLabel } from "@/pages/PrizeWheel/prize-help";
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+
+function phoneFromAppointment(prefill: Row | null, customers: Row[]) {
+  if (!prefill) return "";
+  const fromCustomer = resolveCustomerRow(prefill, customers);
+  const fromRow = normalizePhone(String(fromCustomer?.["phone"] ?? ""));
+  if (fromRow.length >= 10) return fromRow;
+  const notes = `${prefill["notes"] ?? ""} ${prefill["customer"] ?? ""}`;
+  const digits = notes.replace(/\D/g, "");
+  const last10 = digits.slice(-10);
+  return last10.length === 10 ? last10 : "";
+}
 
 export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBilled?: () => void }) {
   const { org, location, locationId, scopeLabel } = useTenant();
   const { allRows, applyCache } = useData();
-  const { rows: customers } = useCollection("customers");
+  const { rows: customers } = useCollection("customers", { autoload: false });
   const { rows: services } = useCollection("services");
   const { rows: products } = useCollection("inventory");
-  const { rows: staff } = useCollection("staff");
+  const { rows: staff } = useCollection("staff", { autoload: false });
+  useCollection("wheelSegments");
+  useCollection("scratchPrizes");
   const postSale = usePostSale();
   const stock = useStockService();
   const { send, isConfigured } = useWhatsAppSender();
 
   const [phone, setPhone] = useState("");
+  const [lookupStatus, setLookupStatus] = useState<"idle" | "loading" | "found" | "missing">("idle");
   const [newCustomerName, setNewCustomerName] = useState("");
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [pointsSummary, setPointsSummary] = useState<{
@@ -91,19 +106,121 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const [couponCodes, setCouponCodes] = useState<string[]>([]);
   const [payment, setPayment] = useState("UPI");
   const [bill, setBill] = useState<Row | null>(null);
+  const [posting, setPosting] = useState(false);
+  const postingRef = useRef(false);
   const [waOpen, setWaOpen] = useState(false);
   const [waNumber, setWaNumber] = useState("");
 
-  const matches = useMemo(() => {
-    const q = phone.replace(/\s|\+/g, "").trim();
-    if (!q) return [];
-    const orgCustomers = (allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === String(org.orgId));
-    const hits = orgCustomers.filter((c) => {
-      const p = String(c["phone"] ?? "").replace(/\s|\+/g, "");
-      return p.includes(q) || String(c["name"] ?? "").toLowerCase().includes(phone.trim().toLowerCase());
-    });
-    return collapseCustomersByPhone(hits).slice(0, 6);
-  }, [allRows, org.orgId, phone]);
+  function applyLookup(res: CustomerPosLookupRes) {
+    if (res.errorMessage || !res.customer) return false;
+    applyCache((prev) => mergePosLookup(prev, res));
+    setCustomer(toRow(res.customer as unknown as Record<string, unknown>));
+    setPhone(String(res.customer.phone ?? ""));
+    setLookupStatus("found");
+    return true;
+  }
+
+  useEffect(() => {
+    if (!prefill) return;
+    const oid = Number(org.orgId);
+    if (!oid) return;
+    const customerId = Number(prefill["customerId"] ?? 0);
+    const cached = resolveCustomerRow(prefill, orgCustomers.length ? orgCustomers : customers);
+    const phoneHint = phoneFromAppointment(prefill, orgCustomers.length ? orgCustomers : customers);
+    if (cached && !customerId && phoneHint.length < 10) {
+      setCustomer(cached);
+      setPhone(String(cached["phone"] ?? ""));
+    }
+    if (customerId <= 0 && phoneHint.length < 10) return;
+    let cancelled = false;
+    setLookupStatus("loading");
+    void customerService
+      .lookupAtPos({
+        orgId: oid,
+        locationId: locationId === "all" ? Number(prefill["locationId"] ?? 0) || 0 : Number(locationId) || 0,
+        customerId: customerId > 0 ? customerId : 0,
+        phone: phoneHint,
+      })
+      .then((res) => {
+        if (cancelled) return;
+        if (!applyLookup(res)) {
+          if (cached) {
+            setCustomer(cached);
+            setPhone(String(cached["phone"] ?? phoneHint));
+            setLookupStatus("found");
+            return;
+          }
+          setLookupStatus("missing");
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        if (cached) {
+          setCustomer(cached);
+          setPhone(String(cached["phone"] ?? phoneHint));
+          setLookupStatus("found");
+        } else setLookupStatus("missing");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [prefill, org.orgId, locationId]);
+
+  useEffect(() => {
+    if (!prefill || cart.length > 0) return;
+    const s = resolveServiceRow(prefill, services);
+    if (!s) return;
+    setCart([
+      {
+        id: String(s.id),
+        kind: "service",
+        name: String(s["name"]),
+        price: Number(s["price"] ?? 0),
+        gstRate: Number(s["gstRate"] ?? 18),
+        qty: 1,
+        commission: Number(s["commission"] ?? 10),
+        staff: String(prefill["staff"] ?? ""),
+        staffId: String(prefill["staffId"] || staffIdFromName(staff, String(prefill["staff"] ?? "")) || ""),
+      },
+    ]);
+  }, [prefill, services, staff, cart.length]);
+
+  useEffect(() => {
+    if (prefill) return;
+    if (customer) return;
+    const digits = normalizePhone(phone);
+    if (!isValidPhone(phone)) {
+      setLookupStatus("idle");
+      return;
+    }
+    const oid = Number(org.orgId);
+    if (!oid) return;
+    let cancelled = false;
+    setLookupStatus("loading");
+    void customerService
+      .lookupAtPos({
+        orgId: oid,
+        locationId: locationId === "all" ? 0 : Number(locationId) || 0,
+        phone: digits,
+      })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.errorMessage || !res.customer) {
+          setLookupStatus("missing");
+          return;
+        }
+        applyCache((prev) => mergePosLookup(prev, res));
+        setCustomer(toRow(res.customer as unknown as Record<string, unknown>));
+        setPhone(String(res.customer.phone ?? digits));
+        setLookupStatus("found");
+      })
+      .catch(() => {
+        if (!cancelled) setLookupStatus("missing");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [phone, customer, org.orgId, locationId, applyCache]);
 
   const catalogue = useMemo(() => {
     const q = serviceQuery.trim().toLowerCase();
@@ -161,46 +278,28 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         : { wheelSpins: [], scratchPlays: [], offers: [], partners: [] },
     [customer, allRows],
   );
+  const selectedPrize =
+    (rewards.wheelSpinId
+      ? rewardOptions.wheelSpins.find((s) => String(s.id) === rewards.wheelSpinId)
+      : undefined) ??
+    (rewards.scratchPlayId
+      ? rewardOptions.scratchPlays.find((s) => String(s.id) === rewards.scratchPlayId)
+      : undefined);
+  const selectedClaim: PrizeClaim | null = selectedPrize
+    ? rewards.wheelSpinId
+      ? hydrateWheelPrize(allRows, selectedPrize)
+      : hydrateScratchPrize(allRows, selectedPrize)
+    : null;
+  const selectedFreeService =
+    selectedClaim?.prizeType === "Free service" || selectedClaim?.prizeType === "Free item";
   const membership = quote.membership;
   const membershipPlan = quote.plan;
   const membershipBenefit = quote.benefit;
   const membershipDiscount = quote.membershipDiscount;
   const loyalty = quote.rule;
-
-  useEffect(() => {
-    if (!customer) return;
-    const oid = Number(org.orgId);
-    const cid = Number(customer.id);
-    if (!oid || !cid) return;
-    let cancelled = false;
-    void customerService.loyaltySummary({ orgId: oid, customerId: cid }).then((res) => {
-      if (cancelled || res.errorMessage) return;
-      setCustomer((prev) =>
-        prev && String(prev.id) === String(cid) ? { ...prev, points: Number(res.points ?? 0) } : prev,
-      );
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [customer?.id, org.orgId]);
   const visitProgress = membership
     ? includedVisitProgress(membership, allRows["membershipPlans"] ?? [], allRows["membershipUsage"] ?? [])
     : null;
-  const [missing, setMissing] = useState<InventoryMissingProduct[]>([]);
-
-  useEffect(() => {
-    if (cart.length === 0) {
-      setMissing([]);
-      return;
-    }
-    let cancelled = false;
-    void stock.checkAvailability(cart).then((res) => {
-      if (!cancelled) setMissing(res.missing ?? []);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [cart, stock.checkAvailability]);
 
   function addLine(item: Row, kind: "service" | "product") {
     const id = String(item.id);
@@ -209,16 +308,6 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
     if (kind === "product" && inCart + 1 > stock.remaining(id)) {
       const have = stock.remaining(id);
       return void toast.error(`Only ${have} units available. You cannot sell ${inCart + 1} units.`);
-    }
-    if (kind === "service") {
-      const next = cart.some((l) => l.id === id)
-        ? cart.map((l) => (l.id === id ? { ...l, qty: l.qty + 1 } : l))
-        : [...cart, { id, kind, name: String(item["name"]), price: 0, gstRate: 0, qty: 1, commission: 0, staff: "", staffId: "" }];
-      void stock.checkAvailability(next).then((res) => {
-        if (res.missing?.length) {
-          toast.warning(res.missing.map((m) => `${m.name} is missing. Need ${m.need}, have ${m.have}.`).join(" "));
-        }
-      });
     }
     const person = staff.find((s) => String(s.id) === stylist);
     const rate = Number(person?.["commissionRate"] ?? item["commission"] ?? (kind === "product" ? 5 : 10));
@@ -240,6 +329,29 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         },
       ];
     });
+  }
+
+  function claimPrizeOnBill(prize: PrizeClaim) {
+    if (prize.prizeType === "No prize") {
+      toast.message("This slice is not a gift");
+      return;
+    }
+    if (prize.prizeType === "Bonus points") {
+      toast.message("Bonus points were already added when they spun. Nothing to take off this bill.");
+      return;
+    }
+    if (prize.prizeType === "Partner offer") {
+      toast.message(`Partner gift: ${prize.label}. This does not change the salon bill.`);
+      return;
+    }
+    if (prize.prizeType !== "Free service" && prize.prizeType !== "Free item") return;
+    const service = resolvePrizeService(prize, services);
+    if (!service) {
+      toast.message("This prize has no service id. Open Prize wheel, pick the service, and save again.");
+      return;
+    }
+    if (cart.some((l) => l.id === String(service.id))) return;
+    addLine(service, "service");
   }
 
   const effLocationId = locationId === "all" ? "" : String(locationId);
@@ -320,15 +432,13 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
 
     setCreatingCustomer(true);
     try {
-      const orgRow = (allRows["organizations"] ?? []).find((o) => String(o["orgId"]) === String(org.orgId));
-      const tierWeights = readRewardDistribution(orgRow).customerTier;
       const payload = rowToEntity({
         id: "0",
         orgId: org.orgId,
         locationId: effLocationId,
         name,
         phone: normalizePhone(phone),
-        tier: rollCustomerTier(tierWeights),
+        tier: "Bronze",
         points: 0,
         walletBalance: 0,
         membershipId: "",
@@ -337,8 +447,8 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         totalVisits: 0,
         stampsCurrent: 0,
       });
-      const saved = await customerService.save(payload);
-      const row = toRow(saved as Record<string, unknown>);
+      const saved = await customerService.save(payload as CustomerRes);
+      const row = toRow(saved as unknown as Record<string, unknown>);
       applyCache((prev) => ({ ...prev, customers: [row, ...(prev["customers"] ?? [])] }));
       setCustomer(row);
       setPhone(String(row["phone"] ?? phone));
@@ -352,41 +462,38 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   }
 
   async function generateBill() {
+    if (postingRef.current) return;
     if (!customer) return void toast.error("Select a customer first");
     if (cart.length === 0) return void toast.error("Add at least one service or product");
-    const stockErr = await stock.assertCanIssue(cart);
-    if (stockErr) return void toast.error(stockErr);
+    postingRef.current = true;
+    setPosting(true);
     const person = staff.find((s) => String(s.id) === stylist);
-    const result = await postSale({
-      customer,
-      lines: cart.map((l) => ({
-        ...l,
-        staffId: l.staffId || stylist,
-        staff: String(person?.["name"] ?? l.staff),
-      })),
-      discount,
-      pointsRedeemed,
-      payment,
-      rewards,
-      couponCodes,
-      ...(prefill ? { appointmentId: String(prefill.id) } : {}),
-    });
-    if (result.error || !result.invoice) return void toast.error(result.error ?? "Checkout blocked");
-    const { invoice, earned, pointsAfter } = result;
-    const pointsBefore = Number(customer["points"] ?? 0);
-    setPointsSummary({
-      before: pointsBefore,
-      earned,
-      redeemed: pointsRedeemed,
-      after: pointsAfter,
-    });
-    setBill(invoice);
-    setCustomer({ ...customer, points: pointsAfter });
-    setWaNumber(String(customer["phone"] ?? ""));
-    onBilled?.();
-    toast.success("Bill generated", {
-      description: `${String(invoice.id)} · ${money(t.total)} · +${earned} loyalty pts · stock, commission & history updated`,
-    });
+    try {
+      const result = await postSale({
+        customer,
+        lines: cart.map((l) => ({
+          ...l,
+          staffId: l.staffId || stylist,
+          staff: String(person?.["name"] ?? l.staff),
+        })),
+        discount,
+        pointsRedeemed,
+        payment,
+        rewards,
+        couponCodes,
+        ...(prefill ? { appointmentId: String(prefill.id) } : {}),
+      });
+      if (result.error || !result.invoice) return void toast.error(result.error ?? "Checkout blocked");
+      const { invoice, earned } = result;
+      onBilled?.();
+      newSale();
+      toast.success("Bill generated", {
+        description: `${String(invoice.id)} · ${money(t.total)} · +${earned} loyalty pts. Screen cleared for the next bill.`,
+      });
+    } finally {
+      postingRef.current = false;
+      setPosting(false);
+    }
   }
 
   function sendWhatsApp() {
@@ -408,6 +515,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
     setBill(null);
     setCart([]);
     setCustomer(null);
+    setLookupStatus("idle");
     setPhone("");
     setNewCustomerName("");
     setPointsSummary(null);
@@ -422,7 +530,11 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       <div className="space-y-6">
         <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <Label className="mb-2 block text-xs tracking-wide uppercase">1 · Find customer by phone</Label>
-          {customer ? (
+          {prefill && lookupStatus === "loading" && !customer ? (
+            <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
+              Loading customer, membership and offers for this appointment…
+            </p>
+          ) : customer ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 p-3">
               <div className="flex items-center gap-3">
                 <UserCheck className="size-5 text-primary" />
@@ -485,7 +597,14 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
                   )}
                 </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setCustomer(null)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setLookupStatus("idle");
+                  setCustomer(null);
+                }}
+              >
                 <X /> Change
               </Button>
             </div>
@@ -496,36 +615,21 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Search phone number e.g. 98200…"
+                  placeholder="10-digit mobile number"
                   className="pl-9"
                   inputMode="tel"
                 />
               </div>
               {phone && (
-                <div className="mt-2 divide-y divide-border rounded-lg border border-border">
-                  {matches.length === 0 ? (
-                    <p className="p-3 text-sm text-muted-foreground">No customer with this number yet.</p>
-                  ) : (
-                    matches.map((c) => (
-                      <button
-                        key={String(c.id)}
-                        type="button"
-                        onClick={() => setCustomer(c)}
-                        className="flex w-full items-center justify-between p-3 text-left text-sm hover:bg-accent"
-                      >
-                        <span>
-                          <span className="font-medium">{String(c["name"])}</span>
-                          <span className="ml-2 font-mono text-xs text-muted-foreground">{String(c.id)}</span>
-                          <span className="ml-2 text-muted-foreground">{String(c["phone"])}</span>
-                          <span className="ml-2 text-muted-foreground">{Number(c["points"] ?? 0)} pts</span>
-                        </span>
-                        <Badge variant="secondary">{String(c["tier"] ?? "—")}</Badge>
-                      </button>
-                    ))
-                  )}
+                <div className="mt-2 rounded-lg border border-border p-3 text-sm text-muted-foreground">
+                  {lookupStatus === "loading"
+                    ? "Looking up customer, coupons, membership and rewards…"
+                    : lookupStatus === "idle"
+                      ? "Enter the full 10-digit mobile number to load this customer."
+                      : "No customer with this number yet."}
                 </div>
               )}
-              {matches.length === 0 ? (
+              {lookupStatus === "missing" ? (
               <div className="mt-3 space-y-3 rounded-lg border border-dashed border-border bg-muted/20 p-3">
                 <p className="text-xs font-medium tracking-wide uppercase text-muted-foreground">Create customer</p>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -561,11 +665,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
                   <p className="text-[11px] text-muted-foreground">Pick a specific outlet in the header to create a customer.</p>
                 ) : null}
               </div>
-              ) : (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  This number is already a customer. Select them above, then add the service they took.
-                </p>
-              )}
+              ) : null}
             </>
           )}
         </section>
@@ -733,15 +833,61 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
             ))}
           </ul>
         )}
-        {missing.length > 0 && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-            {missing.map((m) => (
-              <p key={String(m.skuId)}>
-                {m.name} is missing. Need {m.need}, have {m.have}.
+
+        {customer ? (
+          <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <p className="flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              <CreditCard className="size-3.5" />
+              Membership — how to claim
+            </p>
+            {membership ? (
+              <>
+                <p className="text-sm font-medium">
+                  {String(membershipPlan?.["name"] ?? membership["plan"] ?? "Active plan")}
+                  {visitProgress && visitProgress.limit > 0
+                    ? ` · ${visitProgress.remaining} of ${visitProgress.limit} included visits left`
+                    : visitProgress && visitProgress.limit === 0
+                      ? " · unlimited included visits"
+                      : ""}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Membership applies automatically — add matching services or products, then complete the sale. No
+                  separate claim button.
+                </p>
+                {membershipPlan?.["includedMatch"] ? (
+                  <p className="text-xs text-muted-foreground">
+                    Included services match: <span className="font-medium">{String(membershipPlan["includedMatch"])}</span>
+                  </p>
+                ) : null}
+                {membershipBenefit.notes.length > 0 ? (
+                  <ul className="space-y-0.5 text-sm text-primary">
+                    {membershipBenefit.notes.map((n, i) => (
+                      <li key={i}>Claiming now: {n}</li>
+                    ))}
+                  </ul>
+                ) : cart.length > 0 ? (
+                  <p className="text-sm text-amber-700 dark:text-amber-400">
+                    Nothing on this bill matches the plan yet. Check service names against the plan keywords on
+                    Memberships.
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Add bill items — the member discount shows under Membership benefit.</p>
+                )}
+                {membershipDiscount > 0 ? (
+                  <p className="text-sm font-semibold text-primary">This bill: −{money(membershipDiscount)} membership discount</p>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                This customer has no active membership. Enroll them on{" "}
+                <Link to="/memberships" className="text-primary underline-offset-4 hover:underline">
+                  Memberships
+                </Link>
+                , then select them here again.
               </p>
-            ))}
+            )}
           </div>
-        )}
+        ) : null}
 
         <PosCouponInput
           customer={customer}
@@ -762,37 +908,50 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
           <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Scratch card and spin wheel</p>
             <p className="text-xs text-muted-foreground">
-              Offers {String(customer["name"])} earned and has not used yet. Select one to apply on this bill.
+              Same gifts as Prize wheel. Select one to claim it on this bill — percent off, rupees off, or the free
+              treatment added and taken off the total.
             </p>
             {rewardOptions.wheelSpins.length === 0 && rewardOptions.scratchPlays.length === 0 ? (
               <p className="text-sm text-muted-foreground">No unused scratch-card or wheel offers for this customer.</p>
             ) : null}
-            {rewardOptions.wheelSpins.map((spin) => (
+            {rewardOptions.wheelSpins.map((spin) => {
+              const prize = hydrateWheelPrize(allRows, spin);
+              return (
               <label key={String(spin.id)} className="flex items-center gap-2 text-sm">
                 <input
                   type="radio"
                   name="pos-reward"
                   checked={rewards.wheelSpinId === String(spin.id)}
-                  onChange={() => setRewards({ wheelSpinId: String(spin.id) })}
+                  onChange={() => {
+                    setRewards({ wheelSpinId: String(spin.id) });
+                    claimPrizeOnBill(prize);
+                  }}
                 />
-                Wheel · {String(spin["label"])}
-                {spin["rewardType"] ? ` · ${String(spin["rewardType"])}` : ""}
-                {Number(spin["rewardValue"] ?? 0) > 0 ? ` ${String(spin["rewardValue"])}` : ""}
+                Wheel · {prize.label || String(spin["label"])}
+                {prize.prizeType ? ` · ${prizeTypeLabel(prize.prizeType)}` : ""}
+                {prize.prizeType ? ` · ${formatPrizeValue(prize.prizeType, prize.prizeValue)}` : ""}
               </label>
-            ))}
-            {rewardOptions.scratchPlays.map((play) => (
+              );
+            })}
+            {rewardOptions.scratchPlays.map((play) => {
+              const prize = hydrateScratchPrize(allRows, play);
+              return (
               <label key={String(play.id)} className="flex items-center gap-2 text-sm">
                 <input
                   type="radio"
                   name="pos-reward"
                   checked={rewards.scratchPlayId === String(play.id)}
-                  onChange={() => setRewards({ scratchPlayId: String(play.id) })}
+                  onChange={() => {
+                    setRewards({ scratchPlayId: String(play.id) });
+                    claimPrizeOnBill(prize);
+                  }}
                 />
-                Scratch · {String(play["label"])}
-                {play["rewardType"] ? ` · ${String(play["rewardType"])}` : ""}
-                {Number(play["rewardValue"] ?? 0) > 0 ? ` ${String(play["rewardValue"])}` : ""}
+                Scratch · {prize.label || String(play["label"])}
+                {prize.prizeType ? ` · ${prizeTypeLabel(prize.prizeType)}` : ""}
+                {prize.prizeType ? ` · ${formatPrizeValue(prize.prizeType, prize.prizeValue)}` : ""}
               </label>
-            ))}
+              );
+            })}
             {rewardOptions.offers.map((offer) => (
               <label key={String(offer.id)} className="flex items-center gap-2 text-sm">
                 <input
@@ -815,10 +974,11 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
                 Partner · {String(coupon["couponCode"])} — {String(coupon["offer"] ?? "").slice(0, 40)}
               </label>
             ))}
-            {Object.keys(rewards).length > 0 ? (
-              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setRewards({})}>
-                Clear reward
-              </Button>
+            {selectedFreeService && quote.rewardDiscount <= 0 ? (
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                This prize is claimed by service id. Add that same service to the bill, or re-save the Prize wheel slice
+                with a service picked.
+              </p>
             ) : null}
           </div>
         )}
@@ -941,8 +1101,8 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
             </Button>
           </div>
         ) : (
-          <Button className="w-full" onClick={generateBill}>
-            <Receipt /> Generate bill
+          <Button className="w-full" type="button" disabled={posting} onClick={() => void generateBill()}>
+            <Receipt /> {posting ? "Saving bill…" : "Generate bill"}
           </Button>
         )}
       </aside>

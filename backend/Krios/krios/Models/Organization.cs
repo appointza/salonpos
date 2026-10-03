@@ -33,6 +33,7 @@ namespace Krios.Models.Krios
         public string rewardCustomerTierWeights { get; set; } = "";
         public string publicBookingShowPrizeWheel { get; set; } = "";
         public string publicBookingShowScratchCard { get; set; } = "";
+        public string bookingRules { get; set; } = "";
     }
 
     public class OrganizationSelectReq

@@ -4,9 +4,15 @@ import { Page } from "@/pages/Pos/Pos";
 const title = "POS & Billing — Luxe Salon CRM";
 const description = "Search customers by phone, bill services and products, and send receipts on WhatsApp.";
 
+function parseAppointmentSearch(raw: unknown): string | undefined {
+  if (raw === null || raw === undefined || raw === "") return undefined;
+  const text = String(raw).replace(/^["']+|["']+$/g, "").trim();
+  return text || undefined;
+}
+
 export const Route = createFileRoute("/_app/pos")({
   validateSearch: (search: Record<string, unknown>) => ({
-    appointment: typeof search.appointment === "string" && search.appointment ? search.appointment : undefined,
+    appointment: parseAppointmentSearch(search.appointment),
   }),
   head: () => ({
     meta: [

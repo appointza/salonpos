@@ -69,19 +69,20 @@ namespace Krios.Utils
         }
 
         /// <summary>
-        /// Gets organization-specific base URL from configuration
+        /// Public site URL for QR/links. localhost in config is ignored so EC2 (kros.com) uses the request host.
         /// </summary>
         public static string GetOrganizationBaseUrl(HttpContext context)
         {
-            // Try to get base URL from configuration
             var appSettings = context.RequestServices.GetService<Microsoft.Extensions.Options.IOptions<ApplicationEnvironment>>();
-            if (appSettings?.Value != null && !string.IsNullOrEmpty(appSettings.Value.baseUrl))
+            var configured = appSettings?.Value?.baseUrl?.Trim() ?? "";
+            if (!string.IsNullOrEmpty(configured) &&
+                !configured.Contains("localhost", StringComparison.OrdinalIgnoreCase) &&
+                !configured.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase))
             {
-                return appSettings.Value.baseUrl;
+                return configured.TrimEnd('/');
             }
-            
-            // Fallback to request scheme and host
-            return $"{context.Request.Scheme}://{context.Request.Host}";
+
+            return $"{context.Request.Scheme}://{context.Request.Host}".TrimEnd('/');
         }
     }
 }

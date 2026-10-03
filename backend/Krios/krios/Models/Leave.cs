@@ -16,6 +16,7 @@ namespace Krios.Models.Krios
         public string updatedby { get; set; } = "";
         public DateTime? updatedon { get; set; }
         public long staffId { get; set; }
+        public long coverStaffId { get; set; }
         public long days { get; set; }
     }
 

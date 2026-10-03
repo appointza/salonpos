@@ -1,4 +1,4 @@
-import type { EntityId } from "@/lib/ids";
+import type { EntityId } from "@/ids";
 import { useMemo, useState } from "react";
 import { AlertCircle, TicketPercent, X } from "lucide-react";
 import { toast } from "sonner";
@@ -6,10 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { BillLine } from "@/lib/pos";
-import type { Row } from "@/lib/store";
-import { validateCouponCodeAtPos, type AppliedCouponLine } from "@/lib/coupons/coupon-pos";
-import { listCustomerVouchers } from "@/lib/vouchers/voucher-service";
+import type { BillLine } from "@/pages/Pos/sale";
+import type { Row } from "@/store";
+import { validateCouponCodeAtPos, validateCouponCodeAtPosApi, type AppliedCouponLine } from "@/pages/Coupons/coupon-pos";
+import { listCustomerVouchers } from "@/pages/Coupons/voucher-local";
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
@@ -57,7 +57,7 @@ export function PosCouponInput({
     return map;
   }, [appliedLines]);
 
-  function applyCode(raw: string) {
+  async function applyCode(raw: string) {
     setLastError("");
     if (!customer) return void toast.error("Select a customer before applying a coupon");
     if (cart.length === 0) return void toast.error("Add items to the cart first");
@@ -69,7 +69,7 @@ export function PosCouponInput({
       return;
     }
 
-    const status = validateCouponCodeAtPos({
+    const ctx = {
       db: allRows,
       customer,
       lines: cart,
@@ -82,7 +82,8 @@ export function PosCouponInput({
       code: next,
       alreadyAppliedCodes: appliedCodes,
       at: new Date(),
-    });
+    };
+    const status = await validateCouponCodeAtPosApi(ctx).catch(() => validateCouponCodeAtPos(ctx));
 
     if (!status.ok) {
       setLastError(status.reason ?? "Coupon not valid for this bill");

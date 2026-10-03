@@ -42,12 +42,18 @@ namespace Krios.Services.Krios
                 qb.AddParameter(@"""orgId""", "=", "orgId", req.orgId, DbTypes.Types.Long);
             if (req.locationId > 0)
                 qb.AddParameter(@"""locationId""", "=", "locationId", req.locationId, DbTypes.Types.Long);
+            if (req.customerId > 0)
+                qb.AddParameter(@"""customerId""", "=", "customerId", req.customerId, DbTypes.Types.Long);
+            if (req.couponId > 0)
+                qb.AddParameter(@"""couponId""", "=", "couponId", req.couponId, DbTypes.Types.Long);
 
             if (!string.IsNullOrWhiteSpace(req.status))
                 qb.AddParameter("status", "=", "status", req.status, DbTypes.Types.String);
             else
                 qb.AddParameter("status", "<>", "status", "Inactive", DbTypes.Types.String);
-            if (!string.IsNullOrWhiteSpace(req.search))
+            if (!string.IsNullOrWhiteSpace(req.code))
+                qb.AddParameter("code", "ILIKE", "codeExact", req.code, DbTypes.Types.String);
+            else if (!string.IsNullOrWhiteSpace(req.search))
                 qb.AddParameter("code", "ILIKE", "search", "%" + req.search + "%", DbTypes.Types.String);
             qb.AddOrderBy(QueryBuilder.Order.ASC, "id");
             var command = qb.GetCommand(db);
@@ -82,7 +88,7 @@ namespace Krios.Services.Krios
 
             var today = DateTime.UtcNow.Date;
             var actor = requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : "system";
-            entity.status = string.IsNullOrWhiteSpace(entity.status) ? "Active" : entity.status;
+            entity.status = string.IsNullOrWhiteSpace(entity.status) ? "Available" : entity.status;
             if (entity.createdon == null) entity.createdon = today;
             if (entity.updatedon == null) entity.updatedon = today;
             if (string.IsNullOrWhiteSpace(entity.createdby)) entity.createdby = actor;

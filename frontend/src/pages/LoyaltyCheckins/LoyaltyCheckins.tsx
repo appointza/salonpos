@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { customerName } from "@/lib/customers/customer-lookup";
-import { useCollection, useData } from "@/lib/store";
+import { customerName } from "@/pages/Customers/customer-lookup";
+import { useCollection, useData } from "@/store";
 
 export function CheckinsPage() {
   const { rows } = useCollection("qrCheckins");

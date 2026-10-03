@@ -1,42 +1,47 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { MapPin, Clock, Scissors, CalendarCheck, ExternalLink, CreditCard, Gift, TicketPercent, Layers, Sparkles } from "lucide-react";
-import { BRAND_LOGO } from "@/lib/brand";
+import { BRAND_LOGO } from "@/brand";
 import { OfferCard } from "@/components/OfferCard";
 import { ScratchCard } from "@/components/ScratchCard";
-import { listOffersForPublicGuest, QR_OFFERS } from "@/lib/offers/offer-redemption-service";
+import { listOffersForPublicGuest, QR_OFFERS } from "@/pages/Offers/offer-redemption-service";
+import { toRow } from "@/entity-row";
+import { customerService, mergePosLookup } from "@/services/customer.service";
+import { qrOfferService } from "@/services/qrOffer.service";
+import { getCustomerRewardOptions, rewardCustomerIds } from "@/pages/Loyalty/rewards/reward-quote";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useData, type Row } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
-import { dbWithRow, isBookableStaff, isPublishedService, isSlotFree, openingWindow, rowsAtLocation, slotsInWindow } from "@/lib/booking";
-import { validateAppointmentBooking } from "@/lib/business/appointment-service";
-import { addCalendarMonths } from "@/lib/membership";
+import { useData, type Row } from "@/store";
+import { useTenant } from "@/tenant";
+import { dbWithRow, isBookableStaff, isPublishedService, isSlotFree, openingWindow, rowsAtLocation, serviceDurationMinutes, slotTimestamp, slotsInWindow, staffLeaveOnDate } from "@/pages/Book/booking";
+import { validateAppointmentBooking } from "@/pages/Pos/business/appointment-service";
+import { addCalendarMonths } from "@/pages/Memberships/membership";
 import { SpinWheel } from "@/components/SpinWheel";
-import { normalizePhone, SCRATCH_PRIZES, WHEEL_SEGMENTS } from "@/lib/qr-loyalty";
-import { readBookingRules } from "@/lib/booking-rules";
-import { findCustomerByPhoneInOrg } from "@/lib/customers/customer-lookup";
-import { upsertCustomerByPhone, isValidPhone } from "@/lib/customers/customer-service";
-import { buildAppointmentRow } from "@/lib/appointments/appointment-resolve";
-import { customerSpunToday, getTodayWheelSpin, processWheelSpinResult } from "@/lib/wheel/wheel-service";
+import { normalizePhone, SCRATCH_PRIZES, WHEEL_SEGMENTS } from "@/pages/LoyaltyQr/qr-loyalty";
+import { readBookingRules, bookingDateMax, localToday } from "@/pages/Book/booking-rules";
+import { findCustomerByPhoneInOrg } from "@/pages/Customers/customer-lookup";
+import { upsertCustomerByPhone, isValidPhone } from "@/pages/Customers/customer-store";
+import { buildAppointmentRow } from "@/pages/Appointments/appointment-resolve";
+import { customerSpunToday, getTodayWheelSpin, processWheelSpinResult } from "@/pages/PrizeWheel/wheel-service";
 import {
   customerScratchedToday,
   getTodayScratchPlay,
   processScratchResult,
   selectScratchPrize,
-} from "@/lib/scratch/scratch-service";
-import { publicBookingSettingsForOrg } from "@/lib/public-booking-settings";
-import { gamesForCustomer, useRewardDistribution } from "@/lib/reward-distribution";
-import { getCustomerLoyaltyBalance } from "@/lib/loyalty/loyalty-service";
-import type { EntityId } from "@/lib/ids";
-import { idStr } from "@/lib/ids";
+} from "@/pages/ScratchCard/scratch-service";
+import { guestRewardGames, publicBookingSettingsForOrg } from "@/pages/Book/public-booking-settings";
+import { readServiceDisplaySettings } from "@/pages/Services/service-display-settings";
+import { ServicePriceDisplay } from "@/components/ServicePriceDisplay";
+import { readRewardDistribution } from "@/pages/PrizeWheel/reward-distribution";
+import { getCustomerLoyaltyBalance } from "@/pages/Loyalty/loyalty-service";
+import type { EntityId } from "@/ids";
+import { idStr } from "@/ids";
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
-const today = () => new Date().toISOString().slice(0, 10);
 
 export function PublicBooking({
   showSwitcher = true,
@@ -49,8 +54,7 @@ export function PublicBooking({
   bookingOrgId?: EntityId;
 }) {
   const { tenants, org, setOrgId } = useTenant();
-  const { allRows, create, update } = useData();
-  const { config: rewardDist } = useRewardDistribution();
+  const { allRows, create, update, applyCache } = useData();
 
   const activeOrg = useMemo(
     () => tenants.find((t) => String(t.orgId) === String(bookingOrgId)) ?? org,
@@ -62,17 +66,24 @@ export function PublicBooking({
     if (bookingOrgId && String(bookingOrgId) !== String(org.orgId)) setOrgId(Number(bookingOrgId));
   }, [bookingOrgId, org.orgId, setOrgId]);
 
+  const orgRow = useMemo(
+    () => (allRows["organizations"] ?? []).find((o) => String(o["orgId"]) === String(activeOrgId)),
+    [allRows, activeOrgId],
+  );
   const bookingFeatures = useMemo(
     () => publicBookingSettingsForOrg(allRows, activeOrgId),
     [allRows, activeOrgId],
   );
+  const { scratch: showScratchGame, wheel: showWheelGame } = guestRewardGames(bookingFeatures);
+  const rewardDist = useMemo(() => readRewardDistribution(orgRow), [orgRow]);
+  const serviceDisplay = useMemo(() => readServiceDisplaySettings(orgRow, activeOrgId), [orgRow, activeOrgId]);
   const guestRewardBlurb = useMemo(() => {
     const parts = ["Book a service"];
-    if (bookingFeatures.showScratchCard) parts.push("scratch a daily reward card");
-    if (bookingFeatures.showPrizeWheel) parts.push("spin the prize wheel");
+    if (showScratchGame) parts.push("scratch a daily reward card");
+    if (showWheelGame) parts.push("spin the prize wheel");
     parts.push("buy a membership");
     return parts.join(", ").replace(/, ([^,]*)$/, ", or $1") + ". All of it syncs to the salon workspace.";
-  }, [bookingFeatures]);
+  }, [showScratchGame, showWheelGame]);
 
   const [locationId, setLocationId] = useState(
     initialLocationId && activeOrg.locations.some((l) => String(l.locationId) === String(initialLocationId))
@@ -81,7 +92,7 @@ export function PublicBooking({
   );
   const [serviceId, setServiceId] = useState("");
   const [staffName, setStaffName] = useState("");
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(localToday());
   const [time, setTime] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -129,6 +140,56 @@ export function PublicBooking({
     if (known) setName(known);
   }, [matchedCustomer]);
   const phoneReady = isValidPhone(phone);
+
+  useEffect(() => {
+    const oid = Number(activeOrgId);
+    if (!oid) return;
+    let cancelled = false;
+    void qrOfferService
+      .select({ orgId: oid })
+      .then((items) => {
+        if (cancelled) return;
+        applyCache((prev) => ({
+          ...prev,
+          qrOffers: [
+            ...(prev["qrOffers"] ?? []).filter((r) => String(r["orgId"]) !== String(oid)),
+            ...items.map((item) => toRow(item as unknown as Record<string, unknown>)),
+          ],
+        }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrgId, applyCache]);
+
+  useEffect(() => {
+    if (!phoneReady || !Number(activeOrgId)) return;
+    let cancelled = false;
+    void customerService
+      .lookupAtPos({
+        orgId: Number(activeOrgId),
+        locationId: Number(location?.locationId) || 0,
+        phone: normalizePhone(phone),
+      })
+      .then((res) => {
+        if (cancelled || !res?.customer) return;
+        applyCache((prev) => mergePosLookup(prev, res));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [phoneReady, phone, activeOrgId, location?.locationId, applyCache]);
+
+  const rewardOptions = useMemo(
+    () =>
+      matchedCustomer
+        ? getCustomerRewardOptions(allRows, String(matchedCustomer.id), rewardCustomerIds(allRows, matchedCustomer))
+        : { wheelSpins: [], scratchPlays: [], offers: [], partners: [] },
+    [matchedCustomer, allRows],
+  );
+
   const eligibleOffers = useMemo(() => {
     if (!location || !phoneReady) return [];
     return listOffersForPublicGuest(allRows, {
@@ -176,18 +237,14 @@ export function PublicBooking({
     }
     return "";
   }, [allRows, matchedCustomer]);
-  const guestGames = gamesForCustomer(rewardDist, String(matchedCustomer?.["tier"] ?? ""));
-  const showScratchGame = bookingFeatures.showScratchCard && guestGames.scratch;
-  const showWheelGame = bookingFeatures.showPrizeWheel && guestGames.wheel;
   const service = services.find((s) => String(s.id) === serviceId) ?? null;
   const plan = membershipPlans.find((p) => String(p.id) === planId) ?? null;
-  const duration = Number(service?.["duration"] ?? 60);
   const gstRate = 18;
   const planPrice = Number(plan?.["price"] ?? 0);
   const planTax = Math.round(planPrice * (gstRate / 100));
   const planTotal = planPrice + planTax;
 
-  function upsertCustomer(membershipId: string, guestName = name.trim() || String(matchedCustomer?.["name"] ?? "").trim()) {
+  function upsertCustomer(guestName = name.trim() || String(matchedCustomer?.["name"] ?? "").trim()) {
     return upsertCustomerByPhone(
       { db: allRows, create, update },
       {
@@ -196,8 +253,7 @@ export function PublicBooking({
         phone,
         locationId: location?.locationId ?? "",
         outlet: location?.name ?? "",
-        membershipId,
-        lastVisit: today(),
+        lastVisit: localToday(),
       },
     );
   }
@@ -206,28 +262,41 @@ export function PublicBooking({
     const orgRow = (allRows["organizations"] ?? []).find((o) => String(o["orgId"]) === String(activeOrgId));
     return readBookingRules(orgRow, activeOrgId);
   }, [allRows, activeOrgId]);
+  const duration = serviceDurationMinutes(service?.["duration"], Number(bookingRules.duration) || 60);
+  const stylist = staff.find((s) => String(s["name"]) === staffName) ?? null;
+  const staffOff = useMemo(() => {
+    if (!stylist) return null;
+    const orgShifts = (allRows["shifts"] ?? []).filter((s) => String(s["orgId"]) === String(activeOrgId));
+    const orgLeaves = (allRows["leaves"] ?? []).filter((s) => String(s["orgId"]) === String(activeOrgId));
+    return staffLeaveOnDate(orgLeaves, orgShifts, stylist.id, date, stylist);
+  }, [allRows, activeOrgId, stylist, date]);
+  const slotWindow = useMemo(() => {
+    const orgShifts = (allRows["shifts"] ?? []).filter((s) => String(s["orgId"]) === String(activeOrgId));
+    return openingWindow(orgShifts, date, stylist?.id, bookingRules.hours);
+  }, [allRows, activeOrgId, stylist, date, bookingRules.hours]);
   const slots = useMemo(() => {
     if (!service || !staffName || !location || !bookingRules.onlineBooking) return [];
-    const stylist = staff.find((s) => String(s["name"]) === staffName);
-    const window = openingWindow(allRows["shifts"] ?? [], date, stylist?.id, bookingRules.hours);
-    if (window.closed) return [];
+    if (staffOff || slotWindow.closed) return [];
     const step = Math.max(5, Number(bookingRules.duration) || 30);
     const noticeMs = Math.max(0, Number(bookingRules.minNotice) || 0) * 60 * 60 * 1000;
-    return slotsInWindow(window.open, window.close, duration, step)
-      .filter((t) => new Date(`${date}T${t}`).getTime() >= Date.now() + noticeMs)
-      .map((t) => ({
-      time: t,
-      free: isSlotFree(appointments, {
-        staff: staffName,
-        staffId: stylist?.id,
-        date,
-        time: t,
-        duration,
-        locationId: location.locationId,
-      }),
-    }));
+    const soonest = Date.now() + noticeMs;
+    return slotsInWindow(slotWindow.open, slotWindow.close, duration, step).map((t) => {
+      const at = slotTimestamp(date, t);
+      const tooSoon = Number.isFinite(at) && at < soonest;
+      const free =
+        !tooSoon &&
+        isSlotFree(appointments, {
+          staff: staffName,
+          staffId: stylist?.id,
+          date,
+          time: t,
+          duration,
+          locationId: location.locationId,
+        });
+      return { time: t, free, tooSoon };
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appointments, staffName, date, duration, service, location?.locationId, staff, allRows, bookingRules]);
+  }, [appointments, staffName, date, duration, service, location?.locationId, stylist, slotWindow, bookingRules, staffOff]);
 
   async function book() {
     if (saving) return;
@@ -270,7 +339,7 @@ export function PublicBooking({
       date,
       time,
       duration,
-      status: "Confirmed",
+      status: "Pending",
       source: "Website",
       notes: `Online booking · ${phone}`,
     });
@@ -305,7 +374,7 @@ export function PublicBooking({
           phone,
           locationId: location?.locationId ?? "",
           outlet: location?.name ?? "",
-          lastVisit: today(),
+          lastVisit: localToday(),
         },
       );
     } catch {
@@ -331,12 +400,11 @@ export function PublicBooking({
     setSaving(true);
     setOrgId(activeOrgId);
     try {
-    const start = today();
+    const start = localToday();
     const months = Math.max(1, Number(plan["validityMonths"] ?? 12));
-    const memId = `MP-${Math.floor(1000 + Math.random() * 9000)}`;
-    const customer = await upsertCustomer(memId, guestName);
+    const customer = await upsertCustomer(guestName);
     const enrollment: Row = {
-      id: memId,
+      id: 0,
       planId: String(plan.id),
       plan: String(plan["name"]),
       customerId: String(customer.id),
@@ -346,7 +414,13 @@ export function PublicBooking({
       status: "Active",
       locationId: location.locationId,
     };
-    await create("memberships", enrollment);
+    const savedEnrollment = await create("memberships", enrollment);
+    if (savedEnrollment) {
+      await update("customers", String(customer.id), {
+        ...customer,
+        membershipId: String(savedEnrollment.id),
+      });
+    }
     await create("invoices", {
       id: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
       customerId: String(customer.id),
@@ -364,7 +438,7 @@ export function PublicBooking({
       status: "Paid",
       locationId: location.locationId,
     });
-    setPurchased(enrollment);
+    setPurchased(savedEnrollment ?? enrollment);
     toast.success("Membership purchased", {
       description: `${String(plan["name"])} · ${money(planTotal)} · ${payment}`,
     });
@@ -461,10 +535,10 @@ export function PublicBooking({
           <h2 className="font-display text-xl">Your details</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Enter your mobile. If we already know you, your name fills in. This name and mobile are used for
-            {bookingFeatures.showPrizeWheel || bookingFeatures.showScratchCard
+            {showWheelGame || showScratchGame
               ? ` ${[
-                  bookingFeatures.showScratchCard ? "scratch card" : "",
-                  bookingFeatures.showPrizeWheel ? "prize wheel" : "",
+                  showScratchGame ? "scratch card" : "",
+                  showWheelGame ? "prize wheel" : "",
                 ]
                   .filter(Boolean)
                   .join(" and ")},`
@@ -522,6 +596,43 @@ export function PublicBooking({
               ) : null}
             </div>
 
+            {matchedCustomer &&
+            (rewardOptions.offers.length > 0 ||
+              rewardOptions.wheelSpins.length > 0 ||
+              rewardOptions.scratchPlays.length > 0 ||
+              rewardOptions.partners.length > 0) ? (
+              <div className="mt-4 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Unused — apply at POS</p>
+                <p className="text-xs text-muted-foreground">
+                  Same list the salon sees on POS for {String(matchedCustomer["name"])}. Show this when you pay.
+                </p>
+                {rewardOptions.offers.map((redemption) => (
+                  <p key={String(redemption.id)} className="text-sm">
+                    Offer · {String(redemption["offerTitle"] ?? redemption.id)}
+                  </p>
+                ))}
+                {rewardOptions.wheelSpins.map((spin) => (
+                  <p key={String(spin.id)} className="text-sm">
+                    Wheel · {String(spin["label"])}
+                    {spin["rewardType"] ? ` · ${String(spin["rewardType"])}` : ""}
+                    {Number(spin["rewardValue"] ?? 0) > 0 ? ` ${String(spin["rewardValue"])}` : ""}
+                  </p>
+                ))}
+                {rewardOptions.scratchPlays.map((play) => (
+                  <p key={String(play.id)} className="text-sm">
+                    Scratch · {String(play["label"])}
+                    {play["rewardType"] ? ` · ${String(play["rewardType"])}` : ""}
+                    {Number(play["rewardValue"] ?? 0) > 0 ? ` ${String(play["rewardValue"])}` : ""}
+                  </p>
+                ))}
+                {rewardOptions.partners.map((coupon) => (
+                  <p key={String(coupon.id)} className="text-sm">
+                    Partner · {String(coupon["couponCode"])} — {String(coupon["offer"] ?? "").slice(0, 40)}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+
             {eligibleOffers.length > 0 ? (
               <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {eligibleOffers.map((offer) => (
@@ -530,9 +641,15 @@ export function PublicBooking({
               </div>
             ) : (
               <p className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-                {locationOfferCount > 0
-                  ? "No offers match your profile at this outlet right now. Try another location or visit during your birthday week."
-                  : "No live offers at this outlet yet. Check back soon or pick another location."}
+                {matchedCustomer &&
+                (rewardOptions.offers.length > 0 ||
+                  rewardOptions.wheelSpins.length > 0 ||
+                  rewardOptions.scratchPlays.length > 0 ||
+                  rewardOptions.partners.length > 0)
+                  ? "Your unused rewards are listed above. Live outlet deals appear here when they match your profile."
+                  : locationOfferCount > 0
+                    ? "No offers match your profile at this outlet right now. Try another location or visit during your birthday week."
+                    : "No live offers at this outlet yet. Check back soon or pick another location."}
               </p>
             )}
           </section>
@@ -753,7 +870,9 @@ export function PublicBooking({
                     <p className="mt-1 text-xs text-muted-foreground">
                       {String(s["category"])} · {Number(s["duration"] ?? 0)} min
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-primary">{money(Number(s["price"] ?? 0))}</p>
+                    <p className="mt-1">
+                      <ServicePriceDisplay price={Number(s["price"] ?? 0)} settings={serviceDisplay} />
+                    </p>
                   </button>
                 ))
               )}
@@ -785,17 +904,38 @@ export function PublicBooking({
                 id="bk-date"
                 type="date"
                 value={date}
-                min={today()}
-                max={new Date(Date.now() + Math.max(1, Number(bookingRules.advanceDays) || 30) * 86400000).toISOString().slice(0, 10)}
+                min={localToday()}
+                max={bookingDateMax(bookingRules.advanceDays)}
                 onChange={(e) => setDate(e.target.value)}
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {Number(bookingRules.advanceDays) > 0
+                  ? `You can book up to ${bookingRules.advanceDays} days ahead.`
+                  : "You can book any future day."}
+              </p>
             </div>
             <div>
               <Label className="mb-1.5 flex items-center gap-2">
                 <Clock className="size-4" /> Available slots
               </Label>
-              {slots.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Pick a service and stylist to see open slots.</p>
+              {staffOff ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                  <p className="font-medium">This day is leave</p>
+                  <p className="mt-0.5 text-xs text-amber-900/80">
+                    {staffName} is on {staffOff.kind === "leave" ? "approved leave" : "weekly off"} on this date. Pick
+                    another day or another stylist.
+                  </p>
+                </div>
+              ) : slots.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  {!service || !staffName
+                    ? "Pick a service and stylist to see open slots."
+                    : !bookingRules.onlineBooking
+                      ? "Online booking is turned off in Settings."
+                      : slotWindow.closed
+                        ? "This day is leave. Pick another day."
+                        : "No times fit this service on this date. Try another day or a shorter service."}
+                </p>
               ) : (
                 <div className="grid grid-cols-4 gap-2">
                   {slots.map((s) => (

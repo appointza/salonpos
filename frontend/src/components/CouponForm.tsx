@@ -1,5 +1,5 @@
-import type { EntityId } from "@/lib/ids";
-import type { Row } from "@/lib/store";
+import type { EntityId } from "@/ids";
+import type { Row } from "@/store";
 import {
   APPLIES_TO,
   CUSTOMER_SEGMENTS,
@@ -10,16 +10,18 @@ import {
   COUPON_STATUSES,
   type DiscountSlab,
   type DiscountType,
-} from "@/lib/coupons/coupon-schema";
-import { parseDiscountSlabs } from "@/lib/coupons/coupon-engine";
-import { couponConditionsSummary, couponHeadline, describeCoupon, normalizeCoupon } from "@/lib/coupons/coupon-engine";
+} from "@/pages/Coupons/coupon-schema";
+import { parseDiscountSlabs } from "@/pages/Coupons/coupon-engine";
+import { couponConditionsSummary, couponHeadline, describeCoupon, normalizeCoupon } from "@/pages/Coupons/coupon-engine";
+import { previewPoolCodes } from "@/pages/Coupons/coupon-code-pool";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { previewPoolCodes } from "@/lib/coupons/coupon-code-pool";
+import { ServiceMatchField } from "@/components/ServiceMatchField";
+import { useCollection } from "@/store";
 
 export function CouponForm({
   value,
@@ -30,6 +32,7 @@ export function CouponForm({
   onChange: (next: Row) => void;
   locations?: { locationId: EntityId; name: string }[];
 }) {
+  const { rows: services } = useCollection("services");
   const discountType = String(value["discountType"] ?? "percentage") as DiscountType;
   const normalized = normalizeCoupon(value, "coupons");
   const validDays = String(value["validDays"] ?? "all").split(",").filter(Boolean);
@@ -260,35 +263,29 @@ export function CouponForm({
         )}
 
         {(discountType === "free_service" || discountType === "free_addon") && (
-          <div className="space-y-1.5">
-            <Label>Free item / service name</Label>
-            <Input
-              value={String(value["freeItemName"] ?? "")}
-              onChange={(e) => onChange({ ...value, freeItemName: e.target.value })}
-              placeholder="Head massage, blow-dry…"
-            />
-          </div>
+          <ServiceMatchField
+            id="freeItemName"
+            label="Which service is free?"
+            hint="Pick from your menu. If you rename the service later, this coupon still works."
+            value={String(value["freeItemName"] ?? "")}
+            onChange={(v) => onChange({ ...value, freeItemName: v, targetIds: v })}
+            services={services.filter((s) => String(s["active"] ?? "Yes") !== "No")}
+            single
+          />
         )}
 
-        {String(value["appliesTo"] ?? "") !== "entire_bill" && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Target IDs (comma-separated)</Label>
-              <Input
-                value={String(value["targetIds"] ?? "")}
-                onChange={(e) => onChange({ ...value, targetIds: e.target.value })}
-                placeholder="S-01, hair, retail"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Target names (display)</Label>
-              <Input
-                value={String(value["targetNames"] ?? "")}
-                onChange={(e) => onChange({ ...value, targetNames: e.target.value })}
-                placeholder="Haircut, Hair colour"
-              />
-            </div>
-          </div>
+        {String(value["appliesTo"] ?? "") !== "entire_bill" &&
+          String(value["appliesTo"] ?? "") !== "products" &&
+          discountType !== "free_service" &&
+          discountType !== "free_addon" && (
+          <ServiceMatchField
+            id="targetIds"
+            label="Which services does this apply to?"
+            hint="Matched by service id, not the spelling of the name."
+            value={String(value["targetIds"] ?? value["targetNames"] ?? "")}
+            onChange={(v) => onChange({ ...value, targetIds: v, targetNames: v })}
+            services={services.filter((s) => String(s["active"] ?? "Yes") !== "No")}
+          />
         )}
       </section>
 

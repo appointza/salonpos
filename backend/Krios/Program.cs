@@ -1,6 +1,7 @@
+using System.Diagnostics;
 using Krios.Middlewares;
 using Krios.Utils;
-using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.HttpOverrides;
 
 namespace Krios
 {
@@ -14,18 +15,23 @@ namespace Krios
 
         public static WebApplication CreateWebApplication(string[] args)
         {
-            var builder = WebApplication.CreateBuilder(args);
-
-            if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
+            var contentRoot = AppContext.BaseDirectory;
+            var wwwroot = Path.Combine(contentRoot, "wwwroot");
+            var hasWwwroot = Directory.Exists(wwwroot);
+            var builder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
-                var listenUrl = builder.Configuration["Kestrel:Endpoints:Http:Url"];
-                if (string.IsNullOrWhiteSpace(listenUrl))
-                    listenUrl = "http://0.0.0.0:5050";
-                builder.WebHost.UseUrls(listenUrl);
-            }
+                Args = args,
+                ContentRootPath = hasWwwroot ? contentRoot : Directory.GetCurrentDirectory(),
+                WebRootPath = hasWwwroot ? wwwroot : "wwwroot",
+            });
+
+            var urls = KriosUrls.Load(contentRoot, hasWwwroot ? wwwroot : Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"));
+            urls.BindKestrel(builder);
 
             builder.Services.Configure<ApplicationEnvironment>(builder.Configuration.GetSection("ApplicationSettings"));
             var appSettings = builder.Configuration.GetSection("ApplicationSettings").Get<ApplicationEnvironment>();
+            var redisConnection = appSettings?.redis?.connection_string?.Trim() ?? "";
+            var redisEnabled = !string.IsNullOrWhiteSpace(redisConnection);
 
             builder.Logging.ClearProviders();
             builder.Logging.AddConsole();
@@ -34,6 +40,7 @@ namespace Krios
             builder.Services.AddControllers().AddJsonOptions(jsonOptions =>
             {
                 jsonOptions.JsonSerializerOptions.PropertyNamingPolicy = null;
+                jsonOptions.JsonSerializerOptions.Converters.Add(new NullableDateTimeJsonConverter());
             });
             builder.Services.AddEndpointsApiExplorer();
 
@@ -50,14 +57,18 @@ namespace Krios
             var healthChecks = builder.Services.AddHealthChecks();
             if (!string.IsNullOrWhiteSpace(appSettings?.postgresqlconnection))
                 healthChecks.AddNpgSql(appSettings.postgresqlconnection, name: "postgresql");
-            healthChecks.AddRedis(appSettings?.redis?.connection_string ?? "localhost:6379", name: "redis");
+            if (redisEnabled)
+                healthChecks.AddRedis(redisConnection, name: "redis");
 
             builder.Services.AddMemoryCache();
-            builder.Services.AddStackExchangeRedisCache(options =>
+            if (redisEnabled)
             {
-                options.Configuration = appSettings?.redis?.connection_string ?? "localhost:6379";
-                options.InstanceName = appSettings?.redis?.instance_name ?? "Krios";
-            });
+                builder.Services.AddStackExchangeRedisCache(options =>
+                {
+                    options.Configuration = redisConnection;
+                    options.InstanceName = appSettings?.redis?.instance_name ?? "Krios";
+                });
+            }
 
             builder.Services.AddResponseCompression();
             builder.Services.AddSwaggerGen(options =>
@@ -70,14 +81,24 @@ namespace Krios
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
             builder.Services.AddScoped<IDbProvider, PostgreSQLProvider>();
             builder.Services.AddCustomServices();
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                    | ForwardedHeaders.XForwardedProto
+                    | ForwardedHeaders.XForwardedHost;
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
+            });
 
             var app = builder.Build();
 
+            app.UseForwardedHeaders();
             app.UseResponseCompression();
             app.UseCors();
             app.UseSwagger();
             app.UseSwaggerUI();
             app.UseMiddleware<ErrorHandlerMiddleware>();
+            app.UseDefaultFiles();
             app.UseStaticFiles();
             app.UseRouting();
             app.MapControllers();
@@ -90,7 +111,12 @@ namespace Krios
                 if (path.StartsWith("/api/") ||
                     path.StartsWith("/swagger") ||
                     path.StartsWith("/health") ||
-                    path.StartsWith("/assets/"))
+                    path.StartsWith("/assets/") ||
+                    path.EndsWith(".json") ||
+                    path.EndsWith(".js") ||
+                    path.EndsWith(".css") ||
+                    path.EndsWith(".png") ||
+                    path.EndsWith(".ico"))
                 {
                     context.Response.StatusCode = 404;
                     await context.Response.WriteAsync("Not found");
@@ -98,7 +124,9 @@ namespace Krios
                 }
 
                 var webHostEnvironment = context.RequestServices.GetRequiredService<IWebHostEnvironment>();
-                var indexPath = Path.Combine(webHostEnvironment.WebRootPath, "index.html");
+                var webRoot = webHostEnvironment.WebRootPath
+                    ?? Path.Combine(AppContext.BaseDirectory, "wwwroot");
+                var indexPath = Path.Combine(webRoot, "index.html");
 
                 if (File.Exists(indexPath))
                 {
@@ -112,7 +140,31 @@ namespace Krios
                 }
             });
 
+            var uiUrl = $"http://localhost:{urls.Port}";
+            app.Lifetime.ApplicationStarted.Register(() =>
+            {
+                app.Logger.LogInformation(
+                    "Krios listening on {Listen}. Open {Url} (http). UI API base: {Api}",
+                    urls.backendListen,
+                    uiUrl,
+                    string.IsNullOrEmpty(urls.frontendApiBaseUrl) ? "(same host as the page)" : urls.frontendApiBaseUrl);
+                if (app.Configuration.GetValue("LaunchBrowser", false))
+                    TryOpenBrowser(uiUrl);
+            });
+
             return app;
+        }
+
+        private static void TryOpenBrowser(string url)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+            }
+            catch
+            {
+                // Headless/server hosts have no browser.
+            }
         }
     }
 }

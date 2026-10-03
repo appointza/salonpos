@@ -2,8 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { Building2, CreditCard, IndianRupee, Shield, Users } from "lucide-react";
 import { DashHeader, DashStat, QuickLink } from "@/components/dashboards/shared";
 import { useAuth } from "@/hooks/useAuth";
-import { useData } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+import { useData } from "@/store";
+import { useTenant } from "@/tenant";
 
 export function SuperAdminDashboard() {
   const { orgs, user } = useAuth();

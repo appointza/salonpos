@@ -13,6 +13,7 @@ namespace Krios.Models.Krios
         public string name { get; set; } = "";
         public string role { get; set; } = "";
         public long organizationId { get; set; }
+        public long orgId { get; set; }
         public long locationId { get; set; }
         public string organizationName { get; set; } = "";
         public string organizationSlug { get; set; } = "";

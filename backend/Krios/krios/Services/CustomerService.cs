@@ -10,17 +10,47 @@ namespace Krios.Services.Krios
         private readonly IQueryBuilderProvider querybuilderprovider;
         private readonly RequestState requeststate;
         private readonly LoyaltyTransactionService loyaltyTransactionService;
+        private readonly MembershipService membershipService;
+        private readonly MembershipPlanService membershipPlanService;
+        private readonly MembershipUsageService membershipUsageService;
+        private readonly VoucherService voucherService;
+        private readonly ScratchPlayService scratchPlayService;
+        private readonly WheelSpinService wheelSpinService;
+        private readonly QrOfferRedemptionService qrOfferRedemptionService;
+        private readonly QrOfferService qrOfferService;
+        private readonly PartnerCouponService partnerCouponService;
+        private readonly LoyaltyService loyaltyService;
 
         public CustomerService(
             IDbProvider dbprovider,
             IQueryBuilderProvider querybuilderprovider,
             RequestState requeststate,
-            LoyaltyTransactionService loyaltyTransactionService)
+            LoyaltyTransactionService loyaltyTransactionService,
+            MembershipService membershipService,
+            MembershipPlanService membershipPlanService,
+            MembershipUsageService membershipUsageService,
+            VoucherService voucherService,
+            ScratchPlayService scratchPlayService,
+            WheelSpinService wheelSpinService,
+            QrOfferRedemptionService qrOfferRedemptionService,
+            QrOfferService qrOfferService,
+            PartnerCouponService partnerCouponService,
+            LoyaltyService loyaltyService)
         {
             this.dbprovider = dbprovider;
             this.querybuilderprovider = querybuilderprovider;
             this.requeststate = requeststate;
             this.loyaltyTransactionService = loyaltyTransactionService;
+            this.membershipService = membershipService;
+            this.membershipPlanService = membershipPlanService;
+            this.membershipUsageService = membershipUsageService;
+            this.voucherService = voucherService;
+            this.scratchPlayService = scratchPlayService;
+            this.wheelSpinService = wheelSpinService;
+            this.qrOfferRedemptionService = qrOfferRedemptionService;
+            this.qrOfferService = qrOfferService;
+            this.partnerCouponService = partnerCouponService;
+            this.loyaltyService = loyaltyService;
         }
 
         public async Task<List<Customer>> Select(CustomerSelectReq req)
@@ -100,6 +130,50 @@ namespace Krios.Services.Krios
             if (string.IsNullOrWhiteSpace(phone)) return "";
             var digits = new string(phone.Where(char.IsDigit).ToArray());
             return digits.Length <= 10 ? digits : digits[^10..];
+        }
+
+        public async Task<CustomerPosLookupRes> LookupAtPos(CustomerPosLookupReq req)
+        {
+            var res = new CustomerPosLookupRes();
+            var digits = PhoneDigits(req.phone);
+            if (req.orgId <= 0 || (req.customerId <= 0 && digits.Length < 10))
+            {
+                res.errorMessage = "Enter a 10-digit mobile number";
+                return res;
+            }
+
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+
+            Customer? customer = null;
+            if (req.customerId > 0)
+            {
+                var byId = await SelectTransaction(db, new CustomerSelectReq { id = req.customerId, orgId = req.orgId });
+                customer = byId.FirstOrDefault();
+            }
+            if (customer == null && digits.Length >= 10)
+                customer = await FindByPhone(db, req.orgId, digits);
+            if (customer == null)
+            {
+                res.errorMessage = "Customer not found";
+                return res;
+            }
+
+            res.customer = customer;
+            var cid = customer.id;
+            var orgReq = req.orgId;
+
+            res.memberships = await membershipService.SelectTransaction(db, new MembershipSelectReq { orgId = orgReq, customerId = cid });
+            res.membershipPlans = await membershipPlanService.SelectTransaction(db, new MembershipPlanSelectReq { orgId = orgReq });
+            res.membershipUsage = await membershipUsageService.SelectTransaction(db, new MembershipUsageSelectReq { orgId = orgReq, customerId = cid });
+            res.vouchers = await voucherService.SelectTransaction(db, new VoucherSelectReq { orgId = orgReq, customerId = cid });
+            res.scratchPlays = await scratchPlayService.SelectTransaction(db, new ScratchPlaySelectReq { orgId = orgReq, customerId = cid });
+            res.wheelSpins = await wheelSpinService.SelectTransaction(db, new WheelSpinSelectReq { orgId = orgReq, customerId = cid });
+            res.qrOfferRedemptions = await qrOfferRedemptionService.SelectTransaction(db, new QrOfferRedemptionSelectReq { orgId = orgReq, customerId = cid });
+            res.qrOffers = await qrOfferService.SelectTransaction(db, new QrOfferSelectReq { orgId = orgReq });
+            res.partnerCoupons = await partnerCouponService.SelectTransaction(db, new PartnerCouponSelectReq { orgId = orgReq, customerId = cid });
+            res.loyalty = await loyaltyService.SelectTransaction(db, new LoyaltySelectReq { orgId = orgReq });
+            return res;
         }
 
         public async Task InsertTransaction(IDb db, Customer entity)

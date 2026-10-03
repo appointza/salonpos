@@ -2,15 +2,15 @@ import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { LogOut, Menu, ChevronRight } from "lucide-react";
 import { AdminNav } from "@/components/admin/AdminNav";
-import { cn } from "@/lib/utils";
+import { cn } from "@/utils/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { usePermissions } from "@/lib/permissions";
-import { useTenant } from "@/lib/tenant";
-import { BRAND_LOGO } from "@/lib/brand";
-import { adminBreadcrumbLabel } from "@/lib/admin/breadcrumb";
+import { usePermissions } from "@/pages/Roles/permissions";
+import { useTenant } from "@/tenant";
+import { BRAND_LOGO } from "@/brand";
+import { adminBreadcrumbLabel } from "@/pages/Dashboard/breadcrumb";
 import { OrgLocationSwitcher } from "@/components/OrgLocationSwitcher";
-import { ViewToggle } from "@/lib/list-view";
+import { ViewToggle } from "@/list-view";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -95,7 +95,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </div>
         </header>
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>
+        <main className={cn(pathname === "/settings" ? "px-0 py-0" : "mx-auto max-w-7xl px-4 py-8 sm:px-6")}>
+          {children}
+        </main>
       </div>
     </div>
   );

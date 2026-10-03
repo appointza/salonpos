@@ -1,18 +1,33 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { CrudPage } from "@/components/CrudPage";
+import { CrudPage, type ModuleDef } from "@/components/CrudPage";
 import { UsersRolesSubnav } from "@/components/UsersRolesSubnav";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { defaultRoleRows } from "@/lib/default-roles";
-import { modules } from "@/lib/modules";
-import { joinPaths, PERMISSION_SCREENS, permissionSummary, splitPaths } from "@/lib/permissions";
-import { useCollection, type Row } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+import { defaultRoleRows } from "@/pages/Roles/default-roles";
+import { joinPaths, PERMISSION_SCREENS, permissionSummary, splitPaths } from "@/pages/Roles/permissions";
+import { useCollection, type Row } from "@/store";
+import { useTenant } from "@/tenant";
 
 const title = "Roles & permissions — Luxe Salon CRM";
 const description = "Create roles and set view or edit access for each screen.";
 const ALL_PATHS = PERMISSION_SCREENS.map((s) => s.to);
+
+const rolesModule: ModuleDef = {
+  key: "roles",
+  title: "Roles & permissions",
+  subtitle: "Create roles and set view / edit access per screen.",
+  idPrefix: "RL-",
+  fields: [
+    { name: "name", label: "Role name", table: true },
+    { name: "code", label: "Login type", type: "select", options: ["ADMIN", "STAFF", "STYLIST"], table: true, badge: true },
+    { name: "description", label: "Description", type: "textarea", table: true },
+    { name: "builtIn", label: "Built-in", type: "select", options: ["Yes", "No"], table: true, form: false },
+    { name: "view", label: "View screens", table: true, form: false },
+    { name: "edit", label: "Edit screens", table: true, form: false },
+    { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"], table: true, badge: true },
+  ],
+};
 
 function PermissionMatrix({
   editing,
@@ -157,7 +172,7 @@ export function Page() {
       <UsersRolesSubnav />
       <CrudPage
         module={{
-          ...modules.roles,
+          ...rolesModule,
           subtitle: "Control which screens each role can view and edit. Built-in roles are created automatically.",
         }}
         newButtonLabel="New role"

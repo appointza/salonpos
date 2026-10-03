@@ -3,15 +3,32 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CrudPage } from "@/components/CrudPage";
+import { CrudPage, type ModuleDef } from "@/components/CrudPage";
 import { useAuth } from "@/hooks/useAuth";
-import { modules } from "@/lib/modules";
-import { useData, type Row } from "@/lib/store";
-import { parseProductNeeds, serializeProductNeeds, recipesForService, SERVICE_PRODUCTS } from "@/lib/service-recipe";
-import { useStockService } from "@/lib/stock";
+import { useData, type Row } from "@/store";
+import { parseProductNeeds, serializeProductNeeds, recipesForService, SERVICE_PRODUCTS } from "@/pages/Services/service-recipe";
+import { useStockService } from "@/pages/Inventory/stock";
 
 const title = "Service Catalogue — Luxe Salon CRM";
 const description = "Maintain the salon service catalogue with pricing, GST slabs, commissions and combo packages.";
+
+const servicesModule: ModuleDef = {
+  key: "services",
+  title: "Service Catalogue",
+  subtitle: "Single services and combos with pricing, GST slabs and commission rates.",
+  idPrefix: "S-",
+  fields: [
+    { name: "type", label: "Type", type: "select", options: ["Single", "Combo"], table: true, badge: true },
+    { name: "name", label: "Service name", table: true },
+    { name: "category", label: "Category", type: "select", options: ["Hair", "Skin", "Grooming", "Bridal", "Spa"], table: true },
+    { name: "duration", label: "Duration (min)", type: "number", table: true },
+    { name: "price", label: "Price", type: "number", money: true, table: true },
+    { name: "gstRate", label: "GST %", type: "select", options: ["0", "5", "12", "18", "28"] },
+    { name: "commission", label: "Commission %", type: "number", table: true },
+    { name: "outlet", label: "Available at", type: "select", options: ["All"] },
+    { name: "active", label: "Active", type: "select", options: ["Yes", "No"], table: true, badge: true },
+  ],
+};
 
 function parseComboIds(value: string | number | undefined) {
   return String(value ?? "")
@@ -110,7 +127,7 @@ function ProductNeedsPicker({
   editing: Row;
   setEditing: (row: Row) => void;
 }) {
-  const stock = useStockService();
+  const stock = useStockService({ prefetchRemaining: true });
   const needs = parseProductNeeds(editing["productNeeds"]);
   const qtyOf = (skuId: string) => needs.find((n) => n.skuId === skuId)?.quantity ?? 0;
   const inherited =
@@ -203,8 +220,8 @@ export function Page() {
   return (
     <CrudPage
       module={{
-        ...modules.services,
-        subtitle: isStylist ? "Services you can book and deliver. Catalogue edits are for managers." : modules.services.subtitle,
+        ...servicesModule,
+        subtitle: isStylist ? "Services you can book and deliver. Catalogue edits are for managers." : servicesModule.subtitle,
       }}
       newButtonLabel="New service"
       readOnly={isStylist}
@@ -214,6 +231,8 @@ export function Page() {
       prepareNew={(row) => ({
         ...row,
         type: row["type"] || "Single",
+        gstRate: row["gstRate"] || "18",
+        commission: row["commission"] ?? 0,
         comboItems: row["comboItems"] ?? "",
         productNeeds: row["productNeeds"] ?? "",
       })}

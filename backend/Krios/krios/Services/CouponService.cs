@@ -1,6 +1,7 @@
 using Krios.Models.Krios;
 using Krios.Utils;
 using System.Data.Common;
+using System.Linq;
 
 namespace Krios.Services.Krios
 {
@@ -10,17 +11,20 @@ namespace Krios.Services.Krios
         private readonly IQueryBuilderProvider querybuilderprovider;
         private readonly RequestState requeststate;
         private readonly CustomerService customerService;
+        private readonly VoucherService voucherService;
 
         public CouponService(
             IDbProvider dbprovider,
             IQueryBuilderProvider querybuilderprovider,
             RequestState requeststate,
-            CustomerService customerService)
+            CustomerService customerService,
+            VoucherService voucherService)
         {
             this.dbprovider = dbprovider;
             this.querybuilderprovider = querybuilderprovider;
             this.requeststate = requeststate;
             this.customerService = customerService;
+            this.voucherService = voucherService;
         }
 
         public async Task<List<Coupon>> Select(CouponSelectReq req)
@@ -94,9 +98,13 @@ namespace Krios.Services.Krios
             var cmd = db.GetCommand(query);
             Bind(cmd, db, entity, includeId: false);
 
-            using var reader = await db.Execute(cmd);
-            if (await reader.ReadAsync())
-                entity.id = Convert.ToInt64(reader["id"]);
+            using (var reader = await db.Execute(cmd))
+            {
+                if (await reader.ReadAsync())
+                    entity.id = Convert.ToInt64(reader["id"]);
+            }
+
+            await GenerateCodePoolTransaction(db, entity);
         }
 
         public async Task<Coupon> Update(Coupon entity)
@@ -104,6 +112,7 @@ namespace Krios.Services.Krios
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
             await UpdateTransaction(db, entity);
+            await GenerateCodePoolTransaction(db, entity);
             return entity;
         }
 
@@ -215,25 +224,70 @@ namespace Krios.Services.Krios
                 return res;
             }
 
-            var coupons = await SelectTransaction(db, new CouponSelectReq { orgId = req.orgId, search = code });
-            var coupon = coupons.FirstOrDefault(c => string.Equals(c.code, code, StringComparison.OrdinalIgnoreCase));
-            if (coupon == null)
-            {
-                res.reason = "Invalid coupon code";
-                return res;
-            }
-
-            if (req.alreadyAppliedCouponIds.Contains(coupon.id))
-            {
-                res.reason = "Coupon already applied on this bill";
-                return res;
-            }
-
             var customers = await customerService.SelectTransaction(db, new CustomerSelectReq { id = req.customerId, orgId = req.orgId });
             var customer = customers.FirstOrDefault();
             if (customer == null)
             {
                 res.reason = "Customer not found";
+                return res;
+            }
+
+            Voucher voucher = null;
+            var voucherHits = await voucherService.SelectTransaction(db, new VoucherSelectReq { orgId = req.orgId, code = code });
+            voucher = voucherHits.FirstOrDefault(v => string.Equals(v.code, code, StringComparison.OrdinalIgnoreCase));
+
+            Coupon coupon = null;
+            if (voucher != null)
+            {
+                var used = voucher.invoiceId > 0 || voucher.billId > 0
+                    || string.Equals(voucher.status, "Redeemed", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(voucher.status, "Used", StringComparison.OrdinalIgnoreCase);
+                if (string.Equals(voucher.status, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(voucher.status, "Inactive", StringComparison.OrdinalIgnoreCase))
+                {
+                    res.reason = "Coupon cancelled";
+                    return res;
+                }
+                if (used && !string.Equals(voucher.unlimited, "Yes", StringComparison.OrdinalIgnoreCase))
+                {
+                    res.reason = "Coupon already used";
+                    return res;
+                }
+                if (voucher.customerId > 0 && voucher.customerId != req.customerId)
+                {
+                    res.reason = "Coupon issued to another customer";
+                    return res;
+                }
+
+                var couponRows = await SelectTransaction(db, new CouponSelectReq { id = voucher.couponId, orgId = req.orgId });
+                coupon = couponRows.FirstOrDefault();
+                if (coupon == null)
+                {
+                    res.reason = "Coupon scheme not found";
+                    return res;
+                }
+            }
+            else
+            {
+                var coupons = await SelectTransaction(db, new CouponSelectReq { orgId = req.orgId });
+                coupon = coupons.FirstOrDefault(c => string.Equals(c.code, code, StringComparison.OrdinalIgnoreCase));
+                if (coupon == null)
+                {
+                    res.reason = "Invalid coupon code";
+                    return res;
+                }
+
+                var pool = await voucherService.SelectTransaction(db, new VoucherSelectReq { orgId = req.orgId, couponId = coupon.id });
+                if (pool.Any(v => string.Equals(v.poolGenerated, "Yes", StringComparison.OrdinalIgnoreCase)))
+                {
+                    res.reason = "This campaign uses unique codes — enter one from the code pool";
+                    return res;
+                }
+            }
+
+            if (voucher == null && req.alreadyAppliedCouponIds.Contains(coupon.id))
+            {
+                res.reason = "Coupon already applied on this bill";
                 return res;
             }
 
@@ -258,11 +312,14 @@ namespace Krios.Services.Krios
                 res.reason = "No discount applicable on this bill";
                 return res;
             }
+            if (voucher != null && voucher.amount > 0)
+                amount = Math.Min(amount, voucher.amount);
 
             res.ok = true;
             res.couponId = coupon.id;
-            res.code = coupon.code;
-            res.title = coupon.title;
+            res.voucherId = voucher?.id ?? 0;
+            res.code = voucher?.code ?? coupon.code;
+            res.title = string.IsNullOrWhiteSpace(coupon.title) ? coupon.code : coupon.title;
             res.amount = Math.Min(amount, eligibleSubtotal);
             return res;
         }
@@ -281,6 +338,42 @@ namespace Krios.Services.Krios
                     await db.RollbackTransaction();
                     return new CouponClaimAtPosRes { errorMessage = "Coupon not found" };
                 }
+
+                Voucher voucher = null;
+                if (req.voucherId > 0)
+                {
+                    var found = await voucherService.SelectTransaction(db, new VoucherSelectReq { id = req.voucherId, orgId = req.orgId });
+                    voucher = found.FirstOrDefault();
+                }
+                else if (!string.IsNullOrWhiteSpace(req.code))
+                {
+                    var found = await voucherService.SelectTransaction(db, new VoucherSelectReq { orgId = req.orgId, code = req.code });
+                    voucher = found.FirstOrDefault(v => string.Equals(v.code, req.code, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (voucher != null)
+                {
+                    var used = voucher.invoiceId > 0 || voucher.billId > 0
+                        || string.Equals(voucher.status, "Redeemed", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(voucher.status, "Used", StringComparison.OrdinalIgnoreCase);
+                    if (used && !string.Equals(voucher.unlimited, "Yes", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await db.RollbackTransaction();
+                        return new CouponClaimAtPosRes { errorMessage = "Coupon already used" };
+                    }
+
+                    var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+                    voucher.status = "Redeemed";
+                    voucher.invoiceId = req.invoiceId;
+                    voucher.billId = req.invoiceId;
+                    voucher.customerId = req.customerId > 0 ? req.customerId : voucher.customerId;
+                    voucher.issueTo = voucher.customerId > 0 ? voucher.customerId.ToString() : voucher.issueTo;
+                    voucher.redeemedAt = today;
+                    voucher.discountAmount = req.discountAmount;
+                    voucher.redeemedLocationId = req.locationId > 0 ? req.locationId : voucher.locationId;
+                    await voucherService.UpdateTransaction(db, voucher);
+                }
+
                 coupon.usageCount += 1;
                 await UpdateTransaction(db, coupon);
                 await db.CommitTransaction();
@@ -291,6 +384,71 @@ namespace Krios.Services.Krios
                 await db.RollbackTransaction();
                 return new CouponClaimAtPosRes { errorMessage = ex.Message };
             }
+        }
+
+        private async Task GenerateCodePoolTransaction(IDb db, Coupon coupon)
+        {
+            if (coupon.id <= 0) return;
+            if (string.Equals(coupon.autoGenerateCodes, "No", StringComparison.OrdinalIgnoreCase)) return;
+            var qty = (int)Math.Max(coupon.couponQuantity, coupon.totalUsageLimit);
+            if (qty <= 0) return;
+            if (qty > 500) qty = 500;
+
+            var existing = await voucherService.SelectTransaction(db, new VoucherSelectReq { orgId = coupon.orgId, couponId = coupon.id });
+            var byIndex = existing.Where(v => v.poolIndex > 0).GroupBy(v => v.poolIndex).ToDictionary(g => g.Key, g => g.First());
+            var usedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var allOrg = await voucherService.SelectTransaction(db, new VoucherSelectReq { orgId = coupon.orgId });
+            foreach (var row in allOrg)
+            {
+                var c = (row.code ?? "").Trim();
+                if (c.Length > 0) usedCodes.Add(c);
+            }
+
+            for (var i = 1; i <= qty; i++)
+            {
+                if (byIndex.ContainsKey(i)) continue;
+                var code = BuildPoolCode(coupon, i);
+                var attempt = 0;
+                while (usedCodes.Contains(code) && attempt < 8)
+                {
+                    attempt += 1;
+                    code = BuildPoolCode(coupon, i) + attempt;
+                }
+                if (usedCodes.Contains(code)) continue;
+
+                var voucher = new Voucher
+                {
+                    orgId = coupon.orgId,
+                    locationId = coupon.locationId,
+                    couponId = coupon.id,
+                    code = code,
+                    voucherType = "Coupon",
+                    status = "Available",
+                    unlimited = "No",
+                    schemeCode = string.IsNullOrWhiteSpace(coupon.codePrefix) ? coupon.code : coupon.codePrefix,
+                    schemeTitle = coupon.title ?? "",
+                    poolIndex = i,
+                    poolGenerated = "Yes",
+                    issuedAt = "",
+                    redeemedAt = "",
+                };
+                await voucherService.InsertTransaction(db, voucher);
+                usedCodes.Add(code);
+                byIndex[i] = voucher;
+            }
+        }
+
+        private static string BuildPoolCode(Coupon coupon, int sequenceIndex)
+        {
+            var rawPrefix = string.IsNullOrWhiteSpace(coupon.codePrefix) ? coupon.code : coupon.codePrefix;
+            var prefix = new string((rawPrefix ?? "CPN").Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+            if (string.IsNullOrEmpty(prefix)) prefix = "CPN";
+            var suffix = new string((coupon.codeSuffix ?? "").Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+            var start = coupon.codeStartNumber > 0 ? coupon.codeStartNumber : 1;
+            var length = coupon.codeLength >= 3 ? coupon.codeLength : 4;
+            var num = start + sequenceIndex - 1;
+            var core = prefix + num.ToString().PadLeft((int)length, '0');
+            return string.IsNullOrEmpty(suffix) ? core : core + "-" + suffix;
         }
 
         private static (bool ok, string reason) EvaluateEligibility(Coupon coupon, CouponValidateAtPosReq req, Customer customer)

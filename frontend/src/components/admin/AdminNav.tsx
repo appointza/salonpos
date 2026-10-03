@@ -33,8 +33,8 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useTenant } from "@/lib/tenant";
+import { cn } from "@/utils/utils";
+import { publicSlug, useTenant } from "@/tenant";
 
 type Allowed = "all" | string[];
 
@@ -80,8 +80,9 @@ function NavItem({
 export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { org } = useTenant();
-  const walkInUrl = `/${org.slug}/walk-in`;
-  const bookingUrl = `/${org.slug}`;
+  const slug = publicSlug(org);
+  const walkInUrl = slug ? `/${slug}/walk-in` : "/walk-in";
+  const bookingUrl = slug ? `/${slug}` : "/book";
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
 

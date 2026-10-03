@@ -12,9 +12,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { enrichAppointmentRow } from "@/lib/appointments/appointment-resolve";
-import { useCollection, useData, type Row } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+import { enrichAppointmentRow } from "@/pages/Appointments/appointment-resolve";
+import { useCollection, useData, type Row } from "@/store";
+import { useTenant } from "@/tenant";
 
 export function NewAppointmentDialog({
   customer,
@@ -53,7 +53,7 @@ export function NewAppointmentDialog({
       date,
       time,
       duration: 60,
-      status: "Confirmed",
+      status: "Pending",
       source: "Walk-in",
       orgId,
       locationId: locationId === "all" ? String(customer["locationId"] ?? org.locations[0]?.locationId ?? "") : locationId,

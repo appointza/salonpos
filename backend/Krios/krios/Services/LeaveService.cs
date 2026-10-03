@@ -30,7 +30,7 @@ namespace Krios.Services.Krios
         public async Task<List<Leave>> SelectTransaction(IDb db, LeaveSelectReq req)
         {
             const string query = @"
-                SELECT id, ""orgId"", ""locationId"", type, ""fromDate"", ""toDate"", status, approver, reason, createdby, createdon, updatedby, updatedon, ""staffId"", days
+                SELECT id, ""orgId"", ""locationId"", type, ""fromDate"", ""toDate"", status, approver, reason, createdby, createdon, updatedby, updatedon, ""staffId"", ""coverStaffId"", days
                 FROM leaves
             ";
 
@@ -70,10 +70,10 @@ namespace Krios.Services.Krios
         {
             const string query = @"
                 INSERT INTO leaves (
-                    ""orgId"", ""locationId"", type, ""fromDate"", ""toDate"", status, approver, reason, createdby, createdon, updatedby, updatedon, ""staffId"", days
+                    ""orgId"", ""locationId"", type, ""fromDate"", ""toDate"", status, approver, reason, createdby, createdon, updatedby, updatedon, ""staffId"", ""coverStaffId"", days
                 )
                 VALUES (
-                    @orgId, @locationId, @type, @fromDate, @toDate, @status, @approver, @reason, @createdby, @createdon, @updatedby, @updatedon, @staffId, @days
+                    @orgId, @locationId, @type, @fromDate, @toDate, @status, @approver, @reason, @createdby, @createdon, @updatedby, @updatedon, @staffId, @coverStaffId, @days
                 )
                 RETURNING id;
             ";
@@ -119,6 +119,7 @@ namespace Krios.Services.Krios
                     updatedby = @updatedby,
                     updatedon = @updatedon,
                     ""staffId"" = @staffId,
+                    ""coverStaffId"" = @coverStaffId,
                     days = @days
                 WHERE id = @id
             ";
@@ -174,6 +175,7 @@ namespace Krios.Services.Krios
                 updatedby = reader["updatedby"]?.ToString() ?? "",
                 updatedon = ReadDate(reader, "updatedon"),
                 staffId = ReadLong(reader, "staffId"),
+                coverStaffId = ReadLong(reader, "coverStaffId"),
                 days = ReadLong(reader, "days"),
             };
         }
@@ -195,6 +197,7 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value = entity.updatedby ?? "";
             db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = entity.updatedon ?? DateTime.UtcNow.Date;
             db.AddParameter(cmd, "staffId", DbTypes.Types.Long).Value = entity.staffId;
+            db.AddParameter(cmd, "coverStaffId", DbTypes.Types.Long).Value = entity.coverStaffId;
             db.AddParameter(cmd, "days", DbTypes.Types.Long).Value = entity.days;
         }
 

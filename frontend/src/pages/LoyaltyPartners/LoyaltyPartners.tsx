@@ -1,7 +1,9 @@
 import { CrudPage } from "@/components/CrudPage";
+import { GrowthTabsLayout } from "@/components/GrowthTabsLayout";
 
 export function PartnersPage() {
   return (
+    <GrowthTabsLayout>
     <CrudPage
       module={{
         key: "partnerships",
@@ -18,5 +20,6 @@ export function PartnersPage() {
         ],
       }}
     />
+    </GrowthTabsLayout>
   );
 }

@@ -36,6 +36,9 @@ namespace Krios.Models.Krios
         public long locationId { get; set; }
         public string search { get; set; } = "";
         public string status { get; set; } = "";
+        public long customerId { get; set; }
+        public long couponId { get; set; }
+        public string code { get; set; } = "";
     }
 
     public class VoucherDeleteReq

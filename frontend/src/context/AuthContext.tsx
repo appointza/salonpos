@@ -5,4 +5,4 @@ export {
   type Organization,
   type Role,
   type SessionUser,
-} from "@/lib/auth";
+} from "@/auth";

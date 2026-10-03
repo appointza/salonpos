@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { customerName } from "@/lib/customers/customer-lookup";
-import { useData } from "@/lib/store";
+import { customerName } from "@/pages/Customers/customer-lookup";
+import { useData } from "@/store";
 
 export function RedemptionsPage() {
   const { allRows } = useData();

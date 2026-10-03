@@ -3,7 +3,7 @@ import { Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useTenant } from "@/lib/tenant";
+import { useTenant } from "@/tenant";
 
 const title = "Subscription Plans — Luxe Salon CRM";
 const description = "Compare plans, limits and billing cycles for your salon organisation.";

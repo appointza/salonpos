@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { WheelPage } from "@/pages/LoyaltyWheel/LoyaltyWheel";
-
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/loyalty/wheel")({
-  component: WheelPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/prize-wheel" });
+  },
 });

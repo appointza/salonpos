@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { Row } from "@/lib/store";
+import type { Row } from "@/store";
 
 export function DashStat({
   icon: Icon,

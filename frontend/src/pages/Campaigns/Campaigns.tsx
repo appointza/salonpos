@@ -8,11 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CrudPage } from "@/components/CrudPage";
-import { modules } from "@/lib/modules";
-import { useCollection, type Row } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
-import { fillTemplate, useWhatsAppSender, WHATSAPP_TEMPLATES } from "@/lib/whatsapp";
+import { CrudPage, type ModuleDef } from "@/components/CrudPage";
+import { useCollection, type Row } from "@/store";
+import { useTenant } from "@/tenant";
+import { fillTemplate, useWhatsAppSender, WHATSAPP_TEMPLATES } from "@/pages/Campaigns/whatsapp";
 
 const title = "Marketing Campaigns — Luxe Salon CRM";
 const description = "Build WhatsApp templates, target customer segments and track message delivery.";
@@ -23,6 +22,32 @@ const TABS = [
   { key: "log", label: "Message status" },
   { key: "records", label: "Campaign records" },
 ] as const;
+
+const campaignsModule: ModuleDef = {
+  key: "campaigns",
+  title: "Marketing Campaigns",
+  subtitle: "WhatsApp, Instagram, SMS and email outreach performance.",
+  idPrefix: "CP-",
+  fields: [
+    { name: "name", label: "Campaign name", table: true },
+    { name: "channel", label: "Channel", type: "select", options: ["WhatsApp", "Instagram", "SMS", "Email"], table: true, badge: true },
+    { name: "segment", label: "Segment", table: true },
+    { name: "audience", label: "Audience size", type: "number", table: true },
+    { name: "sent", label: "Sent", type: "number", table: true },
+    { name: "opened", label: "Opened", type: "number" },
+    { name: "converted", label: "Converted", type: "number", table: true },
+    { name: "budget", label: "Budget", type: "number", money: true },
+    { name: "schedule", label: "Schedule" },
+    {
+      name: "status",
+      label: "Status",
+      type: "select",
+      options: ["Draft", "Scheduled", "Running", "Completed", "Paused"],
+      table: true,
+      badge: true,
+    },
+  ],
+};
 
 const SEGMENTS = ["All customers", "Gold & Platinum", "Lapsed 60+ days", "Members only", "Birthday this month"];
 
@@ -380,7 +405,7 @@ export function Page() {
         </section>
       )}
 
-      {tab === "records" && <CrudPage module={modules.campaigns} />}
+      {tab === "records" && <CrudPage module={campaignsModule} />}
     </div>
   );
 }

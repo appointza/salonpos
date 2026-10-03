@@ -1,4 +1,4 @@
-import type { EntityId } from "@/lib/ids";
+import type { EntityId } from "@/ids";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -9,10 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
-import { slugify, useTenant } from "@/lib/tenant";
-import { findAccount, saveAccount } from "@/lib/accounts";
-import { useCustomerSession } from "@/lib/customer";
+import { cn } from "@/utils/utils";
+import { slugify, useTenant } from "@/tenant";
+import { findAccount, saveAccount } from "@/pages/Login/accounts";
+import { useCustomerSession } from "@/pages/Login/customer-session";
+import { normalizePhone } from "@/pages/Login/phone";
+import { authService } from "@/services/auth.service";
 import {
   defaultHours,
   defaultSlots,
@@ -22,13 +24,14 @@ import {
   type OrgService,
   type OrgStaff,
   type SlotConfig,
-} from "@/lib/auth";
+} from "@/auth";
 import { useAuth, type Role } from "@/hooks/useAuth";
 import { organizationService } from "@/services/organization.service";
 import { serviceService } from "@/services/service.service";
 import { staffService } from "@/services/staff.service";
 import { userService } from "@/services/user.service";
 import { isAxiosError } from "axios";
+import { persistBookingRules } from "@/pages/Book/booking-rules";
 
 const title = "Create an account — Luxe Salon CRM";
 const description =
@@ -43,7 +46,7 @@ type Draft = {
   step: number;
   orgId: EntityId;
   admin: { name: string; email: string; phone: string; password: string; confirm: string; verified: boolean };
-  customer: { name: string; email: string; phone: string; password: string; confirm: string };
+  customer: { name: string; email: string; phone: string; password: string; confirm: string; otp: string };
   otp: string;
   org: { name: string; businessType: string; businessCategory: string; outletCount: string };
   slug: string;
@@ -67,7 +70,7 @@ const emptyDraft = (): Draft => ({
   step: 0,
   orgId: uuid(),
   admin: { name: "", email: "", phone: "", password: "", confirm: "", verified: false },
-  customer: { name: "", email: "", phone: "", password: "", confirm: "" },
+  customer: { name: "", email: "", phone: "", password: "", confirm: "", otp: "" },
   otp: "",
   org: { name: "", businessType: "Salon", businessCategory: "Beauty & Wellness", outletCount: "1" },
   slug: "",
@@ -95,7 +98,7 @@ const STEPS = [
   "Address",
   "First outlet",
   "Opening hours",
-  "Appointment slots",
+  "Hours & booking rules",
   "Services",
   "Staff & stylists",
   "Features",
@@ -189,6 +192,60 @@ function StepShell({ title: t, hint, children }: { title: string; hint: string; 
   );
 }
 
+function OpeningHoursFields({
+  hours,
+  onChange,
+}: {
+  hours: DayHours[];
+  onChange: (hours: DayHours[]) => void;
+}) {
+  return (
+    <>
+      <div className="divide-y divide-border rounded-lg border border-border">
+        {hours.map((h, i) => (
+          <div key={h.day} className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <Switch
+              checked={h.open}
+              onCheckedChange={(checked) => onChange(hours.map((x, xi) => (xi === i ? { ...x, open: checked } : x)))}
+            />
+            <span className="w-24 text-sm">{h.day}</span>
+            {h.open ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="time"
+                  className="w-32"
+                  value={h.from}
+                  onChange={(e) => onChange(hours.map((x, xi) => (xi === i ? { ...x, from: e.target.value } : x)))}
+                />
+                <span className="text-muted-foreground">to</span>
+                <Input
+                  type="time"
+                  className="w-32"
+                  value={h.to}
+                  onChange={(e) => onChange(hours.map((x, xi) => (xi === i ? { ...x, to: e.target.value } : x)))}
+                />
+              </div>
+            ) : (
+              <Badge variant="secondary">Closed</Badge>
+            )}
+          </div>
+        ))}
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          const first = hours[0]!;
+          onChange(hours.map((x) => (x.open ? { ...x, from: first.from, to: first.to } : x)));
+          toast.success("Applied Monday timings to all open days");
+        }}
+      >
+        Apply first day&apos;s timings to all
+      </Button>
+    </>
+  );
+}
+
 export function RegisterPage() {
   const navigate = useNavigate();
   const { signIn } = useAuth();
@@ -264,7 +321,10 @@ export function RegisterPage() {
       if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(draft.slug)) return "URLs can only use lowercase letters, numbers and hyphens.";
       if (takenSlugs.includes(draft.slug)) return "That URL is already taken — try another one.";
     }
-    if (step === 8 && Number(draft.slots.duration) <= 0) return "Choose a slot duration.";
+    if (step === 8) {
+      if (!draft.hours.some((h) => h.open)) return "Mark at least one day as open.";
+      if (Number(draft.slots.duration) <= 0) return "Choose a slot duration.";
+    }
     if (step === 9 && draft.services.length === 0) return "Add at least one service — this step is mandatory.";
     return null;
   }
@@ -296,7 +356,7 @@ export function RegisterPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function finishCustomer() {
+  async function finishCustomer() {
     const c = draft.customer;
     if (!c.name.trim() || !c.phone.trim()) {
       toast.error("Full name and mobile number are required.");
@@ -304,6 +364,10 @@ export function RegisterPage() {
     }
     if (c.email.trim() && !/^\S+@\S+\.\S+$/.test(c.email)) {
       toast.error("Enter a valid email address.");
+      return;
+    }
+    if (c.otp.replace(/\D/g, "").length < 6) {
+      toast.error("Enter the 6-digit verification code sent to your mobile.");
       return;
     }
     if (c.password.length < 6) {
@@ -314,25 +378,39 @@ export function RegisterPage() {
       toast.error("Passwords do not match.");
       return;
     }
-    if (findAccount(c.phone) || (c.email.trim() && findAccount(c.email))) {
-      toast.error("An account with this email or mobile already exists. Log in instead.");
-      return;
-    }
-    saveAccount({
-      identifier: c.email.trim() || c.phone,
-      type: "customer",
-      name: c.name.trim(),
-      phone: c.phone.trim(),
-      ...(c.email.trim() ? { email: c.email.trim() } : {}),
-    });
-    signInCustomer(c.name.trim(), c.phone.trim());
+
+    const phone = normalizePhone(c.phone);
+    setSaving(true);
     try {
-      window.localStorage.removeItem(DRAFT_KEY);
-    } catch {
-      /* ignore */
+      const identified = await authService.identify({ identifier: phone });
+      if (identified.accountType === "organization") {
+        toast.error("This mobile belongs to a salon workspace. Sign in from the login page.");
+        return;
+      }
+      if (identified.accountType === "customer" && identified.hasPassword) {
+        toast.error("An account already exists for this mobile. Sign in instead.");
+        return;
+      }
+
+      const res = await authService.setupCustomerPassword({
+        phone,
+        otp: c.otp.trim(),
+        password: c.password,
+        name: c.name.trim(),
+      });
+      signInCustomer(res.name || c.name.trim(), c.phone.trim(), res.userId);
+      try {
+        window.localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* ignore */
+      }
+      toast.success("Account created", { description: "Find salons near you and book instantly." });
+      navigate({ to: "/nearby" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create account");
+    } finally {
+      setSaving(false);
     }
-    toast.success("Account created", { description: "Find salons near you and book instantly." });
-    navigate({ to: "/nearby" });
   }
 
   async function finish() {
@@ -401,6 +479,8 @@ export function RegisterPage() {
           },
         ],
       });
+
+      persistBookingRules(res.organizationId, { ...draft.slots, hours: draft.hours });
 
       const today = new Date().toISOString().slice(0, 10);
       for (const svc of draft.services) {
@@ -546,7 +626,37 @@ export function RegisterPage() {
                   onChange={(v) => set("customer", { ...draft.customer, email: v })}
                   placeholder="optional"
                 />
-                <div />
+                <div className="sm:col-span-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <Field
+                      label="Verification code"
+                      required
+                      value={draft.customer.otp}
+                      onChange={(v) => set("customer", { ...draft.customer, otp: v })}
+                      placeholder="123456"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!draft.customer.phone.trim() || saving}
+                    onClick={async () => {
+                      const phone = normalizePhone(draft.customer.phone);
+                      if (phone.length < 10) return void toast.error("Enter a valid mobile number first");
+                      setSaving(true);
+                      try {
+                        const res = await authService.sendOtp({ phone });
+                        toast.success("Code sent", { description: res.hint || "Demo OTP: 123456" });
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Could not send code");
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                  >
+                    Send OTP
+                  </Button>
+                </div>
                 <Field
                   label="Password"
                   required
@@ -567,7 +677,9 @@ export function RegisterPage() {
               <Button variant="ghost" onClick={back}>
                 <ChevronLeft /> Back
               </Button>
-              <Button onClick={finishCustomer}>Create account</Button>
+              <Button onClick={() => void finishCustomer()} disabled={saving}>
+                {saving ? "Creating…" : "Create account"}
+              </Button>
             </div>
           </div>
         )}
@@ -727,44 +839,19 @@ export function RegisterPage() {
 
           {step === 7 && (
             <StepShell title="Opening hours" hint="Mandatory. Set different timings per day, or mark a day as closed.">
-              <div className="divide-y divide-border rounded-lg border border-border">
-                {draft.hours.map((h, i) => (
-                  <div key={h.day} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                    <Switch
-                      checked={h.open}
-                      onCheckedChange={(checked) =>
-                        set("hours", draft.hours.map((x, xi) => (xi === i ? { ...x, open: checked } : x)))
-                      }
-                    />
-                    <span className="w-24 text-sm">{h.day}</span>
-                    {h.open ? (
-                      <div className="flex items-center gap-2">
-                        <Input type="time" className="w-32" value={h.from} onChange={(e) => set("hours", draft.hours.map((x, xi) => (xi === i ? { ...x, from: e.target.value } : x)))} />
-                        <span className="text-muted-foreground">to</span>
-                        <Input type="time" className="w-32" value={h.to} onChange={(e) => set("hours", draft.hours.map((x, xi) => (xi === i ? { ...x, to: e.target.value } : x)))} />
-                      </div>
-                    ) : (
-                      <Badge variant="secondary">Closed</Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const first = draft.hours[0]!;
-                  set("hours", draft.hours.map((x) => (x.open ? { ...x, from: first.from, to: first.to } : x)));
-                  toast.success("Applied Monday timings to all open days");
-                }}
-              >
-                Apply first day's timings to all
-              </Button>
+              <OpeningHoursFields hours={draft.hours} onChange={(hours) => set("hours", hours)} />
             </StepShell>
           )}
 
           {step === 8 && (
-            <StepShell title="Appointment slots & booking rules" hint="Slots are generated automatically from your opening hours.">
+            <StepShell
+              title="Appointment slots & booking rules"
+              hint="Opening hours, slot length, and how far ahead a guest can book. Slots are generated from your hours."
+            >
+              <div className="space-y-3">
+                <Label className="text-xs tracking-wide text-muted-foreground uppercase">Opening hours</Label>
+                <OpeningHoursFields hours={draft.hours} onChange={(hours) => set("hours", hours)} />
+              </div>
               <div className="space-y-2">
                 <Label className="text-xs tracking-wide text-muted-foreground uppercase">Slot duration</Label>
                 <div className="flex flex-wrap gap-2">
@@ -779,7 +866,7 @@ export function RegisterPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Buffer between appointments (min)" type="number" value={draft.slots.buffer} onChange={(v) => set("slots", { ...draft.slots, buffer: v })} />
                 <Field label="Max bookings per slot" type="number" value={draft.slots.maxPerSlot} onChange={(v) => set("slots", { ...draft.slots, maxPerSlot: v })} />
-                <Field label="Advance booking days" type="number" value={draft.slots.advanceDays} onChange={(v) => set("slots", { ...draft.slots, advanceDays: v })} />
+                <Field label="Days ahead guests can book (0 = any future day)" type="number" value={draft.slots.advanceDays} onChange={(v) => set("slots", { ...draft.slots, advanceDays: v })} />
                 <Field label="Minimum booking notice (hours)" type="number" value={draft.slots.minNotice} onChange={(v) => set("slots", { ...draft.slots, minNotice: v })} />
               </div>
               <div className="flex items-center gap-3">

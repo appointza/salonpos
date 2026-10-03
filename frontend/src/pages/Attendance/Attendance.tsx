@@ -13,10 +13,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useCollection, useData, type Row } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
-import { useListView } from "@/lib/list-view";
-import { deriveAttendanceRows, monthRange, type DerivedAttendance } from "@/lib/hr";
+import { useCollection, useData, type Row } from "@/store";
+import { useTenant } from "@/tenant";
+import { useListView } from "@/list-view";
+import { deriveAttendanceRows, monthRange, staffName, type DerivedAttendance } from "@/pages/Attendance/hr";
 
 const title = "Attendance — Luxe Salon CRM";
 const description = "Check-ins compared to published shifts. Approved leave fills Leave days automatically.";
@@ -27,12 +27,12 @@ const moneyStatus = (s: string) =>
 export function Page() {
   const { org, scopeLabel } = useTenant();
   const { view } = useListView();
-  const { create, update } = useData();
+  const { create, update, allRows } = useData();
   const { rows: staff } = useCollection("staff");
   const { rows: shifts } = useCollection("shifts");
   const { rows: punches } = useCollection("attendance");
   const { rows: leaves } = useCollection("leaves");
-  const [period, setPeriod] = useState("2026-08");
+  const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
   const [editing, setEditing] = useState<DerivedAttendance | null>(null);
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
@@ -49,6 +49,28 @@ export function Page() {
     setEditing(row);
     setCheckIn(row.checkIn);
     setCheckOut(row.checkOut);
+  }
+
+  function assignCover(row: DerivedAttendance, coverId: string) {
+    const cover = staff.find((s) => String(s.id) === coverId);
+    if (!cover) return;
+    const open = (allRows["appointments"] ?? []).filter((a) => {
+      const date = String(a["date"] ?? "").slice(0, 10);
+      if (String(a["staffId"]) !== String(row.staffId) || date !== row.date) return false;
+      if (row.locationId && String(a["locationId"]) !== String(row.locationId)) return false;
+      return !["Completed", "Cancelled", "No-show"].includes(String(a["status"] ?? ""));
+    });
+    for (const appt of open) {
+      update("appointments", String(appt.id), {
+        ...appt,
+        staffId: cover.id,
+        staff: String(cover["name"]),
+        locationId: cover["locationId"] ?? appt["locationId"],
+      });
+    }
+    toast.success("Cover assigned", {
+      description: `${open.length} appointment${open.length === 1 ? "" : "s"} moved to ${String(cover["name"])}`,
+    });
   }
 
   function savePunch() {
@@ -132,6 +154,7 @@ export function Page() {
               <TableHead>Hours</TableHead>
               <TableHead>OT</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Cover</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -153,6 +176,29 @@ export function Page() {
                   <TableCell>
                     <Badge variant={moneyStatus(r.status)}>{r.status}</Badge>
                     {r.remarks ? <p className="mt-1 text-[11px] text-muted-foreground">{r.remarks}</p> : null}
+                  </TableCell>
+                  <TableCell>
+                    {r.status === "Leave" || r.status === "Absent" ? (
+                      <select
+                        className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                        value={r.coverStaffId || ""}
+                        onChange={(e) => e.target.value && assignCover(r, e.target.value)}
+                      >
+                        <option value="">Assign staff</option>
+                        {staff
+                          .filter((s) => String(s.id) !== String(r.staffId) && String(s["status"] ?? "Active") === "Active")
+                          .filter((s) => !r.locationId || String(s["locationId"]) === String(r.locationId))
+                          .map((s) => (
+                            <option key={String(s.id)} value={String(s.id)}>
+                              {String(s["name"])}
+                            </option>
+                          ))}
+                      </select>
+                    ) : r.coverStaffId ? (
+                      staffName(staff, r.coverStaffId)
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     {r.status === "Leave" ? null : (

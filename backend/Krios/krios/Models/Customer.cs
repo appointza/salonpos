@@ -58,4 +58,28 @@ namespace Krios.Models.Krios
         public List<LoyaltyTransaction> transactions { get; set; } = new();
         public string errorMessage { get; set; } = "";
     }
+
+    public class CustomerPosLookupReq
+    {
+        public long orgId { get; set; }
+        public long locationId { get; set; }
+        public long customerId { get; set; }
+        public string phone { get; set; } = "";
+    }
+
+    public class CustomerPosLookupRes
+    {
+        public Customer? customer { get; set; }
+        public List<Membership> memberships { get; set; } = new();
+        public List<MembershipPlan> membershipPlans { get; set; } = new();
+        public List<MembershipUsage> membershipUsage { get; set; } = new();
+        public List<Voucher> vouchers { get; set; } = new();
+        public List<ScratchPlay> scratchPlays { get; set; } = new();
+        public List<WheelSpin> wheelSpins { get; set; } = new();
+        public List<QrOfferRedemption> qrOfferRedemptions { get; set; } = new();
+        public List<QrOffer> qrOffers { get; set; } = new();
+        public List<PartnerCoupon> partnerCoupons { get; set; } = new();
+        public List<Loyalty> loyalty { get; set; } = new();
+        public string errorMessage { get; set; } = "";
+    }
 }

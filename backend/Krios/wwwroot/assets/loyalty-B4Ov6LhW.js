@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-B-hcVAMW.js";import{t}from"./useNavigate-C2Ds3pyb.js";var n=e(),r=()=>(0,n.jsx)(t,{to:`/loyalty/qr`,replace:!0});export{r as component};

@@ -1,23 +1,50 @@
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { CrudPage } from "@/components/CrudPage";
+import { CrudPage, type ModuleDef } from "@/components/CrudPage";
 import { StockFlowNote } from "@/components/StockFlowNote";
-import { modules } from "@/lib/modules";
-import { skuName, useStockService } from "@/lib/stock";
+import { skuName, useStockService } from "@/pages/Inventory/stock";
 
 const title = "Expenses — Luxe Salon CRM";
 const description = "Approved product purchases post a Purchase movement. Other categories never touch stock.";
 const NONE = "__none__";
 
+const expensesModule: ModuleDef = {
+  key: "expenses",
+  title: "Expenses",
+  subtitle: "Outlet spend with approval workflow.",
+  idPrefix: "EXP-",
+  fields: [
+    {
+      name: "category",
+      label: "Category",
+      type: "select",
+      options: ["Rent", "Utilities", "Purchase", "Marketing", "Maintenance", "Salary", "Other"],
+      table: true,
+    },
+    { name: "vendor", label: "Vendor (legacy)", table: true },
+    { name: "vendorId", label: "Vendor", table: true },
+    { name: "outlet", label: "Outlet", type: "select", options: ["All"], table: true },
+    { name: "date", label: "Date", type: "date", table: true },
+    { name: "amount", label: "Amount", type: "number", money: true, table: true },
+    { name: "payment", label: "Payment mode", type: "select", options: ["Cash", "Card", "UPI", "Bank Transfer"] },
+    { name: "status", label: "Status", type: "select", options: ["Pending", "Approved", "Rejected"], table: true, badge: true },
+    { name: "approver", label: "Approved by" },
+    { name: "notes", label: "Notes", type: "textarea" },
+    { name: "skuId", label: "Product SKU", table: true, form: false },
+    { name: "quantity", label: "Qty received", type: "number", table: true, form: false },
+    { name: "stockPosted", label: "Posted to stock", form: false },
+  ],
+};
+
 export function Page() {
-  const stock = useStockService();
+  const stock = useStockService({ prefetchRemaining: true });
 
   return (
     <div className="space-y-6">
       <StockFlowNote />
       <CrudPage
-        module={modules.expenses}
+        module={expensesModule}
         displayValue={(field, row) => {
           if (field.name === "skuId") return row["skuId"] ? `${skuName(stock.skus, row["skuId"])} (${row["skuId"]})` : "—";
           return undefined;

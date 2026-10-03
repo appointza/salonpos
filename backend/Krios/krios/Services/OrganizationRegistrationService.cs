@@ -359,12 +359,12 @@ namespace Krios.Services.Krios
         {
             const string query = @"
                 INSERT INTO users (
-                    ""orgId"", ""locationId"", name, email, role, outlet, permissions,
+                    ""orgId"", ""locationId"", name, email, phone, role, outlet, permissions,
                     ""lastLogin"", status, passwordhash,
                     createdby, createdon, updatedby, updatedon
                 )
                 VALUES (
-                    @orgId, @locationId, @name, @email, @role, @outlet, @permissions,
+                    @orgId, @locationId, @name, @email, @phone, @role, @outlet, @permissions,
                     @lastLogin, @status, @passwordhash,
                     @createdby, @createdon, @updatedby, @updatedon
                 )
@@ -377,6 +377,7 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = locationId;
             db.AddParameter(cmd, "name", DbTypes.Types.String).Value = req.adminName.Trim();
             db.AddParameter(cmd, "email", DbTypes.Types.String).Value = req.adminEmail.Trim();
+            db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = req.phone?.Trim() ?? "";
             db.AddParameter(cmd, "role", DbTypes.Types.String).Value = "ADMIN";
             db.AddParameter(cmd, "outlet", DbTypes.Types.String).Value = MainOutletName(req);
             db.AddParameter(cmd, "permissions", DbTypes.Types.String).Value = "";

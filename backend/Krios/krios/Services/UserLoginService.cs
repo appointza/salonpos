@@ -37,13 +37,15 @@ namespace Krios.Services.Krios
             var org = await GetOrganization(db, user.orgId);
             await TouchLastLogin(db, user.id);
 
+            var resolvedOrgId = ResolveOrgId(user.orgId, org);
             return new UserLoginRes
             {
                 userId = user.id,
                 email = user.email,
                 name = user.name,
                 role = user.role,
-                organizationId = user.orgId,
+                organizationId = resolvedOrgId,
+                orgId = resolvedOrgId,
                 locationId = user.locationId,
                 organizationName = org?.name ?? "",
                 organizationSlug = org?.slug ?? "",
@@ -93,13 +95,15 @@ namespace Krios.Services.Krios
             await UpdateUserProfileRow(db, user.id, targetEmail, targetName, targetPasswordHash);
 
             var org = await GetOrganization(db, user.orgId);
+            var resolvedOrgId = ResolveOrgId(user.orgId, org);
             return new UserLoginRes
             {
                 userId = user.id,
                 email = targetEmail,
                 name = targetName,
                 role = user.role,
-                organizationId = user.orgId,
+                organizationId = resolvedOrgId,
+                orgId = resolvedOrgId,
                 locationId = user.locationId,
                 organizationName = org?.name ?? "",
                 organizationSlug = org?.slug ?? "",
@@ -198,6 +202,16 @@ namespace Krios.Services.Krios
             await db.ExecuteNonQuery(cmd);
         }
 
+        private static long ResolveOrgId(long userOrgId, Organization? org)
+        {
+            if (org != null)
+            {
+                if (org.orgId > 0) return org.orgId;
+                if (org.id > 0) return org.id;
+            }
+            return userOrgId;
+        }
+
         private static async Task<Organization?> GetOrganization(IDb db, long organizationId)
         {
             if (organizationId <= 0) return null;
@@ -212,8 +226,9 @@ namespace Krios.Services.Krios
                        ""rewardWheelWeights"", ""rewardScratchWeights"", ""rewardCustomerTierWeights"",
                        ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard""
                 FROM organizations
-                WHERE id = @id
-                  AND status <> 'Inactive'
+                WHERE status <> 'Inactive'
+                  AND (id = @id OR ""orgId"" = @id)
+                ORDER BY id
                 LIMIT 1;
             ";
 

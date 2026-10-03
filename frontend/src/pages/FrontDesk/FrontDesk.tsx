@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { CalendarDays, Receipt, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { pageTitle } from "@/lib/brand";
-import { useTenant } from "@/lib/tenant";
+import { pageTitle } from "@/brand";
+import { publicSlug, useTenant } from "@/tenant";
 
 export function Page() {
   const { org } = useTenant();
-  const walkInUrl = `/${org.slug}/walk-in`;
+  const slug = publicSlug(org);
+  const walkInUrl = slug ? `/${slug}/walk-in` : "/walk-in";
 
   return (
     <div className="space-y-8">

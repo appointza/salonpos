@@ -25,14 +25,14 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DashHeader, DashStat } from "@/components/dashboards/shared";
-import { listLowStockAlerts } from "@/lib/business/inventory-service";
-import { paidInvoices, periodRange, summarizeSales, type ReportPeriod } from "@/lib/reports/sales-analytics";
-import { useData } from "@/lib/store";
-import { generateSlots } from "@/lib/auth";
+import { listLowStockAlerts } from "@/pages/Pos/business/inventory-service";
+import { paidInvoices, periodRange, summarizeSales, type ReportPeriod } from "@/pages/Reports/sales-analytics";
+import { useData } from "@/store";
+import { generateSlots } from "@/auth";
 import { useAuth } from "@/hooks/useAuth";
-import { useTenant } from "@/lib/tenant";
+import { useTenant } from "@/tenant";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PERIOD_OPTIONS } from "@/lib/reports/sales-analytics";
+import { PERIOD_OPTIONS } from "@/pages/Reports/sales-analytics";
 
 const CHECKLIST = [
   { key: "setup", label: "Complete easy setup", to: "/setup" },

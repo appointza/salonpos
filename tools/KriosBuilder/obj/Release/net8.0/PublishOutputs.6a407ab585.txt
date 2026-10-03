@@ -1,0 +1,5 @@
+D:\aravindan\build\TakeBuild.exe
+D:\aravindan\build\TakeBuild.dll
+D:\aravindan\build\TakeBuild.deps.json
+D:\aravindan\build\TakeBuild.runtimeconfig.json
+D:\aravindan\build\TakeBuild.pdb

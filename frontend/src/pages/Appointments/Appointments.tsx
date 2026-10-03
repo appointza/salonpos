@@ -1,25 +1,36 @@
 import { Link } from "@tanstack/react-router";
 import { Receipt } from "lucide-react";
 import { toast } from "sonner";
-import { CrudPage } from "@/components/CrudPage";
+import { CrudPage, type ModuleDef } from "@/components/CrudPage";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import { modules } from "@/lib/modules";
-import { resolveStaffForUser } from "@/lib/staff-scope";
-import { enrichAppointmentRow } from "@/lib/appointments/appointment-resolve";
-import { useCollection, useData, type Row } from "@/lib/store";
+import { resolveStaffForUser } from "@/pages/Staff/staff-scope";
+import { enrichAppointmentRow } from "@/pages/Appointments/appointment-resolve";
+import { useCollection, useData, type Row } from "@/store";
 
 const title = "Appointments — Luxe Salon CRM";
 const description = "Create, reschedule and track salon bookings across outlets and stylists.";
-const STATUS_OPTIONS =
-  modules.appointments.fields.find((f) => f.name === "status")?.options ?? [
-    "Pending",
-    "Confirmed",
-    "Completed",
-    "Cancelled",
-    "No-show",
-  ];
+const STATUS_OPTIONS = ["Pending", "Confirmed", "Completed", "Cancelled", "No-show"];
+
+const appointmentsModule: ModuleDef = {
+  key: "appointments",
+  title: "Appointments",
+  subtitle: "Bookings across outlets, stylists and channels.",
+  idPrefix: "A-",
+  fields: [
+    { name: "customer", label: "Customer", type: "select", table: true },
+    { name: "service", label: "Service", table: true },
+    { name: "staff", label: "Stylist", type: "select", table: true },
+    { name: "outlet", label: "Outlet", type: "select", options: ["All"], table: true },
+    { name: "date", label: "Date", type: "date", table: true },
+    { name: "time", label: "Time", type: "time", table: true },
+    { name: "duration", label: "Duration (min)", type: "number" },
+    { name: "status", label: "Status", type: "select", options: STATUS_OPTIONS, table: true, badge: true },
+    { name: "source", label: "Source", type: "select", options: ["Walk-in", "Phone", "WhatsApp", "Instagram", "Customer App"] },
+    { name: "notes", label: "Notes", type: "textarea" },
+  ],
+};
 
 export function Page() {
   const { user } = useAuth();
@@ -55,16 +66,19 @@ export function Page() {
   return (
     <CrudPage
       module={{
-        ...modules.appointments,
+        ...appointmentsModule,
         subtitle: isStylist
           ? "Your bookings only. Change status from the list — customer, time and stylist stay as booked."
-          : modules.appointments.subtitle,
+          : appointmentsModule.subtitle,
       }}
       canCreate={!isStylist}
       canEdit={!isStylist}
       canDelete={!isStylist}
       prepareNew={(row) => {
-        const next = withAppointmentIds(row);
+        const next = withAppointmentIds({
+          ...row,
+          status: String(row["status"] ?? "").trim() || "Pending",
+        });
         return isStylist && me
           ? {
               ...next,

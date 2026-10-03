@@ -42,6 +42,8 @@ namespace Krios.Services.Krios
                 qb.AddParameter(@"""orgId""", "=", "orgId", req.orgId, DbTypes.Types.Long);
             if (req.locationId > 0)
                 qb.AddParameter(@"""locationId""", "=", "locationId", req.locationId, DbTypes.Types.Long);
+            if (req.customerId > 0)
+                qb.AddParameter(@"""customerId""", "=", "customerId", req.customerId, DbTypes.Types.Long);
 
             if (!string.IsNullOrWhiteSpace(req.status))
                 qb.AddParameter("status", "=", "status", req.status, DbTypes.Types.String);

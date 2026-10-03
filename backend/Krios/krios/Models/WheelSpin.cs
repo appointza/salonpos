@@ -30,6 +30,7 @@ namespace Krios.Models.Krios
         public long locationId { get; set; }
         public string search { get; set; } = "";
         public string status { get; set; } = "";
+        public long customerId { get; set; }
     }
 
     public class WheelSpinDeleteReq

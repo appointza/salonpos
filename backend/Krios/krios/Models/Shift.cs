@@ -11,6 +11,8 @@ namespace Krios.Models.Krios
         public string shiftType { get; set; } = "";
         public string weeklyOff { get; set; } = "";
         public string status { get; set; } = "";
+        public string splitStart { get; set; } = "";
+        public string splitEnd { get; set; } = "";
         public string createdby { get; set; } = "";
         public DateTime? createdon { get; set; }
         public string updatedby { get; set; } = "";

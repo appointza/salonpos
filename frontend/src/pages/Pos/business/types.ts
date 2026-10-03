@@ -1,0 +1,66 @@
+import type { Row } from "@/store";
+import type { BillLine, CartQuote } from "@/pages/Pos/sale";
+import type { AppliedCouponLine } from "@/pages/Coupons/coupon-pos";
+import type { RewardRefs } from "@/pages/Loyalty/rewards/reward-quote";
+import type { EntityId } from "@/ids";
+
+/** Store surface used by domain services (no React hooks). */
+export type BusinessStore = {
+  db: Record<string, Row[]>;
+  create: (collection: string, row: Row, orgOverride?: string) => void;
+  update: (collection: string, id: string, row: Row) => void;
+};
+
+export type TenantCtx = {
+  orgId: EntityId;
+  locationId: EntityId | "all";
+  outletName: string;
+};
+
+export type SaleCommand = {
+  customer: Row;
+  lines: BillLine[];
+  discount: number;
+  pointsRedeemed: number;
+  payment: string;
+  appointmentId?: string;
+  rewards?: RewardRefs;
+  couponCodes?: string[];
+};
+
+export type SaleResult = {
+  invoice: Row | null;
+  quote: CartQuote;
+  earned: number;
+  pointsAfter: number;
+  error?: string;
+};
+
+export type UnifiedQuote = CartQuote & {
+  couponDiscount: number;
+  couponLines: AppliedCouponLine[];
+};
+
+export const BUSINESS_EVENTS = "businessEvents";
+
+export type BusinessEventType =
+  | "APPOINTMENT_CREATED"
+  | "APPOINTMENT_COMPLETED"
+  | "APPOINTMENT_CANCELLED"
+  | "SALE_COMPLETED"
+  | "INVOICE_REFUNDED"
+  | "STOCK_CONSUMED"
+  | "STOCK_ADJUSTED"
+  | "STOCK_LOW"
+  | "LOYALTY_EARNED"
+  | "LOYALTY_REDEEMED";
+
+export type BusinessEvent = {
+  type: BusinessEventType;
+  orgId: EntityId;
+  locationId: EntityId;
+  at: string;
+  entityId: string;
+  customerId?: string;
+  payload?: Record<string, string | number>;
+};

@@ -11,10 +11,10 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DashHeader, DashStat, QuickLink, sortAppointments } from "@/components/dashboards/shared";
-import { listLowStockAlerts } from "@/lib/business/inventory-service";
+import { listLowStockAlerts } from "@/pages/Pos/business/inventory-service";
 import { useAuth } from "@/hooks/useAuth";
-import { useData } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+import { useData } from "@/store";
+import { useTenant } from "@/tenant";
 
 export function StaffDashboard() {
   const { db } = useData();
@@ -53,7 +53,7 @@ export function StaffDashboard() {
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <QuickLink to="/loyalty" icon={Star} color="bg-violet-100 text-violet-700" title="Loyalty & QR" text="Programs, wheel prizes, and outlet codes." />
-        <QuickLink to={`/${org.slug}/walk-in`} icon={Users} color="bg-violet-100 text-violet-700" title="Walk-in (public)" text="Guest check-in — wheel or scratch, no login." />
+        <QuickLink to="/walk-in" icon={Users} color="bg-violet-100 text-violet-700" title="Walk-in (public)" text="Guest check-in — wheel or scratch, no login." />
         <QuickLink to="/pos" icon={Receipt} color="bg-orange-100 text-orange-600" title="Open POS" text="Bill a walk-in or a booked client." />
         <QuickLink to="/appointments" icon={CalendarDays} color="bg-blue-100 text-blue-600" title="Bookings" text="Create, confirm or reschedule." />
         <QuickLink to="/customers" icon={Users} color="bg-emerald-100 text-emerald-700" title="Customers" text="Look up membership and loyalty." />

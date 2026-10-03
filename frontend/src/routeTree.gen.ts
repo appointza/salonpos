@@ -18,6 +18,7 @@ import { Route as NearbyRouteImport } from './routes/nearby'
 import { Route as PlatformRouteImport } from './routes/platform'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as WalkInRouteImport } from './routes/walk-in'
+import { Route as OrgSlugIndexRouteImport } from './routes/$orgSlug/index'
 import { Route as OrgSlugWalkInRouteImport } from './routes/$orgSlug/walk-in'
 import { Route as AppAppointmentsRouteImport } from './routes/_app/appointments'
 import { Route as AppAttendanceRouteImport } from './routes/_app/attendance'
@@ -51,6 +52,9 @@ import { Route as AppStaffRouteImport } from './routes/_app/staff'
 import { Route as AppSubscriptionRouteImport } from './routes/_app/subscription'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as AppVendorsRouteImport } from './routes/_app/vendors'
+import { Route as NearbyIndexRouteImport } from './routes/nearby/index'
+import { Route as NearbyBookingRouteImport } from './routes/nearby/booking'
+import { Route as NearbyMyBookingsRouteImport } from './routes/nearby/my-bookings'
 import { Route as NearbyMyShopsRouteImport } from './routes/nearby/my-shops'
 import { Route as QrLocationIdRouteImport } from './routes/qr/$locationId'
 import { Route as AppCouponsCouponIdRouteImport } from './routes/_app/coupons/$couponId'
@@ -115,6 +119,11 @@ const WalkInRoute = WalkInRouteImport.update({
   id: '/walk-in',
   path: '/walk-in',
   getParentRoute: () => rootRouteImport,
+} as any)
+const OrgSlugIndexRoute = OrgSlugIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OrgSlugRoute,
 } as any)
 const OrgSlugWalkInRoute = OrgSlugWalkInRouteImport.update({
   id: '/walk-in',
@@ -281,6 +290,21 @@ const AppVendorsRoute = AppVendorsRouteImport.update({
   path: '/vendors',
   getParentRoute: () => AppRoute,
 } as any)
+const NearbyIndexRoute = NearbyIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => NearbyRoute,
+} as any)
+const NearbyBookingRoute = NearbyBookingRouteImport.update({
+  id: '/booking',
+  path: '/booking',
+  getParentRoute: () => NearbyRoute,
+} as any)
+const NearbyMyBookingsRoute = NearbyMyBookingsRouteImport.update({
+  id: '/my-bookings',
+  path: '/my-bookings',
+  getParentRoute: () => NearbyRoute,
+} as any)
 const NearbyMyShopsRoute = NearbyMyShopsRouteImport.update({
   id: '/my-shops',
   path: '/my-shops',
@@ -424,8 +448,12 @@ export interface FileRoutesByFullPath {
   '/subscription': typeof AppSubscriptionRoute
   '/users': typeof AppUsersRoute
   '/vendors': typeof AppVendorsRoute
+  '/nearby/booking': typeof NearbyBookingRoute
+  '/nearby/my-bookings': typeof NearbyMyBookingsRoute
   '/nearby/my-shops': typeof NearbyMyShopsRoute
   '/qr/$locationId': typeof QrLocationIdRoute
+  '/$orgSlug/': typeof OrgSlugIndexRoute
+  '/nearby/': typeof NearbyIndexRoute
   '/coupons/$couponId': typeof AppCouponsCouponIdRouteWithChildren
   '/customers/$customerId': typeof AppCustomersCustomerIdRoute
   '/loyalty/catalog': typeof AppLoyaltyCatalogRoute
@@ -447,10 +475,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/$orgSlug': typeof OrgSlugRouteWithChildren
   '/book': typeof BookRoute
   '/login': typeof LoginRoute
-  '/nearby': typeof NearbyRouteWithChildren
   '/platform': typeof PlatformRoute
   '/register': typeof RegisterRoute
   '/walk-in': typeof WalkInRoute
@@ -486,8 +512,12 @@ export interface FileRoutesByTo {
   '/subscription': typeof AppSubscriptionRoute
   '/users': typeof AppUsersRoute
   '/vendors': typeof AppVendorsRoute
+  '/nearby/booking': typeof NearbyBookingRoute
+  '/nearby/my-bookings': typeof NearbyMyBookingsRoute
   '/nearby/my-shops': typeof NearbyMyShopsRoute
   '/qr/$locationId': typeof QrLocationIdRoute
+  '/$orgSlug': typeof OrgSlugIndexRoute
+  '/nearby': typeof NearbyIndexRoute
   '/coupons/$couponId': typeof AppCouponsCouponIdRouteWithChildren
   '/customers/$customerId': typeof AppCustomersCustomerIdRoute
   '/loyalty/catalog': typeof AppLoyaltyCatalogRoute
@@ -551,8 +581,12 @@ export interface FileRoutesById {
   '/_app/subscription': typeof AppSubscriptionRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/vendors': typeof AppVendorsRoute
+  '/nearby/booking': typeof NearbyBookingRoute
+  '/nearby/my-bookings': typeof NearbyMyBookingsRoute
   '/nearby/my-shops': typeof NearbyMyShopsRoute
   '/qr/$locationId': typeof QrLocationIdRoute
+  '/$orgSlug/': typeof OrgSlugIndexRoute
+  '/nearby/': typeof NearbyIndexRoute
   '/_app/coupons/$couponId': typeof AppCouponsCouponIdRouteWithChildren
   '/_app/customers/$customerId': typeof AppCustomersCustomerIdRoute
   '/_app/loyalty/catalog': typeof AppLoyaltyCatalogRoute
@@ -616,8 +650,12 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/users'
     | '/vendors'
+    | '/nearby/booking'
+    | '/nearby/my-bookings'
     | '/nearby/my-shops'
     | '/qr/$locationId'
+    | '/$orgSlug/'
+    | '/nearby/'
     | '/coupons/$couponId'
     | '/customers/$customerId'
     | '/loyalty/catalog'
@@ -639,10 +677,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/$orgSlug'
     | '/book'
     | '/login'
-    | '/nearby'
     | '/platform'
     | '/register'
     | '/walk-in'
@@ -678,8 +714,12 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/users'
     | '/vendors'
+    | '/nearby/booking'
+    | '/nearby/my-bookings'
     | '/nearby/my-shops'
     | '/qr/$locationId'
+    | '/$orgSlug'
+    | '/nearby'
     | '/coupons/$couponId'
     | '/customers/$customerId'
     | '/loyalty/catalog'
@@ -742,8 +782,12 @@ export interface FileRouteTypes {
     | '/_app/subscription'
     | '/_app/users'
     | '/_app/vendors'
+    | '/nearby/booking'
+    | '/nearby/my-bookings'
     | '/nearby/my-shops'
     | '/qr/$locationId'
+    | '/$orgSlug/'
+    | '/nearby/'
     | '/_app/coupons/$couponId'
     | '/_app/customers/$customerId'
     | '/_app/loyalty/catalog'
@@ -841,6 +885,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/walk-in'
       preLoaderRoute: typeof WalkInRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/$orgSlug/': {
+      id: '/$orgSlug/'
+      path: '/'
+      fullPath: '/$orgSlug/'
+      preLoaderRoute: typeof OrgSlugIndexRouteImport
+      parentRoute: typeof OrgSlugRoute
     }
     '/$orgSlug/walk-in': {
       id: '/$orgSlug/walk-in'
@@ -1073,6 +1124,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppVendorsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/nearby/': {
+      id: '/nearby/'
+      path: '/'
+      fullPath: '/nearby/'
+      preLoaderRoute: typeof NearbyIndexRouteImport
+      parentRoute: typeof NearbyRoute
+    }
+    '/nearby/booking': {
+      id: '/nearby/booking'
+      path: '/booking'
+      fullPath: '/nearby/booking'
+      preLoaderRoute: typeof NearbyBookingRouteImport
+      parentRoute: typeof NearbyRoute
+    }
+    '/nearby/my-bookings': {
+      id: '/nearby/my-bookings'
+      path: '/my-bookings'
+      fullPath: '/nearby/my-bookings'
+      preLoaderRoute: typeof NearbyMyBookingsRouteImport
+      parentRoute: typeof NearbyRoute
+    }
     '/nearby/my-shops': {
       id: '/nearby/my-shops'
       path: '/my-shops'
@@ -1218,10 +1290,12 @@ declare module '@tanstack/react-router' {
 
 interface OrgSlugRouteChildren {
   OrgSlugWalkInRoute: typeof OrgSlugWalkInRoute
+  OrgSlugIndexRoute: typeof OrgSlugIndexRoute
 }
 
 const OrgSlugRouteChildren: OrgSlugRouteChildren = {
   OrgSlugWalkInRoute: OrgSlugWalkInRoute,
+  OrgSlugIndexRoute: OrgSlugIndexRoute,
 }
 
 const OrgSlugRouteWithChildren =
@@ -1375,11 +1449,17 @@ const AppRouteChildren: AppRouteChildren = {
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface NearbyRouteChildren {
+  NearbyBookingRoute: typeof NearbyBookingRoute
+  NearbyMyBookingsRoute: typeof NearbyMyBookingsRoute
   NearbyMyShopsRoute: typeof NearbyMyShopsRoute
+  NearbyIndexRoute: typeof NearbyIndexRoute
 }
 
 const NearbyRouteChildren: NearbyRouteChildren = {
+  NearbyBookingRoute: NearbyBookingRoute,
+  NearbyMyBookingsRoute: NearbyMyBookingsRoute,
   NearbyMyShopsRoute: NearbyMyShopsRoute,
+  NearbyIndexRoute: NearbyIndexRoute,
 }
 
 const NearbyRouteWithChildren =

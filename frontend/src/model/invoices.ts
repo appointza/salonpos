@@ -112,6 +112,7 @@ export class InvoiceBillLine {
 
 export class InvoiceRewardRefs {
   wheelSpinId: number = 0;
+  scratchPlayId: number = 0;
   offerRedemptionId: number = 0;
   partnerCouponId: number = 0;
 }

@@ -13,10 +13,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { DashHeader, DashStat, QuickLink, sortAppointments } from "@/components/dashboards/shared";
 import { useAuth } from "@/hooks/useAuth";
-import { shiftOn } from "@/lib/hr";
-import { resolveStaffForUser } from "@/lib/staff-scope";
-import { useData } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+import { shiftOn } from "@/pages/Attendance/hr";
+import { resolveStaffForUser } from "@/pages/Staff/staff-scope";
+import { useData } from "@/store";
+import { useTenant } from "@/tenant";
 
 export function StylistDashboard() {
   const { db, allRows, orgId } = useData();

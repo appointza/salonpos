@@ -80,7 +80,7 @@ namespace Krios.Services.Krios
 
             var today = DateTime.UtcNow.Date;
             var actor = requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : "system";
-            entity.status = string.IsNullOrWhiteSpace(entity.status) ? "Active" : entity.status;
+            entity.status = string.IsNullOrWhiteSpace(entity.status) ? "Pending" : entity.status;
             await EnsureBookable(db, entity, excludeId: 0);
             if (entity.createdon == null) entity.createdon = today;
             if (entity.updatedon == null) entity.updatedon = today;
@@ -336,6 +336,8 @@ namespace Krios.Services.Krios
             var rows = await SelectTransaction(db, new AppointmentSelectReq { id = appointmentId });
             var appt = rows.FirstOrDefault();
             if (appt == null) return false;
+            if (string.Equals(appt.status, "Completed", StringComparison.OrdinalIgnoreCase))
+                return true;
             appt.status = "Completed";
             appt.notes = string.IsNullOrWhiteSpace(appt.notes)
                 ? $"invoice:{invoiceId}"

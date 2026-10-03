@@ -31,7 +31,7 @@ export class KriosBaseService<TEntity extends { id?: number }> {
   }
 
   protected apiPath(action: string) {
-    return `${this.baseurl}/api/${this.controller}/${action}`;
+    return `${environment.baseurl}/api/${this.controller}/${action}`;
   }
 
   protected async postAction<TReq, TRes>(
@@ -39,14 +39,12 @@ export class KriosBaseService<TEntity extends { id?: number }> {
     req: TReq,
     skipAuthorization = false,
   ): Promise<TRes> {
-    const postdata = new ActionReq<TReq>();
-    postdata.item = req;
-    const resp = await this.http.post<ActionRes<TRes>>(
+    const resp = await this.http.post<ActionRes<TRes> & { Item?: TRes }>(
       this.apiPath(action),
-      postdata,
+      { item: req } satisfies ActionReq<TReq>,
       skipAuthorization,
     );
-    return resp.item;
+    return (resp?.item ?? resp?.Item) as TRes;
   }
 
   async entity(skipAuthorization = false): Promise<TEntity> {
@@ -59,6 +57,11 @@ export class KriosBaseService<TEntity extends { id?: number }> {
 
   async select(req: KriosSelectReq = {}): Promise<TEntity[]> {
     return this.postAction<KriosSelectReq, TEntity[]>("Select", req);
+  }
+
+  /** Public read — no auth header (customer / booking pages). */
+  async selectPublic(req: KriosSelectReq = {}): Promise<TEntity[]> {
+    return this.postAction<KriosSelectReq, TEntity[]>("Select", req, true);
   }
 
   async insert(req: TEntity): Promise<TEntity> {

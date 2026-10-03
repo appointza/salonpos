@@ -25,10 +25,17 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Update="appsettings.*.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
   </ItemGroup>
+
+  <!-- Vite last so publish does not replace wwwroot with an empty/stale copy. -->
+  <Target Name="PublishFrontend" AfterTargets="Publish" Condition="'$(SkipKriosFrontend)' != 'true'">
+    <PropertyGroup>
+      <FrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\frontend'))</FrontendDir>
+      <FrontendWwwroot>$([System.IO.Path]::Combine('$(PublishDir)','wwwroot'))</FrontendWwwroot>
+      <KriosUrlsFile>$([System.IO.Path]::Combine($(FrontendWwwroot),'krios-urls.json'))</KriosUrlsFile>
+    </PropertyGroup>
+    <Exec Command="cmd /c set KRIOS_WWWROOT=$(FrontendWwwroot)&amp;&amp; npm run build" WorkingDirectory="$(FrontendDir)" />
+    <Copy SourceFiles="$(KriosUrlsFile)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="false" Condition="Exists('$(KriosUrlsFile)')" />
+  </Target>
 
 </Project>

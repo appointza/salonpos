@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { BRAND_LOGO, BRAND_NAME } from "@/lib/brand";
-import { cn } from "@/lib/utils";
+import { BRAND_LOGO, BRAND_NAME } from "@/brand";
+import { cn } from "@/utils/utils";
 
 type KriosLogoProps = {
   size?: number;

@@ -91,6 +91,7 @@ export class UserLoginRes {
   name: string = "";
   role: string = "";
   organizationId: number = 0;
+  orgId: number = 0;
   locationId: number = 0;
   organizationName: string = "";
   organizationSlug: string = "";

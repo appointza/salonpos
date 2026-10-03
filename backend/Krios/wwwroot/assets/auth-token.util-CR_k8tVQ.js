@@ -1,0 +1,1 @@
+var e=`salon-crm-tokens-v1`,t={get(){try{let t=localStorage.getItem(e);return t?JSON.parse(t):null}catch{return null}},getAccessToken(){return this.get()?.access_token??null},getRefreshToken(){return this.get()?.refresh_token??null},set(t){try{localStorage.setItem(e,JSON.stringify(t))}catch{}},clear(){try{localStorage.removeItem(e)}catch{}}};export{t};

@@ -3,8 +3,8 @@ import { ExternalLink, MapPin, RefreshCw, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useData, type Row } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
+import { useData, type Row } from "@/store";
+import { useTenant } from "@/tenant";
 import {
   fetchLivePlaceReviews,
   formatSyncedAgo,
@@ -17,7 +17,7 @@ import {
   reviewRowsFromLive,
   reviewsFromRows,
   summaryFromStore,
-} from "@/lib/google-places";
+} from "@/pages/Franchises/google-places";
 
 function Stars({ value }: { value: number }) {
   const full = Math.round(value);

@@ -1,9 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection } from "@/lib/store";
-import { useTenant } from "@/lib/tenant";
-import { useListView } from "@/lib/list-view";
-import { staffName } from "@/lib/hr";
+import { useCollection } from "@/store";
+import { useTenant } from "@/tenant";
+import { useListView } from "@/list-view";
+import { staffName } from "@/pages/Attendance/hr";
 
 const title = "Commission Ledger — Luxe Salon CRM";
 const description = "Commissions are generated from POS invoices, not typed independently.";

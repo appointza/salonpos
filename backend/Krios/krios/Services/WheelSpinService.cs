@@ -1,5 +1,6 @@
 using Krios.Models.Krios;
 using Krios.Utils;
+using System.Collections.Generic;
 using System.Data.Common;
 
 namespace Krios.Services.Krios
@@ -42,6 +43,8 @@ namespace Krios.Services.Krios
                 qb.AddParameter(@"""orgId""", "=", "orgId", req.orgId, DbTypes.Types.Long);
             if (req.locationId > 0)
                 qb.AddParameter(@"""locationId""", "=", "locationId", req.locationId, DbTypes.Types.Long);
+            if (req.customerId > 0)
+                qb.AddParameter(@"""customerId""", "=", "customerId", req.customerId, DbTypes.Types.Long);
 
             if (!string.IsNullOrWhiteSpace(req.status))
                 qb.AddParameter("status", "=", "status", req.status, DbTypes.Types.String);
@@ -245,13 +248,12 @@ namespace Krios.Services.Krios
             return await UpdateTransaction(db, spin);
         }
 
-        public decimal WheelSpinDiscountAmount(WheelSpin spin, decimal subtotal)
+        public decimal WheelSpinDiscountAmount(
+            WheelSpin spin,
+            decimal subtotal,
+            IEnumerable<(long Id, string Name, decimal Price, long Qty)> lines)
         {
-            if (string.Equals(spin.rewardType, "Flat discount", StringComparison.OrdinalIgnoreCase))
-                return Math.Min(spin.rewardValue, subtotal);
-            if (string.Equals(spin.rewardType, "Percentage discount", StringComparison.OrdinalIgnoreCase))
-                return Math.Round(subtotal * (spin.rewardValue / 100m), 0);
-            return 0;
+            return PrizeDiscount.Amount(spin.rewardType, spin.rewardValue, spin.label, subtotal, lines);
         }
     }
 }

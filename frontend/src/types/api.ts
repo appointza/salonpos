@@ -1,1 +1,1 @@
-export type { Row } from "@/lib/store";
+export type { Row } from "@/store";

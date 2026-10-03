@@ -11,48 +11,51 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScratchCard } from "@/components/ScratchCard";
 import { SpinWheel } from "@/components/SpinWheel";
 import { useAuth } from "@/hooks/useAuth";
-import { dbWithRow, isBookableStaff, isPublishedService, rowsAtLocation } from "@/lib/booking";
-import { autoApproveCheckin, QR_CHECKINS } from "@/lib/checkins/checkin-service";
-import { findCustomerByPhoneInOrg, normalizePhone } from "@/lib/customers/customer-lookup";
-import { isValidPhone, upsertCustomerByPhone } from "@/lib/customers/customer-service";
+import { dbWithRow } from "@/pages/Book/booking";
+import { autoApproveCheckin, QR_CHECKINS } from "@/pages/LoyaltyCheckins/checkin-service";
+import { findCustomerByPhoneInOrg, normalizePhone } from "@/pages/Customers/customer-lookup";
+import { isValidPhone, upsertCustomerByPhone } from "@/pages/Customers/customer-store";
 import {
   activePrograms,
   isBirthdayWindow,
   programOfType,
   SCRATCH_PRIZES,
   WHEEL_SEGMENTS,
-} from "@/lib/qr-loyalty";
+} from "@/pages/LoyaltyQr/qr-loyalty";
 import {
+  guestRewardGames,
   publicBookingSettingsForOrg,
   usePublicBookingSettings,
-} from "@/lib/public-booking-settings";
-import { gamesForCustomer, readRewardDistribution, useRewardDistribution } from "@/lib/reward-distribution";
+} from "@/pages/Book/public-booking-settings";
+import { readRewardDistribution, useRewardDistribution } from "@/pages/PrizeWheel/reward-distribution";
 import {
   customerScratchedToday,
   getTodayScratchPlay,
   processScratchResult,
   selectScratchPrize,
-} from "@/lib/scratch/scratch-service";
-import { toRow } from "@/lib/entity-row";
-import { useData, type Row } from "@/lib/store";
+} from "@/pages/ScratchCard/scratch-service";
+import { toRow } from "@/entity-row";
+import { useData, type Row } from "@/store";
 import { customerService } from "@/services/customer.service";
-import { useTenant } from "@/lib/tenant";
+import { organizationService } from "@/services/organization.service";
+import { scratchPrizeService } from "@/services/scratchPrize.service";
+import { wheelSegmentService } from "@/services/wheelSegment.service";
+import { useTenant } from "@/tenant";
 import {
   customerSpunToday,
   getTodayWheelSpin,
   processWheelSpinResult,
-} from "@/lib/wheel/wheel-service";
+} from "@/pages/PrizeWheel/wheel-service";
 
 type Step = "details" | "reward" | "done";
 
 export function WalkInTerminal({
   publicMode = false,
   bookingOrgId,
-  orgSlug,
   initialLocationId,
 }: {
   publicMode?: boolean;
-  bookingOrgId?: string;
+  bookingOrgId?: string | number;
   orgSlug?: string;
   initialLocationId?: string;
 }) {
@@ -69,8 +72,51 @@ export function WalkInTerminal({
   const activeOrgId = activeOrg.orgId;
 
   useEffect(() => {
-    if (bookingOrgId && bookingOrgId !== org.orgId) setOrgId(bookingOrgId);
+    if (bookingOrgId && Number(bookingOrgId) !== Number(org.orgId)) setOrgId(Number(bookingOrgId));
   }, [bookingOrgId, org.orgId, setOrgId]);
+
+  useEffect(() => {
+    const oid = Number(activeOrgId);
+    if (!oid) return;
+    let cancelled = false;
+    const orgReq = { orgId: oid };
+    const load = publicMode
+      ? Promise.all([
+          wheelSegmentService.selectPublic(orgReq),
+          scratchPrizeService.selectPublic(orgReq),
+          organizationService.selectPublic(orgReq),
+        ])
+      : Promise.all([
+          wheelSegmentService.select(orgReq),
+          scratchPrizeService.select(orgReq),
+          organizationService.select(orgReq),
+        ]);
+    void load
+      .then(([wheels, scratches, orgs]) => {
+        if (cancelled) return;
+        applyCache((prev) => ({
+          ...prev,
+          wheelSegments: [
+            ...(prev["wheelSegments"] ?? []).filter((r) => String(r["orgId"]) !== String(oid)),
+            ...wheels.map((item) => toRow(item as unknown as Record<string, unknown>)),
+          ],
+          scratchPrizes: [
+            ...(prev["scratchPrizes"] ?? []).filter((r) => String(r["orgId"]) !== String(oid)),
+            ...scratches.map((item) => toRow(item as unknown as Record<string, unknown>)),
+          ],
+          organizations: orgs.length
+            ? [
+                ...(prev["organizations"] ?? []).filter((r) => String(r["orgId"]) !== String(oid)),
+                ...orgs.map((item) => toRow(item as unknown as Record<string, unknown>)),
+              ]
+            : prev["organizations"],
+        }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrgId, applyCache, publicMode]);
 
   const orgRow = useMemo(
     () => (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === String(activeOrgId)),
@@ -111,46 +157,36 @@ export function WalkInTerminal({
   const [checkedIn, setCheckedIn] = useState<Row | null>(null);
   const [wheelPrize, setWheelPrize] = useState("");
   const [scratchPrize, setScratchPrize] = useState("");
+  const [scratchStarted, setScratchStarted] = useState(false);
   const [rewardNotes, setRewardNotes] = useState("");
 
-  const outletServices = useMemo(
-    () =>
-      rowsAtLocation(allRows["services"] ?? [], activeOrgId, effLocationId).filter(isPublishedService),
-    [allRows, activeOrgId, effLocationId],
-  );
-  const outletStylists = useMemo(
-    () => rowsAtLocation(allRows["staff"] ?? [], activeOrgId, effLocationId).filter(isBookableStaff),
-    [allRows, activeOrgId, effLocationId],
-  );
   const staffLabel = publicMode ? "Self walk-in" : user?.name ?? "Walk-in desk";
 
   const programs = useMemo(
     () => activePrograms((allRows["loyalty"] ?? []).filter((p) => String(p["orgId"]) === String(activeOrgId)), effLocationId),
     [allRows, activeOrgId, effLocationId],
   );
-  const wheelSegments = useMemo(
-    () =>
-      (allRows[WHEEL_SEGMENTS] ?? []).filter(
-        (s) => String(s["orgId"]) === String(activeOrgId) && String(s["programId"] ?? "LY-WHEEL") === "LY-WHEEL",
-      ),
-    [allRows, activeOrgId],
-  );
-  const scratchPrizes = useMemo(
-    () =>
-      (allRows[SCRATCH_PRIZES] ?? []).filter(
-        (p) => String(p["orgId"]) === String(activeOrgId) && String(p["active"] ?? "Yes") !== "No",
-      ),
-    [allRows, activeOrgId],
-  );
+  const wheelSegments = useMemo(() => {
+    const loc = String(effLocationId ?? "");
+    const all = (allRows[WHEEL_SEGMENTS] ?? []).filter((s) => String(s["orgId"]) === String(activeOrgId));
+    const here = all.filter((s) => !s["locationId"] || String(s["locationId"]) === loc || String(s["locationId"]) === "0");
+    return here.length ? here : all;
+  }, [allRows, activeOrgId, effLocationId]);
+  const scratchPrizes = useMemo(() => {
+    const loc = String(effLocationId ?? "");
+    const all = (allRows[SCRATCH_PRIZES] ?? []).filter(
+      (p) => String(p["orgId"]) === String(activeOrgId) && String(p["active"] ?? "Yes") !== "No",
+    );
+    const here = all.filter((p) => !p["locationId"] || String(p["locationId"]) === loc || String(p["locationId"]) === "0");
+    return here.length ? here : all;
+  }, [allRows, activeOrgId, effLocationId]);
 
   const matchedCustomer = useMemo(
     () => findCustomerByPhoneInOrg(allRows["customers"] ?? [], phone, activeOrgId, effLocationId),
     [allRows, phone, activeOrgId, effLocationId],
   );
   const guestTier = String((checkedIn ?? matchedCustomer)?.["tier"] ?? "");
-  const tierGames = gamesForCustomer(rewardDist, guestTier);
-  const showWheelGame = bookingSettings.showPrizeWheel && tierGames.wheel;
-  const showScratchGame = bookingSettings.showScratchCard && tierGames.scratch;
+  const { scratch: showScratchGame, wheel: showWheelGame } = guestRewardGames(bookingSettings);
   const rewardMode = showWheelGame || showScratchGame ? "reward" : null;
   const phoneReady = isValidPhone(phone);
 
@@ -186,6 +222,29 @@ export function WalkInTerminal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone, phoneReady, activeOrgId, effLocationId, outletName]);
 
+  const today = new Date();
+  const localDay = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const phoneCustomerIds = useMemo(() => {
+    const digits = normalizePhone(phone);
+    if (digits.length < 10) return [] as string[];
+    return (allRows["customers"] ?? [])
+      .filter(
+        (c) => String(c["orgId"]) === String(activeOrgId) && normalizePhone(String(c["phone"] ?? "")) === digits,
+      )
+      .map((c) => String(c.id));
+  }, [allRows, phone, activeOrgId]);
+  const usedWalkInToday = phoneCustomerIds.length > 0 && (
+    (allRows[QR_CHECKINS] ?? []).some(
+      (c) => phoneCustomerIds.includes(String(c["customerId"])) && String(c["visitAt"] ?? "").slice(0, 10) === localDay,
+    ) ||
+    (allRows["wheelSpins"] ?? []).some(
+      (s) => phoneCustomerIds.includes(String(s["customerId"])) && String(s["createdAt"] ?? s["createdon"] ?? "").slice(0, 10) === localDay,
+    ) ||
+    (allRows["scratchPlays"] ?? []).some(
+      (s) => phoneCustomerIds.includes(String(s["customerId"])) && String(s["createdAt"] ?? s["createdon"] ?? "").slice(0, 10) === localDay,
+    )
+  );
+
   const alreadySpunToday = customerId
     ? String(getTodayWheelSpin(allRows, customerId)?.["label"] ?? "") ||
       (customerSpunToday(allRows, customerId) ? String(matchedCustomer?.["lastWheelPrize"] ?? "Used today") : "")
@@ -205,6 +264,7 @@ export function WalkInTerminal({
     setCheckedIn(null);
     setWheelPrize("");
     setScratchPrize("");
+    setScratchStarted(false);
     setRewardNotes("");
   }
 
@@ -212,6 +272,7 @@ export function WalkInTerminal({
     if (!phoneReady) return void toast.error("Enter a valid 10-digit mobile number");
     if (!name.trim()) return void toast.error("Enter your name");
     if (!effLocationId) return void toast.error("Select an outlet first");
+    if (usedWalkInToday) return void toast.info("Walk-in is once a day. This number already checked in today.");
 
     const store = { db: allRows, create, update };
     const existingToday = matchedCustomer
@@ -304,7 +365,6 @@ export function WalkInTerminal({
 
   const stamp = programOfType(programs, "Stamp Card");
   const wheelProgram = programOfType(programs, "Spin the Wheel");
-  const bookingLink = orgSlug ? `/${orgSlug}` : "/book";
 
   const content = (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -396,56 +456,28 @@ export function WalkInTerminal({
               No walk-in reward game is enabled. Turn on prize wheel or scratch card in Settings.
             </p>
           )}
-          <Button className="w-full" type="button" onClick={checkIn}>
-            Check in & continue
-          </Button>
-          {publicMode ? (
-            <p className="text-center text-xs text-muted-foreground">
-              Want to book ahead?{" "}
-              <Link to={bookingLink} className="text-primary underline-offset-4 hover:underline">
-                Online booking
-              </Link>
+          {usedWalkInToday ? (
+            <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+              This mobile number already used walk-in today. You can still open today&apos;s reward game.
             </p>
           ) : null}
-        </div>
-      ) : null}
-
-      {publicMode ? (
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
-          <div>
-            <h2 className="font-display text-lg">Services at {outletName || activeOrg.name}</h2>
-            {outletServices.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">No services published for this outlet yet.</p>
-            ) : (
-              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                {outletServices.map((s) => (
-                  <li key={String(s.id)} className="rounded-lg border border-border px-3 py-2">
-                    <p className="text-sm font-medium">{String(s["name"])}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {String(s["category"] ?? "")}
-                      {s["duration"] ? ` · ${Number(s["duration"])} min` : ""}
-                      {s["price"] !== undefined && s["price"] !== "" ? ` · ₹${Number(s["price"])}` : ""}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div>
-            <h2 className="font-display text-lg">Stylists</h2>
-            {outletStylists.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">No stylists published for this outlet yet.</p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {outletStylists.map((s) => (
-                  <li key={String(s.id)} className="text-sm">
-                    <span className="font-medium">{String(s["name"])}</span>
-                    {s["role"] ? <span className="text-muted-foreground"> · {String(s["role"])}</span> : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <Button
+            className="w-full"
+            type="button"
+            onClick={() => {
+              if (usedWalkInToday && matchedCustomer) {
+                setCustomerId(String(matchedCustomer.id));
+                setCheckedIn(matchedCustomer);
+                setName(String(matchedCustomer["name"] ?? name));
+                setStep(rewardMode ? "reward" : "done");
+                return;
+              }
+              void checkIn();
+            }}
+            disabled={usedWalkInToday && !matchedCustomer}
+          >
+            {usedWalkInToday ? (rewardMode ? "See today's reward" : "Already used today") : "Check in & continue"}
+          </Button>
         </div>
       ) : null}
 
@@ -469,7 +501,8 @@ export function WalkInTerminal({
         </div>
       ) : null}
 
-      {step === "reward" && showWheelGame && wheelProgram && wheelSegments.length > 0 ? (
+      {(step === "reward" || step === "done") && showWheelGame ? (
+        wheelSegments.length > 0 ? (
         <div className="rounded-xl border border-violet-500/20 bg-gradient-to-b from-card to-violet-500/5 p-5 shadow-sm">
           <h2 className="font-display text-lg flex items-center gap-2">
             <Sparkles className="size-5 text-violet-500" />
@@ -534,28 +567,38 @@ export function WalkInTerminal({
             </div>
           )}
         </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-violet-500/30 bg-card p-5 text-sm text-muted-foreground">
+          Prize wheel is on for this salon, but no wheel segments are set up yet. Add them under Prize wheel.
+        </div>
+      )
       ) : null}
 
-      {step === "reward" && showScratchGame && scratchPrizes.length > 0 ? (
+      {(step === "reward" || step === "done") && showScratchGame ? (
+        scratchPrizes.length > 0 ? (
         <div className="rounded-xl border border-amber-500/20 bg-gradient-to-b from-card to-amber-500/5 p-5 shadow-sm">
           <h2 className="font-display text-lg flex items-center gap-2">
             <Layers className="size-5 text-amber-500" />
             Scratch card
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">One scratch per guest per day.</p>
-          {alreadyScratchedToday || scratchPrize ? (
+          {alreadyScratchedToday && !scratchStarted ? (
             <div className="mt-4 space-y-3">
-              <ScratchCard prizeLabel={scratchPrize || alreadyScratchedToday} brandName={activeOrg.name} completed />
+              <ScratchCard prizeLabel={alreadyScratchedToday} brandName={activeOrg.name} completed onBegin={() => alreadyScratchedToday} />
               <p className="text-center text-sm">
-                Prize: <strong>{scratchPrize || alreadyScratchedToday}</strong>
+                You earned: <strong>{alreadyScratchedToday}</strong>
               </p>
+              {publicMode ? (
+                <p className="text-center text-sm text-muted-foreground">Use this on your next visit when you pay.</p>
+              ) : null}
             </div>
           ) : (
-            <div className="mt-4">
+            <div className="mt-4 space-y-3">
               <ScratchCard
                 prizeLabel={scratchPrize}
                 brandName={activeOrg.name}
                 onBegin={() => {
+                  if (scratchStarted && scratchPrize) return scratchPrize;
                   const prize = selectScratchPrize(scratchPrizes, rewardDist.scratch);
                   if (!prize) {
                     toast.error("No scratch prizes configured");
@@ -580,6 +623,8 @@ export function WalkInTerminal({
                   });
                   if (result.duplicate) {
                     setScratchPrize(result.label);
+                    setScratchStarted(true);
+                    setStep("done");
                     toast.message("Already scratched today");
                     return result.label;
                   }
@@ -588,6 +633,7 @@ export function WalkInTerminal({
                     return null;
                   }
                   setScratchPrize(result.label);
+                  setScratchStarted(true);
                   if (checkinId) {
                     const mine = (allRows[QR_CHECKINS] ?? []).find((c) => String(c.id) === checkinId);
                     if (mine) {
@@ -597,15 +643,30 @@ export function WalkInTerminal({
                       });
                     }
                   }
-                  setStep("done");
-                  toast.success(`Prize: ${result.label}`);
                   return result.label;
                 }}
-                onRevealed={(label) => setScratchPrize(label)}
+                onRevealed={(label) => {
+                  setScratchPrize(label);
+                  setStep("done");
+                  toast.success(`You earned: ${label}`);
+                }}
               />
+              {scratchPrize ? (
+                <p className="text-center text-sm">
+                  You earned: <strong>{scratchPrize}</strong>
+                  {publicMode ? (
+                    <span className="mt-1 block text-muted-foreground">Use this on your next visit when you pay.</span>
+                  ) : null}
+                </p>
+              ) : null}
             </div>
           )}
         </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-amber-500/30 bg-card p-5 text-sm text-muted-foreground">
+          Scratch card is on for this salon, but no scratch prizes are set up yet. Add them under Scratch card.
+        </div>
+      )
       ) : null}
 
       {step === "done" ? (
