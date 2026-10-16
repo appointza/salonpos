@@ -4,6 +4,7 @@ import { Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,11 +28,13 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useListView } from "@/list-view";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/tenant";
 import { CustomerRes } from "@/model/customers";
 import { MembershipRes } from "@/model/memberships";
 import { MembershipPlanRes } from "@/model/membershipPlans";
+import { isValidPhone, isWhatsappNumber } from "@/pages/Customers/customer-store";
 import { CustomerService } from "@/services/customer.service";
 import { MembershipService } from "@/services/membership.service";
 import { MembershipPlanService } from "@/services/membershipPlan.service";
@@ -72,6 +75,7 @@ function emptyCustomer(orgId: number, locationId: number, outlet: string): Custo
   row.outlet = outlet;
   row.gender = "Female";
   row.tier = "Silver";
+  row.isWhatsapp = "No";
   return row;
 }
 
@@ -97,7 +101,12 @@ const CustomerRow = memo(function CustomerRow({
           {row.name || "—"}
         </Link>
       </TableCell>
-      <TableCell>{row.phone || "—"}</TableCell>
+      <TableCell>
+        {row.phone || "—"}
+        {isWhatsappNumber(row.isWhatsapp) ? (
+          <span className="ml-1 text-[11px] text-muted-foreground">WhatsApp</span>
+        ) : null}
+      </TableCell>
       <TableCell>
         <Badge variant="secondary">{row.tier || "—"}</Badge>
       </TableCell>
@@ -127,8 +136,80 @@ const CustomerRow = memo(function CustomerRow({
   );
 });
 
+const CustomerCard = memo(function CustomerCard({
+  row,
+  allowEdit,
+  onView,
+  onEdit,
+  onDelete,
+}: {
+  row: ListRow;
+  allowEdit: boolean;
+  onView: (id: string) => void;
+  onEdit: (row: CustomerRes) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div
+      className="cursor-pointer rounded-xl border border-border bg-background p-4 shadow-sm"
+      onClick={() => onView(String(row.id))}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate font-medium">{row.name || "—"}</p>
+          <p className="text-sm text-muted-foreground">
+            {row.phone || "—"}
+            {isWhatsappNumber(row.isWhatsapp) ? " · WhatsApp" : ""}
+          </p>
+        </div>
+        <Badge variant="secondary">{row.tier || "—"}</Badge>
+      </div>
+      <dl className="mt-3 space-y-1.5 text-sm">
+        <div className="flex justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">Points</dt>
+          <dd>{Number(row.points ?? 0).toLocaleString("en-IN")}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">Wallet</dt>
+          <dd>₹{Number(row.walletBalance ?? 0).toLocaleString("en-IN")}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">Membership</dt>
+          <dd className="max-w-[70%] text-right">{row.membershipLabel || "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">Outlet</dt>
+          <dd className="max-w-[70%] text-right">{row.outlet || "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">Last visit</dt>
+          <dd>{dateInput(row.lastVisit) || "—"}</dd>
+        </div>
+      </dl>
+      <div className="mt-3 flex justify-end" onClick={(e) => e.stopPropagation()}>
+        <Button variant="ghost" size="icon" aria-label={`View ${String(row.id)}`} asChild>
+          <Link to="/customers/$customerId" params={{ customerId: String(row.id) }}>
+            <Eye className="size-4" />
+          </Link>
+        </Button>
+        {allowEdit ? (
+          <>
+            <Button variant="ghost" size="icon" aria-label={`Edit ${String(row.id)}`} onClick={() => onEdit(row)}>
+              <Pencil className="size-4" />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label={`Delete ${String(row.id)}`} onClick={() => onDelete(String(row.id))}>
+              <Trash2 className="size-4" />
+            </Button>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+});
+
 function CustomersListPage() {
   const navigate = useNavigate();
+  const { view } = useListView();
   const { org, location, locationId, orgId, scopeLabel } = useTenant();
   const { user } = useAuth();
   const allowEdit = user?.role !== "STYLIST";
@@ -300,6 +381,10 @@ function CustomersListPage() {
       toast.error("Enter a name");
       return;
     }
+    if (!isValidPhone(editing.phone)) {
+      toast.error("Enter a valid 10-digit phone number");
+      return;
+    }
     const outletName = (editing.outlet || defaultOutlet?.name || "").trim();
     if (!outletName) {
       toast.error("Select an outlet first");
@@ -357,7 +442,7 @@ function CustomersListPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl tracking-tight">Customers</h1>
+          <h1 className="font-display text-2xl tracking-tight sm:text-3xl">Customers</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             One phone number is one customer. A return visit records the service on that profile — it does not create another customer.
             Loyalty, wallet and visits stay on the same profile. Buy stock on{" "}
@@ -400,7 +485,7 @@ function CustomersListPage() {
 
       <div className="rounded-xl border border-border bg-card shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
-          <div className="relative w-full max-w-xs">
+            <div className="relative w-full sm:max-w-xs">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search customers…" className="pl-9" />
           </div>
@@ -411,6 +496,12 @@ function CustomersListPage() {
 
         {enhancedRows.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">{isLoading ? "Loading customers…" : "No records found."}</p>
+        ) : view === "card" ? (
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {paginatedRows.map((row) => (
+              <CustomerCard key={String(row.id)} row={row} allowEdit={allowEdit} onView={onView} onEdit={onEdit} onDelete={onDelete} />
+            ))}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -475,8 +566,25 @@ function CustomersListPage() {
                 <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
               </div>
               <div>
-                <Label className="mb-1.5">Phone</Label>
-                <Input value={editing.phone} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} />
+                <Label className="mb-1.5" htmlFor="customer-phone">
+                  Phone <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="customer-phone"
+                  required
+                  inputMode="tel"
+                  value={editing.phone}
+                  onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
+                />
+                <label className="mt-2 flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={isWhatsappNumber(editing.isWhatsapp)}
+                    onCheckedChange={(checked) =>
+                      setEditing({ ...editing, isWhatsapp: checked === true ? "Yes" : "No" })
+                    }
+                  />
+                  This is a WhatsApp number
+                </label>
               </div>
               <div>
                 <Label className="mb-1.5">Email</Label>

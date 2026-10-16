@@ -66,6 +66,7 @@ export type SessionUser = {
   email: string;
   phone: string;
   role: Role;
+  language?: string;
   staffId?: EntityId;
   locationId?: EntityId;
 };
@@ -132,8 +133,9 @@ type Ctx = {
   signIn: (
     email: string,
     role: Role,
-    profile?: Partial<Pick<SessionUser, "id" | "name" | "phone" | "orgId" | "staffId" | "locationId">>,
+    profile?: Partial<Pick<SessionUser, "id" | "name" | "phone" | "orgId" | "staffId" | "locationId" | "language">>,
   ) => SessionUser;
+  patchUser: (partial: Partial<SessionUser>) => void;
   signOut: () => void;
   completeOnboarding: (org: Organization, admin: Omit<SessionUser, "id" | "orgId" | "role">) => void;
   toggleChecklist: (key: string) => void;
@@ -168,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(
-    (email: string, role: Role, profile?: Partial<Pick<SessionUser, "id" | "name" | "phone" | "orgId" | "staffId" | "locationId">>) => {
+    (email: string, role: Role, profile?: Partial<Pick<SessionUser, "id" | "name" | "phone" | "orgId" | "staffId" | "locationId" | "language">>) => {
       const next = withStaffLink({
         id: profile?.id ?? 0,
         orgId: profile?.orgId !== undefined ? profile.orgId : role === "SUPER_ADMIN" ? null : null,
@@ -176,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         phone: profile?.phone ?? "",
         role,
+        language: profile?.language,
         staffId: profile?.staffId,
         locationId: profile?.locationId,
       });
@@ -185,6 +188,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+
+  const patchUser = useCallback((partial: Partial<SessionUser>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...partial };
+      write(SESSION_KEY, next);
+      return next;
+    });
+  }, []);
 
   const signOut = useCallback(() => {
     setUser(null);
@@ -215,8 +227,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const org = useMemo(() => orgs.find((o) => o.orgId === user?.orgId) ?? null, [orgs, user]);
 
   const value = useMemo<Ctx>(
-    () => ({ orgs, user, org, signIn, signOut, completeOnboarding, toggleChecklist }),
-    [orgs, user, org, signIn, signOut, completeOnboarding, toggleChecklist],
+    () => ({ orgs, user, org, signIn, patchUser, signOut, completeOnboarding, toggleChecklist }),
+    [orgs, user, org, signIn, patchUser, signOut, completeOnboarding, toggleChecklist],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -237,15 +249,16 @@ export const ROLE_NAV: Record<Role, string[] | "all"> = {
     "/customers",
     "/appointments",
     "/pos",
+    "/invoices",
     "/walk-in",
     "/services",
     "/feedback",
     "/memberships",
+    "/growth",
     "/loyalty",
     "/offers",
     "/coupons",
     "/prize-wheel",
-    "/scratch-card",
     "/campaigns",
     "/inventory",
     "/vendors",

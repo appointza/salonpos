@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MyShopsPage } from "@/pages/NearbyMyShops/NearbyMyShops";
+import { CustomerOffersPage } from "@/pages/NearbyOffers/CustomerOffers";
 
-const title = "My shops & rewards — Krios";
-const description = "See points, stamps and coupons at every salon you've visited.";
+const title = "Offers by salon — Krios";
+const description = "See which salon location has which offers, and how many days your coupons stay valid.";
 
-export const Route = createFileRoute("/nearby/my-shops")({
+export const Route = createFileRoute("/nearby/offers")({
   head: () => ({
     meta: [
       { title },
@@ -14,5 +14,5 @@ export const Route = createFileRoute("/nearby/my-shops")({
       { property: "og:type", content: "website" },
     ],
   }),
-  component: MyShopsPage,
+  component: CustomerOffersPage,
 });

@@ -10,36 +10,42 @@ namespace Krios.Services.Krios
         private readonly IDbProvider dbprovider;
         private readonly IQueryBuilderProvider querybuilderprovider;
         private readonly RequestState requeststate;
+        private readonly AssetService assetService;
+        private static bool logoColumnReady;
 
         public OrganizationService(
             IDbProvider dbprovider,
             IQueryBuilderProvider querybuilderprovider,
-            RequestState requeststate)
+            RequestState requeststate,
+            AssetService assetService)
         {
             this.dbprovider = dbprovider;
             this.querybuilderprovider = querybuilderprovider;
             this.requeststate = requeststate;
+            this.assetService = assetService;
         }
 
         public async Task<List<Organization>> Select(OrganizationSelectReq req)
         {
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
+            await EnsureLogoColumn(db);
             return await SelectTransaction(db, req);
         }
 
         public async Task<List<Organization>> SelectTransaction(IDb db, OrganizationSelectReq req)
         {
+            await EnsureLogoColumn(db);
             const string query = @"
                 SELECT
                     id, ""orgId"", ""locationId"", name, slug, domain, website,
-                    ""businessType"", ""brandColor"", ""pointsPerRupee"", ""rupeesPerPoint"",
+                    ""businessType"", ""brandColor"", logo, ""pointsPerRupee"", ""rupeesPerPoint"",
                     ""whatsappPhoneNumberId"", ""whatsappBusinessAccountId"", ""whatsappDisplayNumber"",
                     ""whatsappApiKey"", ""whatsappWebhookToken"", ""whatsappApiVersion"", ""whatsappConnected"",
                     status, createdby, createdon, updatedby, updatedon,
                     ""earnUnitRupees"", ""pointsPerUnit"", ""loyaltyMinSpend"",
                     ""rewardWheelWeights"", ""rewardScratchWeights"", ""rewardCustomerTierWeights"",
-                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"", ""bookingRules""
+                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"", ""bookingRules"", ""referralRules"", ""growthClaimPool""
                 FROM organizations
             ";
 
@@ -84,26 +90,27 @@ namespace Krios.Services.Krios
 
         public async Task InsertTransaction(IDb db, Organization org)
         {
+            await EnsureLogoColumn(db);
             const string query = @"
                 INSERT INTO organizations (
                     ""orgId"", ""locationId"", name, slug, domain, website,
-                    ""businessType"", ""brandColor"", ""pointsPerRupee"", ""rupeesPerPoint"",
+                    ""businessType"", ""brandColor"", logo, ""pointsPerRupee"", ""rupeesPerPoint"",
                     ""whatsappPhoneNumberId"", ""whatsappBusinessAccountId"", ""whatsappDisplayNumber"",
                     ""whatsappApiKey"", ""whatsappWebhookToken"", ""whatsappApiVersion"", ""whatsappConnected"",
                     status, createdby, createdon, updatedby, updatedon,
                     ""earnUnitRupees"", ""pointsPerUnit"", ""loyaltyMinSpend"",
                     ""rewardWheelWeights"", ""rewardScratchWeights"", ""rewardCustomerTierWeights"",
-                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"", ""bookingRules""
+                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"", ""bookingRules"", ""referralRules"", ""growthClaimPool""
                 )
                 VALUES (
                     @orgId, @locationId, @name, @slug, @domain, @website,
-                    @businessType, @brandColor, @pointsPerRupee, @rupeesPerPoint,
+                    @businessType, @brandColor, @logo, @pointsPerRupee, @rupeesPerPoint,
                     @whatsappPhoneNumberId, @whatsappBusinessAccountId, @whatsappDisplayNumber,
                     @whatsappApiKey, @whatsappWebhookToken, @whatsappApiVersion, @whatsappConnected,
                     @status, @createdby, @createdon, @updatedby, @updatedon,
                     @earnUnitRupees, @pointsPerUnit, @loyaltyMinSpend,
                     @rewardWheelWeights, @rewardScratchWeights, @rewardCustomerTierWeights,
-                    @publicBookingShowPrizeWheel, @publicBookingShowScratchCard, @bookingRules
+                    @publicBookingShowPrizeWheel, @publicBookingShowScratchCard, @bookingRules, @referralRules, @growthClaimPool
                 )
                 RETURNING id;
             ";
@@ -115,6 +122,10 @@ namespace Krios.Services.Krios
             org.updatedon = today;
             org.createdby = actor;
             org.updatedby = actor;
+
+            var pendingLogo = org.logo;
+            if (!string.IsNullOrWhiteSpace(pendingLogo) && pendingLogo.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                org.logo = "";
 
             var cmd = db.GetCommand(query);
             BindOrganizationParameters(cmd, db, org, includeId: false);
@@ -135,6 +146,15 @@ namespace Krios.Services.Krios
                 await db.ExecuteNonQuery(sync);
                 org.orgId = org.id;
             }
+
+            if (!string.IsNullOrWhiteSpace(pendingLogo) && pendingLogo.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            {
+                org.logo = await assetService.StoreImageId(db, org.orgId, pendingLogo, "logo");
+                var setLogo = db.GetCommand(@"UPDATE organizations SET logo = @logo WHERE id = @id");
+                db.AddParameter(setLogo, "logo", DbTypes.Types.String).Value = org.logo;
+                db.AddParameter(setLogo, "id", DbTypes.Types.Long).Value = org.id;
+                await db.ExecuteNonQuery(setLogo);
+            }
         }
 
         public async Task<Organization> Update(Organization org)
@@ -147,6 +167,8 @@ namespace Krios.Services.Krios
 
         public async Task UpdateTransaction(IDb db, Organization org)
         {
+            await EnsureLogoColumn(db);
+            org.logo = await assetService.StoreImageId(db, org.orgId > 0 ? org.orgId : org.id, org.logo, "logo");
             const string query = @"
                 UPDATE organizations SET
                     ""orgId"" = @orgId,
@@ -157,6 +179,7 @@ namespace Krios.Services.Krios
                     website = @website,
                     ""businessType"" = @businessType,
                     ""brandColor"" = @brandColor,
+                    logo = @logo,
                     ""pointsPerRupee"" = @pointsPerRupee,
                     ""rupeesPerPoint"" = @rupeesPerPoint,
                     ""whatsappPhoneNumberId"" = @whatsappPhoneNumberId,
@@ -177,7 +200,9 @@ namespace Krios.Services.Krios
                     ""rewardCustomerTierWeights"" = @rewardCustomerTierWeights,
                     ""publicBookingShowPrizeWheel"" = @publicBookingShowPrizeWheel,
                     ""publicBookingShowScratchCard"" = @publicBookingShowScratchCard,
-                    ""bookingRules"" = @bookingRules
+                    ""bookingRules"" = @bookingRules,
+                    ""referralRules"" = @referralRules,
+                    ""growthClaimPool"" = @growthClaimPool
                 WHERE id = @id
             ";
 
@@ -227,6 +252,7 @@ namespace Krios.Services.Krios
                 website = reader["website"]?.ToString() ?? "",
                 businessType = reader["businessType"]?.ToString() ?? "",
                 brandColor = reader["brandColor"]?.ToString() ?? "",
+                logo = ReadString(reader, "logo"),
                 pointsPerRupee = ReadDecimal(reader, "pointsPerRupee"),
                 rupeesPerPoint = ReadDecimal(reader, "rupeesPerPoint"),
                 whatsappPhoneNumberId = reader["whatsappPhoneNumberId"]?.ToString() ?? "",
@@ -250,6 +276,8 @@ namespace Krios.Services.Krios
                 publicBookingShowPrizeWheel = reader["publicBookingShowPrizeWheel"]?.ToString() ?? "",
                 publicBookingShowScratchCard = reader["publicBookingShowScratchCard"]?.ToString() ?? "",
                 bookingRules = ReadString(reader, "bookingRules"),
+                referralRules = ReadString(reader, "referralRules"),
+                growthClaimPool = ReadString(reader, "growthClaimPool"),
             };
         }
 
@@ -266,6 +294,7 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "website", DbTypes.Types.String).Value = org.website ?? "";
             db.AddParameter(cmd, "businessType", DbTypes.Types.String).Value = org.businessType ?? "";
             db.AddParameter(cmd, "brandColor", DbTypes.Types.String).Value = org.brandColor ?? "";
+            db.AddParameter(cmd, "logo", DbTypes.Types.String).Value = (org.logo ?? "").Trim();
             db.AddParameter(cmd, "pointsPerRupee", DbTypes.Types.Decimal).Value = org.pointsPerRupee;
             db.AddParameter(cmd, "rupeesPerPoint", DbTypes.Types.Decimal).Value = org.rupeesPerPoint;
             db.AddParameter(cmd, "whatsappPhoneNumberId", DbTypes.Types.String).Value = org.whatsappPhoneNumberId ?? "";
@@ -289,6 +318,16 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "publicBookingShowPrizeWheel", DbTypes.Types.String).Value = org.publicBookingShowPrizeWheel ?? "";
             db.AddParameter(cmd, "publicBookingShowScratchCard", DbTypes.Types.String).Value = org.publicBookingShowScratchCard ?? "";
             db.AddParameter(cmd, "bookingRules", DbTypes.Types.String).Value = org.bookingRules ?? "";
+            db.AddParameter(cmd, "referralRules", DbTypes.Types.String).Value = org.referralRules ?? "";
+            db.AddParameter(cmd, "growthClaimPool", DbTypes.Types.String).Value = org.growthClaimPool ?? "";
+        }
+
+        private static async Task EnsureLogoColumn(IDb db)
+        {
+            if (logoColumnReady) return;
+            var cmd = db.GetCommand(@"ALTER TABLE organizations ADD COLUMN IF NOT EXISTS logo TEXT;");
+            await db.ExecuteNonQuery(cmd);
+            logoColumnReady = true;
         }
 
         private static string ReadString(DbDataReader reader, string column)

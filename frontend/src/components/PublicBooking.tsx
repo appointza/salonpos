@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { MapPin, Clock, Scissors, CalendarCheck, ExternalLink, CreditCard, Gift, TicketPercent, Layers, Sparkles } from "lucide-react";
-import { BRAND_LOGO } from "@/brand";
+import { MapPin, Clock, Scissors, CalendarCheck, ExternalLink, CreditCard, Gift, TicketPercent, Layers, Sparkles, Check } from "lucide-react";
+import { salonLogoUrl } from "@/brand";
+import { ServiceThumb } from "@/components/ServiceThumb";
 import { OfferCard } from "@/components/OfferCard";
 import { ScratchCard } from "@/components/ScratchCard";
 import { listOffersForPublicGuest, QR_OFFERS } from "@/pages/Offers/offer-redemption-service";
@@ -21,11 +22,12 @@ import { dbWithRow, isBookableStaff, isPublishedService, isSlotFree, openingWind
 import { validateAppointmentBooking } from "@/pages/Pos/business/appointment-service";
 import { addCalendarMonths } from "@/pages/Memberships/membership";
 import { SpinWheel } from "@/components/SpinWheel";
-import { normalizePhone, SCRATCH_PRIZES, WHEEL_SEGMENTS } from "@/pages/LoyaltyQr/qr-loyalty";
+import { uniquePrizeCatalog } from "@/pages/PrizeWheel/prize-help";
+import { normalizePhone, referralCodeFor, SCRATCH_PRIZES, WHEEL_SEGMENTS } from "@/pages/LoyaltyQr/qr-loyalty";
 import { readBookingRules, bookingDateMax, localToday } from "@/pages/Book/booking-rules";
 import { findCustomerByPhoneInOrg } from "@/pages/Customers/customer-lookup";
 import { upsertCustomerByPhone, isValidPhone } from "@/pages/Customers/customer-store";
-import { buildAppointmentRow } from "@/pages/Appointments/appointment-resolve";
+import { appointmentServiceLabel, buildAppointmentRow } from "@/pages/Appointments/appointment-resolve";
 import { customerSpunToday, getTodayWheelSpin, processWheelSpinResult } from "@/pages/PrizeWheel/wheel-service";
 import {
   customerScratchedToday,
@@ -36,7 +38,10 @@ import {
 import { guestRewardGames, publicBookingSettingsForOrg } from "@/pages/Book/public-booking-settings";
 import { readServiceDisplaySettings } from "@/pages/Services/service-display-settings";
 import { ServicePriceDisplay } from "@/components/ServicePriceDisplay";
-import { readRewardDistribution } from "@/pages/PrizeWheel/reward-distribution";
+import { LanguageSwitcher } from "@/i18n/LanguageSwitcher";
+import { ReferralShareCard } from "@/components/ReferralShareCard";
+import { ensureCustomerReferralCode, applyReferralOnFirstService, validateWalkInCode, type WalkInCodeResult } from "@/pages/Loyalty/referral-service";
+import { offerAvailWithinMessage, readRewardDistribution } from "@/pages/PrizeWheel/reward-distribution";
 import { getCustomerLoyaltyBalance } from "@/pages/Loyalty/loyalty-service";
 import type { EntityId } from "@/ids";
 import { idStr } from "@/ids";
@@ -47,11 +52,13 @@ export function PublicBooking({
   showSwitcher = true,
   initialLocationId,
   bookingOrgId,
+  initialReferralCode,
 }: {
   showSwitcher?: boolean;
   initialLocationId?: EntityId;
   /** When set (public slug page), always scope data to this org. */
   bookingOrgId?: EntityId;
+  initialReferralCode?: string;
 }) {
   const { tenants, org, setOrgId } = useTenant();
   const { allRows, create, update, applyCache } = useData();
@@ -90,12 +97,15 @@ export function PublicBooking({
       ? initialLocationId
       : (activeOrg.locations[0]?.locationId ?? ""),
   );
-  const [serviceId, setServiceId] = useState("");
+  const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [staffName, setStaffName] = useState("");
   const [date, setDate] = useState(localToday());
   const [time, setTime] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [referredBy, setReferredBy] = useState(() => String(initialReferralCode ?? "").trim().toUpperCase());
+  const [codeCheck, setCodeCheck] = useState<WalkInCodeResult | null>(null);
+  const [codeChecking, setCodeChecking] = useState(false);
   const [booked, setBooked] = useState<Row | null>(null);
   const [planId, setPlanId] = useState("");
   const [payment, setPayment] = useState("UPI");
@@ -140,6 +150,11 @@ export function PublicBooking({
     if (known) setName(known);
   }, [matchedCustomer]);
   const phoneReady = isValidPhone(phone);
+  const shareCode = matchedCustomer
+    ? ensureCustomerReferralCode(matchedCustomer)
+    : phoneReady && name.trim()
+      ? referralCodeFor(name, phone)
+      : "";
 
   useEffect(() => {
     const oid = Number(activeOrgId);
@@ -182,6 +197,32 @@ export function PublicBooking({
     };
   }, [phoneReady, phone, activeOrgId, location?.locationId, applyCache]);
 
+  useEffect(() => {
+    const code = referredBy.trim();
+    if (!code) {
+      setCodeCheck(null);
+      setCodeChecking(false);
+      return;
+    }
+    let cancelled = false;
+    setCodeChecking(true);
+    const timer = window.setTimeout(() => {
+      void validateWalkInCode(allRows, activeOrgId, code, phone, true, {
+        locationId: location?.locationId,
+        hasService: serviceIds.length > 0,
+      }).then((res) => {
+        if (cancelled) return;
+        setCodeCheck(res);
+        setCodeChecking(false);
+      });
+    }, 280);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [referredBy, phone, activeOrgId, location?.locationId, serviceIds.length]);
+
   const rewardOptions = useMemo(
     () =>
       matchedCustomer
@@ -213,13 +254,13 @@ export function PublicBooking({
     const loc = location?.locationId ?? "";
     const all = (allRows[WHEEL_SEGMENTS] ?? []).filter((s) => String(s["orgId"]) === String(activeOrgId));
     const here = all.filter((s) => String(s["locationId"]) === loc);
-    return here.length ? here : all;
+    return uniquePrizeCatalog(here.length ? here : all);
   }, [allRows, activeOrgId, location?.locationId]);
   const scratchPrizes = useMemo(() => {
     const loc = location?.locationId ?? "";
     const all = (allRows[SCRATCH_PRIZES] ?? []).filter((s) => String(s["orgId"]) === String(activeOrgId));
     const here = all.filter((s) => String(s["locationId"]) === loc);
-    return (here.length ? here : all).filter((s) => String(s["active"] ?? "Yes") !== "No");
+    return uniquePrizeCatalog((here.length ? here : all).filter((s) => String(s["active"] ?? "Yes") !== "No"));
   }, [allRows, activeOrgId, location?.locationId]);
   const alreadyScratchedToday = useMemo(() => {
     if (!matchedCustomer) return "";
@@ -237,7 +278,14 @@ export function PublicBooking({
     }
     return "";
   }, [allRows, matchedCustomer]);
-  const service = services.find((s) => String(s.id) === serviceId) ?? null;
+  const selectedServices = useMemo(
+    () => services.filter((s) => serviceIds.includes(String(s.id))),
+    [services, serviceIds],
+  );
+  const service = selectedServices[0] ?? null;
+  const serviceNames = selectedServices.map((s) => String(s["name"] ?? "")).filter(Boolean);
+  const serviceLabel = serviceNames.join(" + ");
+  const serviceTotalPrice = selectedServices.reduce((sum, s) => sum + Number(s["price"] ?? 0), 0);
   const plan = membershipPlans.find((p) => String(p.id) === planId) ?? null;
   const gstRate = 18;
   const planPrice = Number(plan?.["price"] ?? 0);
@@ -262,7 +310,10 @@ export function PublicBooking({
     const orgRow = (allRows["organizations"] ?? []).find((o) => String(o["orgId"]) === String(activeOrgId));
     return readBookingRules(orgRow, activeOrgId);
   }, [allRows, activeOrgId]);
-  const duration = serviceDurationMinutes(service?.["duration"], Number(bookingRules.duration) || 60);
+  const duration = selectedServices.reduce(
+    (sum, s) => sum + serviceDurationMinutes(s["duration"], Number(bookingRules.duration) || 60),
+    0,
+  );
   const stylist = staff.find((s) => String(s["name"]) === staffName) ?? null;
   const staffOff = useMemo(() => {
     if (!stylist) return null;
@@ -301,8 +352,8 @@ export function PublicBooking({
   async function book() {
     if (saving) return;
     const guestName = name.trim() || String(matchedCustomer?.["name"] ?? "").trim();
-    if (!service || !staffName || !time || !guestName || !phone || !location)
-      return void toast.error("Fill every field to confirm the booking");
+    if (!selectedServices.length || !staffName || !time || !guestName || !phone || !location)
+      return void toast.error("Pick at least one service and fill every field to confirm");
     const availability = validateAppointmentBooking(allRows, {
       orgId: activeOrgId,
       locationId: location.locationId,
@@ -310,9 +361,22 @@ export function PublicBooking({
       date,
       time,
       duration,
-      serviceId,
+      serviceId: String(service?.id ?? ""),
     });
     if (!availability.ok) return void toast.error(availability.error);
+
+    let offerKind = codeCheck?.kind;
+    let offerApplies = codeCheck?.applies !== false;
+    if (referredBy.trim()) {
+      const offerCode = await validateWalkInCode(allRows, activeOrgId, referredBy, phone, true, {
+        locationId: location.locationId,
+        hasService: selectedServices.length > 0,
+      });
+      setCodeCheck(offerCode);
+      if (!offerCode.ok) return void toast.error(offerCode.reason ?? "Invalid coupon or referral code");
+      offerKind = offerCode.kind;
+      offerApplies = offerCode.applies !== false;
+    }
 
     setSaving(true);
     setOrgId(activeOrgId);
@@ -331,7 +395,9 @@ export function PublicBooking({
     const staffRow = staff.find((s) => String(s["name"]) === staffName) ?? null;
     const appt = buildAppointmentRow({
       customer,
-      service,
+      service: service!,
+      serviceIds: selectedServices.map((s) => s.id),
+      serviceNames: serviceNames,
       staffName,
       staff: staffRow,
       locationId: location.locationId,
@@ -343,7 +409,25 @@ export function PublicBooking({
       source: "Website",
       notes: `Online booking · ${phone}`,
     });
-    await create("appointments", appt);
+    const savedAppt = await create("appointments", appt);
+    if (offerKind === "referral" && referredBy.trim()) {
+      const claimed = applyReferralOnFirstService(
+        { db: dbWithRow(allRows, "customers", customer), create, update },
+        {
+          newCustomer: customer,
+          orgId: activeOrgId,
+          locationId: location.locationId,
+          referredByCode: referredBy,
+          hasService: selectedServices.length > 0,
+          excludeAppointmentId: savedAppt && typeof savedAppt === "object" ? savedAppt.id : undefined,
+        },
+      );
+      if (claimed.ok) {
+        toast.success("Referral applied", { description: "First service booking at this salon — one time only." });
+      } else if (offerApplies === false || claimed.reason) {
+        toast.info(claimed.reason ?? "Referral was not applied");
+      }
+    }
     setBooked(appt);
     setTime("");
     toast.success("Appointment confirmed", { description: `${date} ${time} · ${staffName}` });
@@ -450,20 +534,21 @@ export function PublicBooking({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
       <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4 sm:py-4">
           <div className="flex items-center gap-3">
-            <img src={BRAND_LOGO} alt="Krios" width={40} height={40} className="size-10 shrink-0 object-contain" />
+            <img src={salonLogoUrl(activeOrg.logo || String(orgRow?.["logo"] ?? ""))} alt={activeOrg.name} width={40} height={40} className="size-10 shrink-0 object-contain" />
             <div>
               <p className="font-display text-lg leading-tight font-semibold">{activeOrg.name}</p>
               <p className="text-xs text-muted-foreground">{activeOrg.domain} · Powered by Krios</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <LanguageSwitcher compact />
             {showSwitcher && (
             <Select value={activeOrgId} onValueChange={(v) => setOrgId(v)}>
-              <SelectTrigger className="w-52">
+              <SelectTrigger className="w-full max-w-52">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -482,9 +567,9 @@ export function PublicBooking({
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
-        <section className="rounded-2xl border border-border bg-card p-8 shadow-sm">
-          <h1 className="font-display text-3xl font-semibold">Book your next appointment</h1>
+      <main className="mx-auto max-w-6xl space-y-8 px-3 py-6 sm:px-4 sm:py-8">
+        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-8">
+          <h1 className="font-display text-2xl font-semibold sm:text-3xl">Book your next appointment</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             {activeOrg.businessType} · {guestRewardBlurb}
           </p>
@@ -533,6 +618,14 @@ export function PublicBooking({
 
         <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <h2 className="font-display text-xl">Your details</h2>
+          {referredBy.trim() ? (
+            <p className="mt-1 text-sm text-primary">
+              Booking with code <span className="font-mono font-semibold">{referredBy}</span>
+              {codeCheck?.applies === false
+                ? " — it will not apply (first service booking at this salon only, once per guest)."
+                : " — it applies on this first service booking only, once."}
+            </p>
+          ) : (
           <p className="mt-1 text-sm text-muted-foreground">
             Enter your mobile. If we already know you, your name fills in. This name and mobile are used for
             {showWheelGame || showScratchGame
@@ -545,6 +638,7 @@ export function PublicBooking({
               : ""}{" "}
             booking and membership.
           </p>
+          )}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="guest-phone" className="mb-1.5">
@@ -565,6 +659,34 @@ export function PublicBooking({
               <Input id="guest-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Fills in when we know this number" />
             </div>
           </div>
+          {!matchedCustomer || !String(matchedCustomer["referredBy"] ?? "").trim() ? (
+            <div className="mt-3 max-w-sm">
+              <Label htmlFor="guest-referral" className="mb-1.5">
+                Referral or coupon code (optional)
+              </Label>
+              <Input
+                id="guest-referral"
+                value={referredBy}
+                onChange={(e) => setReferredBy(e.target.value.toUpperCase())}
+                placeholder="MUTH5400"
+                aria-invalid={!!referredBy.trim() && codeCheck?.ok === false}
+              />
+              {codeChecking ? (
+                <p className="mt-1 text-xs text-muted-foreground">Checking code…</p>
+              ) : codeCheck?.ok && referredBy.trim() ? (
+                <p className="mt-1 text-xs text-emerald-700">{codeCheck.label}</p>
+              ) : codeCheck && !codeCheck.ok ? (
+                <p className="mt-1 text-xs text-destructive">{codeCheck.reason}</p>
+              ) : (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Friend’s referral applies once on a first service booking at this salon.
+                </p>
+              )}
+            </div>
+          ) : null}
+          {shareCode ? (
+            <ReferralShareCard className="mt-3 max-w-sm" code={shareCode} salonName={activeOrg.name} orgSlug={activeOrg.slug} locationId={location?.locationId} />
+          ) : null}
           {matchedCustomer ? (
             <p className="mt-3 text-sm">
               Recognised as <strong>{String(matchedCustomer["name"])}</strong>
@@ -674,17 +796,24 @@ export function PublicBooking({
                     prizeLabel={scratchPrize || alreadyScratchedToday}
                     brandName={activeOrg.name}
                     completed
+                    availWithinDays={rewardDist.offerValidityDays}
                     onBegin={() => scratchPrize || alreadyScratchedToday}
                   />
                   <p className="text-center text-sm text-muted-foreground">
                     Today&apos;s prize for {name || String(matchedCustomer?.["name"] ?? "you")}:{" "}
                     <strong>{scratchPrize || alreadyScratchedToday}</strong>
                   </p>
+                  {offerAvailWithinMessage(rewardDist.offerValidityDays, scratchPrize || alreadyScratchedToday) ? (
+                    <p className="text-center text-sm font-medium">
+                      {offerAvailWithinMessage(rewardDist.offerValidityDays, scratchPrize || alreadyScratchedToday)}
+                    </p>
+                  ) : null}
                 </div>
               ) : (
                 <ScratchCard
                   prizeLabel={scratchPrize}
                   brandName={activeOrg.name}
+                  availWithinDays={rewardDist.offerValidityDays}
                   disabled={!phoneReady || (!name.trim() && !matchedCustomer) || scratchPrizes.length === 0}
                   onBegin={() => {
                     const guestPromise = ensureGuest();
@@ -713,7 +842,11 @@ export function PublicBooking({
                       return null;
                     }
                     setScratchPrize(result.label);
-                    toast.success(`Prize saved to ${guest["name"]}`, { description: result.label });
+                    toast.success(`Prize saved to ${guest["name"]}`, {
+                      description: [result.label, offerAvailWithinMessage(rewardDist.offerValidityDays, result.label)]
+                        .filter(Boolean)
+                        .join(" · "),
+                    });
                     return result.label;
                     });
                   }}
@@ -744,11 +877,17 @@ export function PublicBooking({
                 <p className="mt-2 text-sm text-muted-foreground">
                   For {name || String(matchedCustomer?.["name"] ?? "you")} · show at checkout
                 </p>
+                {offerAvailWithinMessage(rewardDist.offerValidityDays, wheelPrize || alreadySpunToday) ? (
+                  <p className="mt-2 text-sm font-medium">
+                    {offerAvailWithinMessage(rewardDist.offerValidityDays, wheelPrize || alreadySpunToday)}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <SpinWheel
                 segments={wheelSegments}
                 tierWeights={rewardDist.wheel}
+                availWithinDays={rewardDist.offerValidityDays}
                 disabled={normalizePhone(phone).length < 10 || (!name.trim() && !matchedCustomer)}
                 onResult={(seg) => {
                   void (async () => {
@@ -772,7 +911,11 @@ export function PublicBooking({
                       return;
                     }
                     setWheelPrize(result.label);
-                    toast.success(`Prize saved to ${guest["name"]}`, { description: result.label });
+                    toast.success(`Prize saved to ${guest["name"]}`, {
+                      description: [result.label, offerAvailWithinMessage(rewardDist.offerValidityDays, result.label)]
+                        .filter(Boolean)
+                        .join(" · "),
+                    });
                   })();
                 }}
               />
@@ -851,21 +994,31 @@ export function PublicBooking({
         <section className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
           <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
             <h2 className="font-display text-xl">Services at {location?.name ?? "—"}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Tap to add more than one service. Time needed is added up.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {services.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No services published for this location yet.</p>
               ) : (
-                services.map((s) => (
+                services.map((s) => {
+                  const selected = serviceIds.includes(String(s.id));
+                  return (
                   <button
                     key={String(s.id)}
                     type="button"
-                    onClick={() => setServiceId(String(s.id))}
+                    aria-pressed={selected}
+                    onClick={() => {
+                      const id = String(s.id);
+                      setServiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+                      setTime("");
+                    }}
                     className={`rounded-lg border p-3 text-left ${
-                      String(s.id) === serviceId ? "border-primary bg-primary/5" : "border-border"
+                      selected ? "border-primary bg-primary/5" : "border-border"
                     }`}
                   >
                     <p className="flex items-center gap-2 text-sm font-medium">
-                      <Scissors className="size-4 text-primary" /> {String(s["name"])}
+                      <ServiceThumb imageId={s["imageId"]} name={String(s["name"])} size={36} />
+                      {selected ? <Check className="size-4 shrink-0 text-primary" /> : null}
+                      {String(s["name"])}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {String(s["category"])} · {Number(s["duration"] ?? 0)} min
@@ -874,9 +1027,17 @@ export function PublicBooking({
                       <ServicePriceDisplay price={Number(s["price"] ?? 0)} settings={serviceDisplay} />
                     </p>
                   </button>
-                ))
+                  );
+                })
               )}
             </div>
+            {selectedServices.length > 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                {selectedServices.length} selected · {duration} min
+                {serviceTotalPrice > 0 ? ` · ${money(serviceTotalPrice)}` : ""}
+                {serviceNames.length ? ` · ${serviceLabel}` : ""}
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -929,7 +1090,7 @@ export function PublicBooking({
               ) : slots.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   {!service || !staffName
-                    ? "Pick a service and stylist to see open slots."
+                    ? "Pick one or more services and a stylist to see open slots."
                     : !bookingRules.onlineBooking
                       ? "Online booking is turned off in Settings."
                       : slotWindow.closed
@@ -961,12 +1122,12 @@ export function PublicBooking({
             <p className="text-xs text-muted-foreground">
               Booking as {name.trim() || "—"} · {phone.trim() || "add mobile above"}
             </p>
-            <Button className="w-full" disabled={saving || !time} onClick={() => void book()}>
-              <CalendarCheck /> {saving ? "Booking…" : "Confirm booking"}
+            <Button className="w-full" disabled={saving || !time || selectedServices.length === 0} onClick={() => void book()}>
+              <CalendarCheck /> {saving ? "Booking…" : selectedServices.length > 1 ? `Confirm ${selectedServices.length} services` : "Confirm booking"}
             </Button>
             {booked && (
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-                Booked <span className="font-mono">{String(booked.id)}</span> — {String(booked["service"])} with{" "}
+                Booked <span className="font-mono">{String(booked.id)}</span> — {serviceLabel || appointmentServiceLabel(booked, services)} with{" "}
                 {String(booked["staff"])} on {String(booked["date"])} at {String(booked["time"])}.
                 <Badge variant="secondary" className="ml-2">
                   Synced to POS

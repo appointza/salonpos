@@ -31,8 +31,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/tenant";
 import { useListView } from "@/list-view";
 import { usePermissions } from "@/pages/Roles/permissions";
+import { useT } from "@/i18n/LanguageContext";
 
-export type FieldType = "text" | "number" | "date" | "time" | "textarea" | "select";
+export type FieldType = "text" | "number" | "date" | "time" | "textarea" | "select" | "password";
 
 export type Field = {
   name: string;
@@ -53,7 +54,46 @@ export type ModuleDef = {
   subtitle: string;
   idPrefix: string;
   fields: Field[];
+  /** Singular name for New/Create buttons, e.g. "Appointment". */
+  entityName?: string;
 };
+
+const CRUD_NOUN: Record<string, string> = {
+  appointments: "Appointment",
+  services: "Service",
+  staff: "Staff member",
+  users: "User",
+  roles: "Role",
+  inventory: "Product",
+  expenses: "Expense",
+  leaves: "Leave request",
+  shifts: "Shift",
+  vendors: "Vendor",
+  franchises: "Outlet",
+  brandApps: "White-label app",
+  campaigns: "Campaign",
+  loyalty: "Loyalty program",
+  membershipPlans: "Membership plan",
+  memberships: "Member",
+  rewards: "Reward",
+  customerRewards: "Customer reward",
+  wheelSegments: "Prize",
+  scratchPrizes: "Scratch prize",
+  qrOffers: "Offer",
+  feedback: "Feedback",
+  partnerships: "Partner",
+  coupons: "Coupon",
+};
+
+function recordNoun(module: ModuleDef) {
+  if (module.entityName) return module.entityName;
+  if (CRUD_NOUN[module.key]) return CRUD_NOUN[module.key];
+  const first = module.title.split(/[&/]/)[0]?.trim() || "record";
+  if (/ies$/i.test(first)) return first.replace(/ies$/i, "y");
+  if (/ses$/i.test(first)) return first.replace(/es$/i, "");
+  if (/s$/i.test(first) && !/ss$/i.test(first)) return first.replace(/s$/i, "");
+  return first;
+}
 
 function formatValue(field: Field, value: string | number | undefined) {
   if (value === undefined || value === "") return "—";
@@ -77,7 +117,7 @@ export function CrudPage({
   module,
   extraFields,
   extraToolbar,
-  newButtonLabel = "New record",
+  newButtonLabel,
   prepareNew,
   prepareEdit,
   validate,
@@ -87,6 +127,7 @@ export function CrudPage({
   selectOptions,
   prepareSave,
   onSaved,
+  onDeleted,
   canCreate = true,
   canEdit = true,
   canDelete = true,
@@ -119,6 +160,7 @@ export function CrudPage({
   selectOptions?: (field: Field, row?: Row) => { value: string; label: string }[] | undefined;
   prepareSave?: (row: Row) => Row;
   onSaved?: (row: Row, isNew: boolean) => void;
+  onDeleted?: (row: Row) => void;
   canCreate?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -132,6 +174,8 @@ export function CrudPage({
   rowActions?: (row: Row) => ReactNode;
 }) {
   const { rows, create, update, remove } = useCollection(module.key, { refetchOnMount: true });
+  const t = useT();
+  const noun = recordNoun(module);
   const { rows: franchiseRows } = useCollection("franchises");
   const { org, location, locationId, scopeLabel } = useTenant();
   const { user } = useAuth();
@@ -213,10 +257,10 @@ export function CrudPage({
     try {
       if (isNew) {
         await create(payload);
-        toast.success(`${module.title}: record created`, { description: id });
+        toast.success(t("{title}: record created", { title: t(module.title) }), { description: id });
       } else {
         await update(id, payload);
-        toast.success(`${module.title}: record updated`, { description: id });
+        toast.success(t("{title}: record updated", { title: t(module.title) }), { description: id });
       }
       onSaved?.(payload, isNew);
       setEditing(null);
@@ -226,7 +270,7 @@ export function CrudPage({
   }
 
   function exportJson() {
-    toast.info("Exported to JSON", { description: `${filtered.length} rows` });
+    toast.info(t("Exported to JSON"), { description: t("{count} rows", { count: filtered.length }) });
   }
 
   const inlineFields = useMemo(() => {
@@ -286,7 +330,7 @@ export function CrudPage({
         delete next[id];
         return next;
       });
-      toast.success(`${module.title}: record saved`, { description: id });
+      toast.success(t("{title}: record saved", { title: t(module.title) }), { description: id });
       onSaved?.(payload, false);
     } catch {
       /* toast shown by store */
@@ -312,7 +356,7 @@ export function CrudPage({
           </SelectTrigger>
           <SelectContent>
             {opts.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              <SelectItem key={o.value} value={o.value}>{t(o.label)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -353,29 +397,29 @@ export function CrudPage({
         <div>
           {!hideTitle && (
             <>
-              <h1 className="font-display text-3xl tracking-tight text-foreground">{module.title}</h1>
-              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{module.subtitle}</p>
+              <h1 className="font-display text-2xl tracking-tight text-foreground sm:text-3xl">{t(module.title)}</h1>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{t(module.subtitle)}</p>
             </>
           )}
           <div className={`${hideTitle ? "mt-0" : "mt-3"} flex flex-wrap items-center gap-2 text-xs`}>
             <Badge variant="secondary" className="font-normal">
-              Org · {org.name}
+              {t("Org")} · {org.name}
             </Badge>
             <Badge variant="secondary" className="font-normal">
-              Outlet · {scopeLabel}
+              {t("Outlet")} · {scopeLabel}
             </Badge>
             <span className="font-mono text-[11px] text-muted-foreground">
               {org.orgId} / {location?.locationId ?? "all"}
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <Button variant="outline" size="sm" onClick={exportJson}>
-            <Download /> Export
+            <Download /> {t("Export")}
           </Button>
           {canCreateHere && !readOnly && (
             <Button size="sm" onClick={() => openNew()}>
-              <Plus /> {newButtonLabel}
+              <Plus /> {newButtonLabel ? t(newButtonLabel) : t("New {name}", { name: t(noun) })}
             </Button>
           )}
           {!readOnly && allowMutate && extraToolbar?.({ openNew })}
@@ -384,22 +428,22 @@ export function CrudPage({
 
       <div className="rounded-xl border border-border bg-card shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
-          <div className="relative w-full max-w-xs">
+            <div className="relative w-full sm:max-w-xs">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={`Search ${module.title.toLowerCase()}…`}
+              placeholder={t("Search {title}…", { title: t(module.title) })}
               className="pl-9"
             />
           </div>
           <p className="text-xs tracking-wide text-muted-foreground uppercase">
-            {filtered.length} of {rows.length} records
+            {t("{filtered} of {total} records", { filtered: filtered.length, total: rows.length })}
           </p>
         </div>
 
         {filtered.length === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">No records found.</p>
+          <p className="py-12 text-center text-sm text-muted-foreground">{t("No records found.")}</p>
         ) : view === "card" ? (
           <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map((row) => {
@@ -450,7 +494,7 @@ export function CrudPage({
                         const custom = renderCell?.(f, row, text);
                         return (
                           <div key={f.name} className="flex items-start justify-between gap-3">
-                            <dt className="text-xs text-muted-foreground">{f.label}</dt>
+                            <dt className="text-xs text-muted-foreground">{t(f.label)}</dt>
                             <dd className="max-w-[70%] text-right">
                               {custom ?? (f.badge ? <Badge variant="secondary">{text}</Badge> : text)}
                             </dd>
@@ -467,14 +511,14 @@ export function CrudPage({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-32">ID</TableHead>
-                <TableHead>Outlet</TableHead>
+                <TableHead className="min-w-24">{t("ID")}</TableHead>
+                <TableHead className="min-w-28">{t("Outlet")}</TableHead>
                 {tableFields.map((f) => (
-                  <TableHead key={f.name}>{f.label}</TableHead>
+                  <TableHead key={f.name}>{t(f.label)}</TableHead>
                 ))}
                 {showActions && (
                   <TableHead className={showRowSave || rowActions ? "w-52 text-right" : "w-24 text-right"}>
-                    Actions
+                    {t("Actions")}
                   </TableHead>
                 )}
               </TableRow>
@@ -492,7 +536,7 @@ export function CrudPage({
                       const inline = renderInlineCell(f, row, text);
                       const custom = inline ?? renderCell?.(f, displayRow, text);
                       return (
-                        <TableCell key={f.name} className={custom ? "max-w-[18rem]" : "max-w-[16rem] truncate"}>
+                        <TableCell key={f.name} className={custom ? undefined : "max-w-[16rem] truncate"}>
                           {custom ??
                             (f.badge ? <Badge variant="secondary">{text}</Badge> : text)}
                         </TableCell>
@@ -510,7 +554,7 @@ export function CrudPage({
                           onClick={() => void saveRow(row)}
                         >
                           <Save className="size-3.5" />
-                          {savingRowId === String(row.id) ? "Saving…" : "Save"}
+                          {savingRowId === String(row.id) ? t("Saving…") : t("Save")}
                         </Button>
                       )}
                       {(canEditHereRow || readOnly) && (
@@ -551,18 +595,18 @@ export function CrudPage({
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {isNew ? "New" : readOnly ? "View" : "Edit"} {module.title.replace(/s$/, "")}
+              {isNew ? t("New") : readOnly ? t("View") : t("Edit")} {t(module.title.replace(/s$/, ""))}
             </DialogTitle>
-            <DialogDescription>Record ID {editing ? String(editing.id) : ""}</DialogDescription>
+            <DialogDescription>{t("Record ID {id}", { id: editing ? String(editing.id) : "" })}</DialogDescription>
           </DialogHeader>
           {editing && (
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label className="mb-1.5">Organisation</Label>
+                <Label className="mb-1.5">{t("Organisation")}</Label>
                 <Input value={org.name} readOnly className="bg-muted" />
               </div>
               <div>
-                <Label className="mb-1.5">Outlet</Label>
+                <Label className="mb-1.5">{t("Outlet")}</Label>
                 {lockAssignedLocation ? (
                   <Input
                     readOnly
@@ -576,7 +620,7 @@ export function CrudPage({
                   disabled={readOnly}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select outlet…" />
+                    <SelectValue placeholder={t("Select outlet…")} />
                   </SelectTrigger>
                   <SelectContent>
                     {outletChoices.map((o) => (
@@ -587,7 +631,7 @@ export function CrudPage({
                   </SelectContent>
                 </Select>
                 ) : (
-                  <Input readOnly className="bg-muted" value="No outlets — add one under Outlets first" />
+                  <Input readOnly className="bg-muted" value={t("No outlets — add one under Outlets first")} />
                 )}
               </div>
               {formFields.map((f) => {
@@ -610,7 +654,7 @@ export function CrudPage({
                 return (
                   <div key={f.name} className={f.type === "textarea" || f.wide ? "sm:col-span-2" : ""}>
                     <Label htmlFor={f.name} className="mb-1.5">
-                      {f.label}
+                      {t(f.label)}
                     </Label>
                     {f.type === "select" ? (
                       <Select
@@ -619,12 +663,12 @@ export function CrudPage({
                         disabled={locked}
                       >
                         <SelectTrigger id={f.name} className="w-full">
-                          <SelectValue placeholder="Select…" />
+                          <SelectValue placeholder={t("Select…")} />
                         </SelectTrigger>
                         <SelectContent>
                           {selectOpts.map((o) => (
                             <SelectItem key={o.value} value={o.value}>
-                              {o.label}
+                              {t(o.label)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -639,7 +683,19 @@ export function CrudPage({
                     ) : (
                       <Input
                         id={f.name}
-                        type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "time" ? "time" : "text"}
+                        type={
+                          f.type === "number"
+                            ? "number"
+                            : f.type === "date"
+                              ? "date"
+                              : f.type === "time"
+                                ? "time"
+                                : f.type === "password"
+                                  ? "password"
+                                  : "text"
+                        }
+                        autoComplete={f.type === "password" ? "new-password" : undefined}
+                        placeholder={f.type === "password" && !isNew ? "Leave blank to keep current" : undefined}
                         value={String(value)}
                         disabled={locked}
                         onChange={(e) =>
@@ -660,9 +716,11 @@ export function CrudPage({
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>
-              {readOnly ? "Close" : "Cancel"}
+              {readOnly ? t("Close") : t("Cancel")}
             </Button>
-            {!readOnly && <Button onClick={save}>{isNew ? "Create record" : "Save changes"}</Button>}
+            {!readOnly && (
+              <Button onClick={save}>{isNew ? t("Create {name}", { name: t(noun) }) : t("Save changes")}</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -670,23 +728,27 @@ export function CrudPage({
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this record?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Delete this record?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteId} will be removed from the demo dataset. You can restore everything from the dashboard.
+              {t("{id} will be removed from the demo dataset. You can restore everything from the dashboard.", {
+                id: deleteId ?? "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (deleteId) {
+                  const current = rows.find((r) => String(r.id) === String(deleteId));
                   remove(deleteId);
-                  toast.success("Record deleted", { description: deleteId });
+                  if (current) onDeleted?.(current);
+                  toast.success(t("Record deleted"), { description: deleteId });
                 }
                 setDeleteId(null);
               }}
             >
-              Delete
+              {t("Delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

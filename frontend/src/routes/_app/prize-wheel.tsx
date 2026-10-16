@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PrizeWheelPage } from "@/pages/PrizeWheel/PrizeWheel";
 
-const title = "Prize wheel — Krios";
-const description = "Configure wheel segments, prize tiers and weights for guest spins.";
+const title = "Guest prizes — Krios";
+const description = "One prize list for the walk-in and public booking game (spin wheel or scratch card).";
 
 export const Route = createFileRoute("/_app/prize-wheel")({
   head: () => ({

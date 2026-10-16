@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArcElement, Chart, PieController } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
+import type { Context as DataLabelsContext } from "chartjs-plugin-datalabels";
 import type { Row } from "@/store";
 import { pickWheelSegment } from "@/pages/LoyaltyQr/qr-loyalty";
 import { PRIZE_COLOURS } from "@/pages/PrizeWheel/prize-colours";
-import { expandByTierWeight, type TierWeights } from "@/pages/PrizeWheel/reward-distribution";
+import { uniquePrizeCatalog } from "@/pages/PrizeWheel/prize-help";
+import { pickTierWeightedReward, offerAvailWithinMessage, type TierWeights } from "@/pages/PrizeWheel/reward-distribution";
 import { cn } from "@/utils/utils";
 
 Chart.register(ArcElement, PieController, ChartDataLabels);
@@ -22,6 +24,46 @@ function segmentDisplay(segment: Row): string {
   return label || "Prize";
 }
 
+function wrapPrizeLabel(text: string, sliceCount: number): string {
+  const maxChars = sliceCount <= 4 ? 12 : sliceCount <= 6 ? 9 : sliceCount <= 8 ? 8 : 6;
+  const lines: string[] = [];
+  let current = "";
+  const words = text.trim().split(/\s+/).flatMap((word) => {
+    if (word.length <= maxChars) return [word];
+    const chunks: string[] = [];
+    for (let i = 0; i < word.length; i += maxChars) chunks.push(word.slice(i, i + maxChars));
+    return chunks;
+  });
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxChars && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.slice(0, 3).join("\n");
+}
+
+function sliceLabelRotation(ctx: DataLabelsContext): number {
+  const arc = ctx.chart.getDatasetMeta(ctx.datasetIndex).data[ctx.dataIndex] as ArcElement | undefined;
+  if (!arc) return 0;
+  const mid = (arc.startAngle + arc.endAngle) / 2;
+  let deg = (mid * 180) / Math.PI + 90;
+  const turn = ((deg % 360) + 360) % 360;
+  if (turn > 90 && turn < 270) deg += 180;
+  return deg;
+}
+
+function sliceLabelFont(sliceCount: number, wrapped: string) {
+  const longest = Math.max(...wrapped.split("\n").map((line) => line.length), 1);
+  const bySlices = Math.floor(240 / Math.max(sliceCount, 4));
+  const byLength = Math.floor(140 / longest);
+  return Math.max(13, Math.min(22, bySlices, byLength));
+}
+
 function spinDegreesForIndex(index: number, count: number, extraTurns = 6): number {
   const slice = 360 / count;
   const segmentCenter = (index + 0.5) * slice;
@@ -35,6 +77,7 @@ export function SpinWheel({
   disabled,
   tierWeights,
   showFrame = false,
+  availWithinDays,
   onSpinStart,
   onResult,
 }: {
@@ -42,13 +85,13 @@ export function SpinWheel({
   disabled?: boolean;
   tierWeights?: TierWeights;
   showFrame?: boolean;
+  availWithinDays?: number;
   onSpinStart?: () => Row | null;
   onResult: (segment: Row) => void;
 }) {
   const slices = useMemo(() => {
-    const active = segments.filter((s) => String(s["active"] ?? "Yes") !== "No");
-    return tierWeights ? expandByTierWeight(active, tierWeights) : active;
-  }, [segments, tierWeights]);
+    return uniquePrizeCatalog(segments.filter((s) => String(s["active"] ?? "Yes") !== "No"));
+  }, [segments]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart<"pie", number[], string> | null>(null);
   const rotationRef = useRef(0);
@@ -57,6 +100,7 @@ export function SpinWheel({
   const [wheelRotation, setWheelRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [status, setStatus] = useState("Click on the spin button to start");
+  const [availHint, setAvailHint] = useState("");
 
   const labelsKey = slices.map((s) => `${String(s.id)}:${segmentDisplay(s)}`).join("|");
 
@@ -69,7 +113,7 @@ export function SpinWheel({
 
     if (slices.length === 0) return;
 
-    const labels = slices.map(segmentDisplay);
+    const labels = slices.map((s) => wrapPrizeLabel(segmentDisplay(s), slices.length));
     const colors = slices.map((s, i) => String(s["colorHex"] || DEFAULT_COLORS[i % DEFAULT_COLORS.length]));
 
     chartRef.current = new Chart(canvas, {
@@ -93,13 +137,22 @@ export function SpinWheel({
           legend: { display: false },
           tooltip: { enabled: false },
           datalabels: {
-            rotation: 90,
+            clip: true,
+            clamp: true,
             color: "#ffffff",
-            formatter: (_, context) => context.chart.data.labels?.[context.dataIndex] ?? "",
-            font: {
-              size: Math.max(10, Math.min(14, Math.floor(180 / slices.length))),
-              weight: "600",
-              family: "Poppins, Plus Jakarta Sans, sans-serif",
+            textAlign: "center",
+            anchor: "center",
+            align: "center",
+            offset: 0,
+            rotation: sliceLabelRotation,
+            formatter: (_, context) => String(context.chart.data.labels?.[context.dataIndex] ?? ""),
+            font: (context) => {
+              const wrapped = String(context.chart.data.labels?.[context.dataIndex] ?? "");
+              return {
+                size: sliceLabelFont(slices.length, wrapped),
+                weight: "600",
+                family: "Poppins, Plus Jakarta Sans, sans-serif",
+              };
             },
             textStrokeColor: "rgba(0,0,0,0.35)",
             textStrokeWidth: 2,
@@ -123,7 +176,7 @@ export function SpinWheel({
   const spin = useCallback(() => {
     if (spinningRef.current || disabled || slices.length === 0) return;
 
-    const won = onSpinStart?.() ?? pickWheelSegment(slices);
+    const won = onSpinStart?.() ?? (tierWeights ? pickTierWeightedReward(slices, tierWeights) : pickWheelSegment(slices));
     if (!won) return;
 
     const idx = slices.findIndex((s) => String(s.id) === String(won.id));
@@ -137,6 +190,7 @@ export function SpinWheel({
     spinningRef.current = true;
     setSpinning(true);
     setStatus("Best of luck!");
+    setAvailHint("");
 
     const duration = 4200;
     const startTime = performance.now();
@@ -156,12 +210,14 @@ export function SpinWheel({
       setWheelRotation(endRotation);
       spinningRef.current = false;
       setSpinning(false);
+      const wonType = String(won["prizeType"] ?? "");
       setStatus(`Congratulations! You won ${prizeLabel}`);
+      setAvailHint(wonType === "No prize" ? "" : offerAvailWithinMessage(availWithinDays ?? 30, prizeLabel));
       onResult(won);
     };
 
     rafRef.current = requestAnimationFrame(animate);
-  }, [disabled, onResult, onSpinStart, slices, tierWeights]);
+  }, [availWithinDays, disabled, onResult, onSpinStart, slices, tierWeights]);
 
   const wheel = (
     <div className={cn("spin-wheel-ui w-full", showFrame ? "max-w-[34.37em]" : "max-w-full")}>
@@ -190,8 +246,9 @@ export function SpinWheel({
           </svg>
         </div>
       </div>
-      <div className="mt-6 text-center font-[Poppins,Plus_Jakarta_Sans,sans-serif] text-[clamp(1rem,2.5vw,1.35rem)] font-medium text-foreground">
-        <p>{status}</p>
+      <div className="mt-6 space-y-1 text-center font-[Poppins,Plus_Jakarta_Sans,sans-serif] text-foreground">
+        <p className="text-[clamp(1rem,2.5vw,1.35rem)] font-medium">{status}</p>
+        {availHint ? <p className="text-sm font-normal text-muted-foreground">{availHint}</p> : null}
       </div>
     </div>
   );
@@ -200,7 +257,7 @@ export function SpinWheel({
 
   return (
     <div className="mx-auto w-full max-w-[36rem] rounded-[1em] bg-gradient-to-br from-[#c3a3f1] to-[#6414e9] p-4 sm:p-6">
-      <div className="rounded-[1em] bg-white px-6 py-8 shadow-[0_4em_5em_rgba(27,8,53,0.2)] sm:px-10 sm:py-10">
+      <div className="rounded-[1em] bg-white px-3 py-6 shadow-[0_4em_5em_rgba(27,8,53,0.2)] sm:px-10 sm:py-10">
         {wheel}
       </div>
     </div>

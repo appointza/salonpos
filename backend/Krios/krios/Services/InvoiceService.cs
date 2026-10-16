@@ -307,24 +307,39 @@ namespace Krios.Services.Krios
                     });
                 }
 
-                long runningPoints = customer.points;
                 if (quote.pointsRedeemApplied > 0)
                 {
-                    var redeemed = await loyaltyTransactionService.PostPointsTransaction(db, new LoyaltyPostPointsReq
+                    var orgProfiles = await customerService.FindAllByPhone(db, req.orgId, customer.phone);
+                    if (orgProfiles.Count == 0) orgProfiles.Add(customer);
+                    long remaining = quote.pointsRedeemApplied;
+                    foreach (var profile in orgProfiles.OrderByDescending(c => c.points))
                     {
-                        orgId = req.orgId,
-                        locationId = effLocation,
-                        customerId = req.customerId,
-                        type = "Redeem",
-                        points = quote.pointsRedeemApplied,
-                        source = "invoice",
-                        referenceId = invoice.id,
-                        invoiceId = invoice.id,
-                        programId = quote.programId,
-                        reason = "POS redemption",
-                    });
-                    if (redeemed.ok) runningPoints = redeemed.balanceAfter;
+                        if (remaining <= 0) break;
+                        var take = Math.Min(profile.points, remaining);
+                        if (take <= 0) continue;
+                        var redeemed = await loyaltyTransactionService.PostPointsTransaction(db, new LoyaltyPostPointsReq
+                        {
+                            orgId = req.orgId,
+                            locationId = profile.locationId > 0 ? profile.locationId : effLocation,
+                            customerId = profile.id,
+                            type = "Redeem",
+                            points = take,
+                            source = "invoice",
+                            referenceId = invoice.id,
+                            invoiceId = invoice.id,
+                            programId = quote.programId,
+                            reason = "POS redemption",
+                            allowDuplicate = true,
+                        });
+                        if (!redeemed.ok)
+                        {
+                            await db.RollbackTransaction();
+                            return new InvoiceCompleteSaleRes { errorMessage = redeemed.errorMessage };
+                        }
+                        remaining -= take;
+                    }
                 }
+                long runningPoints = await LoyaltyTransactionService.GetCustomerPoints(db, req.customerId);
                 if (quote.pointsToEarn > 0)
                 {
                     DateTime? expiresOn = quote.expiryMonths > 0 ? today.AddMonths((int)quote.expiryMonths) : null;
@@ -442,7 +457,9 @@ namespace Krios.Services.Krios
                 res.errorMessage = "Customer not found";
                 return res;
             }
-            res.customerPoints = customer.points;
+            var orgProfiles = await customerService.FindAllByPhone(db, req.orgId, customer.phone);
+            if (orgProfiles.Count == 0) orgProfiles.Add(customer);
+            res.customerPoints = orgProfiles.Sum(c => c.points);
 
             var orgRows = await organizationService.SelectTransaction(db, new OrganizationSelectReq { orgId = req.orgId });
             var org = orgRows.FirstOrDefault();
@@ -483,6 +500,7 @@ namespace Krios.Services.Krios
                     var prizeType = spin.rewardType;
                     var prizeValue = spin.rewardValue;
                     var prizeLabel = spin.label;
+                    long prizeServiceId = 0;
                     if (spin.segmentId > 0)
                     {
                         var segments = await wheelSegmentService.SelectTransaction(db, new WheelSegmentSelectReq { id = spin.segmentId });
@@ -492,9 +510,14 @@ namespace Krios.Services.Krios
                             if (string.IsNullOrWhiteSpace(prizeType)) prizeType = segment.prizeType;
                             if (prizeValue <= 0) prizeValue = segment.prizeValue;
                             if (string.IsNullOrWhiteSpace(prizeLabel)) prizeLabel = segment.label;
+                            prizeServiceId = segment.serviceId;
                         }
                     }
-                    var amount = Math.Min(PrizeDiscount.Amount(prizeType, prizeValue, prizeLabel, afterMember, cartLines), afterMember);
+                    if (prizeServiceId <= 0
+                        && (string.Equals(prizeType, "Free service", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(prizeType, "Free item", StringComparison.OrdinalIgnoreCase)))
+                        prizeServiceId = prizeValue;
+                    var amount = Math.Min(PrizeDiscount.Amount(prizeType, prizeValue, prizeLabel, afterMember, cartLines, prizeServiceId), afterMember);
                     if (amount > 0)
                     {
                         res.rewardLines.Add(new InvoiceDiscountLine { label = $"Wheel · {prizeLabel}", amount = amount });
@@ -509,7 +532,7 @@ namespace Krios.Services.Krios
             decimal afterCoupons = Math.Max(0, afterRewards - res.couponDiscount);
 
             long maxPts = rule.rupeesPerPoint > 0 ? (long)Math.Floor((double)(afterCoupons / rule.rupeesPerPoint)) : 0;
-            res.pointsRedeemApplied = Math.Max(0, Math.Min(Math.Min(req.pointsRedeemed, customer.points), maxPts));
+            res.pointsRedeemApplied = Math.Max(0, Math.Min(Math.Min(req.pointsRedeemed, res.customerPoints), maxPts));
             res.loyaltyValue = res.pointsRedeemApplied * rule.rupeesPerPoint;
             res.rupeesPerPoint = rule.rupeesPerPoint;
 

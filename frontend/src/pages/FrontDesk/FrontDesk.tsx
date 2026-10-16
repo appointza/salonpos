@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarDays, Receipt, UserRound, Users } from "lucide-react";
+import { CalendarDays, FileText, Receipt, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { pageTitle } from "@/brand";
 import { publicSlug, useTenant } from "@/tenant";
@@ -43,8 +43,17 @@ export function Page() {
           className="rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/5"
         >
           <Receipt className="size-5 text-primary" />
-          <p className="mt-3 font-medium">POS & Billing</p>
+          <p className="mt-3 font-medium">POS</p>
           <p className="mt-1 text-sm text-muted-foreground">Bill services and products.</p>
+        </Link>
+
+        <Link
+          to="/invoices"
+          className="rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/5"
+        >
+          <FileText className="size-5 text-primary" />
+          <p className="mt-3 font-medium">Invoices</p>
+          <p className="mt-1 text-sm text-muted-foreground">Review GST invoices, payments and refunds.</p>
         </Link>
 
         <a

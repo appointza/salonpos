@@ -8,7 +8,9 @@ namespace Krios.Models.Krios
         public long customerId { get; set; }
         public string customer { get; set; } = "";
         public long serviceId { get; set; }
+        public string serviceIds { get; set; } = "";
         public string service { get; set; } = "";
+        public string serviceName { get; set; } = "";
         public long staffId { get; set; }
         public string staff { get; set; } = "";
         public string outlet { get; set; } = "";

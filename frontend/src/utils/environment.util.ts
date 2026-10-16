@@ -1,3 +1,8 @@
+import { Capacitor } from "@capacitor/core";
+
+/** Android / iOS always talk to production. */
+export const KRIOS_API_URL = "https://kriosapp.com";
+
 function readRuntimeApiUrl() {
   if (typeof window === "undefined") return "";
   const fromWindow = String(window.__KRIOS_API_URL__ ?? "").trim();
@@ -10,6 +15,8 @@ function isLoopback(url: string) {
 }
 
 function apiBaseUrl() {
+  if (Capacitor.isNativePlatform()) return KRIOS_API_URL;
+
   const fromEnv = String(import.meta.env.VITE_API_URL ?? "").trim().replace(/\/$/, "");
   if (import.meta.env.DEV) return fromEnv;
 
@@ -17,7 +24,7 @@ function apiBaseUrl() {
   if (configured && !isLoopback(configured)) return configured;
 
   if (typeof window !== "undefined" && window.location?.origin) return window.location.origin;
-  return "";
+  return KRIOS_API_URL;
 }
 
 /** Production: krios-urls.json → frontendApiBaseUrl, else current page host. Dev: Vite /api proxy. */

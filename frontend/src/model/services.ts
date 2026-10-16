@@ -19,6 +19,7 @@ export class ServiceRes {
   type: string = "";
   comboItems: string = "";
   productNeeds: string = "";
+  imageId: string = "";
 }
 
 export class CreateServiceReq {
@@ -35,6 +36,7 @@ export class CreateServiceReq {
   type: string = "";
   comboItems: string = "";
   productNeeds: string = "";
+  imageId: string = "";
 }
 
 export class CreateServiceRes extends ServiceRes {}
@@ -54,6 +56,7 @@ export class UpdateServiceReq {
   type: string = "";
   comboItems: string = "";
   productNeeds: string = "";
+  imageId: string = "";
 }
 
 export class UpdateServiceRes extends ServiceRes {}

@@ -8,7 +8,9 @@ namespace Krios
         {
             services.AddSingleton<IQueryBuilderProvider, QueryBuilderProvider>();
             services.AddTransient<CustomCryptography>();
+            services.AddSingleton<OtpMailer>();
 
+            services.AddScoped<Krios.Services.Krios.AssetService>();
             services.AddScoped<Krios.Services.Krios.OrganizationService>();
             services.AddScoped<Krios.Services.Krios.OrganizationRegistrationService>();
             services.AddScoped<Krios.Services.Krios.UserService>();

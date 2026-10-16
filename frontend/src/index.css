@@ -142,15 +142,54 @@
     border-color: var(--color-border);
   }
 
+  html {
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    overflow-x: hidden;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  #root {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  img,
+  video,
+  canvas {
+    max-width: 100%;
+    height: auto;
   }
 
   h1, h2, h3 {
     font-family: var(--font-display);
     font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  p,
+  li,
+  label {
+    overflow-wrap: anywhere;
+  }
+
+  table {
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    overflow-wrap: normal;
+    word-break: normal;
   }
 }
 
@@ -198,4 +237,28 @@
 
 .wheel-spin-pulse {
   animation: wheel-spin-pulse 0.7s ease-in-out infinite;
+}
+
+html.native-app body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 639px) {
+  h1.font-display {
+    font-size: 1.5rem;
+    line-height: 1.25;
+  }
+  h2.font-display {
+    font-size: 1.35rem;
+    line-height: 1.3;
+  }
 }

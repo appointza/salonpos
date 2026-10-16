@@ -32,6 +32,8 @@ import { staffService } from "@/services/staff.service";
 import { userService } from "@/services/user.service";
 import { isAxiosError } from "axios";
 import { persistBookingRules } from "@/pages/Book/booking-rules";
+import { salonLogoUrl } from "@/brand";
+import { ORG_LOGO_MAX_BYTES, readOrgLogoFile } from "@/pages/Settings/org-logo";
 
 const title = "Create an account — Luxe Salon CRM";
 const description =
@@ -432,6 +434,7 @@ export function RegisterPage() {
         domain: draft.profile.domain ?? "",
         website: draft.profile.website ?? "",
         brandColor: draft.profile.brandColor || "#2f5bff",
+        logo: draft.profile.logo ?? "",
         adminName: draft.admin.name,
         adminEmail: draft.admin.email,
         adminPassword: draft.admin.password,
@@ -462,6 +465,7 @@ export function RegisterPage() {
         website: draft.profile.website ?? "",
         businessType: draft.org.businessType,
         brandColor: draft.profile.brandColor || "#2f5bff",
+        logo: draft.profile.logo ?? "",
         locations: [
           {
             locationId: res.locationId,
@@ -550,24 +554,24 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
       <header className="border-b border-border">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-3 sm:px-6 sm:py-4">
+          <Link to="/" className="flex min-w-0 items-center gap-2">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Sparkles className="size-4" />
             </span>
-            <span className="font-display text-lg">Luxe Salon</span>
+            <span className="font-display truncate text-lg">Luxe Salon</span>
           </Link>
-          <Link to="/login" className="text-sm text-muted-foreground hover:text-foreground">
-            Already registered? Log in
+          <Link to="/login" className="shrink-0 text-sm text-muted-foreground hover:text-foreground">
+            <span className="hidden sm:inline">Already registered? </span>Log in
           </Link>
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-8">
         {!draft.intent && (
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-8">
             <StepShell
               title="How will you use Luxe Salon?"
               hint="Choose the account that fits you. You can always log in from the same sign-in page later."
@@ -601,7 +605,7 @@ export function RegisterPage() {
         )}
 
         {draft.intent === "customer" && (
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-8">
             <StepShell
               title="Create your customer account"
               hint="A short signup — then you can browse salons near you and book instantly."
@@ -696,14 +700,14 @@ export function RegisterPage() {
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-3 flex max-w-full gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
             {VISIBLE_STEP_INDICES.map((i, pos) => (
               <button
                 key={STEPS[i]}
                 type="button"
                 onClick={() => pos < visiblePos && setDraft((d) => ({ ...d, step: i }))}
                 className={cn(
-                  "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                  "shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                   i === step && "border-primary bg-primary text-primary-foreground",
                   pos < visiblePos && "border-border text-muted-foreground hover:bg-accent",
                   pos > visiblePos && "border-dashed border-border text-muted-foreground/60",
@@ -716,7 +720,7 @@ export function RegisterPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-8">
           {step === 0 && (
             <StepShell title="Create your admin account" hint="You will be the organization ADMIN with full access. Demo mode: enter any 6-digit code to verify.">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -789,7 +793,36 @@ export function RegisterPage() {
           {step === 4 && (
             <StepShell title="Business profile" hint="Shown to customers on booking pages, QR menus and receipts.">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Logo URL" value={draft.profile.logo} onChange={(v) => set("profile", { ...draft.profile, logo: v })} placeholder="https://…" />
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs tracking-wide text-muted-foreground uppercase">Salon logo</Label>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <img
+                      src={salonLogoUrl(draft.profile.logo)}
+                      alt=""
+                      width={64}
+                      height={64}
+                      className="size-16 rounded-lg border border-border object-contain p-1"
+                    />
+                    <div className="space-y-1">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        className="max-w-xs text-sm"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!file) return;
+                          void readOrgLogoFile(file)
+                            .then((dataUrl) => set("profile", { ...draft.profile, logo: dataUrl }))
+                            .catch((err) => toast.error(err instanceof Error ? err.message : "Could not read image"));
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Compressed to {ORG_LOGO_MAX_BYTES / 1024} KB before it is stored for this organisation.
+                      </p>
+                    </div>
+                  </div>
+                </div>
                 <Field label="Business phone" value={draft.profile.phone} onChange={(v) => set("profile", { ...draft.profile, phone: v })} />
                 <Field label="Business email" value={draft.profile.email} onChange={(v) => set("profile", { ...draft.profile, email: v })} />
                 <Field label="Website" value={draft.profile.website} onChange={(v) => set("profile", { ...draft.profile, website: v })} />

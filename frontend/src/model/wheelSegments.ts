@@ -9,6 +9,7 @@ export class WheelSegmentRes {
   rewardTier: string = "";
   prizeType: string = "";
   prizeValue: number = 0;
+  serviceId: number = 0;
   winWeight: number = 0;
   colorHex: string = "";
   active: string = "";
@@ -22,6 +23,7 @@ export class CreateWheelSegmentReq {
   rewardTier: string = "";
   prizeType: string = "";
   prizeValue: number = 0;
+  serviceId: number = 0;
   winWeight: number = 0;
   colorHex: string = "";
   active: string = "";
@@ -38,6 +40,7 @@ export class UpdateWheelSegmentReq {
   rewardTier: string = "";
   prizeType: string = "";
   prizeValue: number = 0;
+  serviceId: number = 0;
   winWeight: number = 0;
   colorHex: string = "";
   active: string = "";

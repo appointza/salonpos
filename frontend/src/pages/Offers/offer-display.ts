@@ -57,6 +57,48 @@ export function getOfferBadgeLabel(offer: Row) {
   return type || "Offer";
 }
 
+export function calendarDaysUntil(end: string, from = new Date().toISOString().slice(0, 10)): number | null {
+  const stop = String(end ?? "").slice(0, 10);
+  const start = String(from ?? "").slice(0, 10);
+  if (!stop) return null;
+  const a = Date.parse(`${start}T00:00:00`);
+  const b = Date.parse(`${stop}T00:00:00`);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
+
+export function calendarDaysSpan(start: string, end: string): number | null {
+  const from = String(start ?? "").slice(0, 10);
+  const to = String(end ?? "").slice(0, 10);
+  if (!from || !to) return null;
+  const a = Date.parse(`${from}T00:00:00`);
+  const b = Date.parse(`${to}T00:00:00`);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return Math.max(1, Math.round((b - a) / 86_400_000));
+}
+
+/** Customer-facing coupon/offer validity, in days. */
+export function formatOfferValidityLabel(input: {
+  validityStart?: string;
+  validityEnd?: string;
+  expiresAt?: string;
+  fallbackDays: number;
+}): { windowDays: number; daysLeft: number | null; label: string } {
+  const end = String(input.expiresAt || input.validityEnd || "").slice(0, 10);
+  const start = String(input.validityStart ?? "").slice(0, 10);
+  const windowDays = calendarDaysSpan(start, end) ?? input.fallbackDays;
+  const daysLeft = calendarDaysUntil(end);
+  if (end && daysLeft !== null) {
+    const left = daysLeft === 0 ? "Expires today" : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`;
+    return { windowDays, daysLeft, label: `Valid ${windowDays} days · ${left} (until ${end})` };
+  }
+  return {
+    windowDays,
+    daysLeft: null,
+    label: `Valid ${windowDays} days after you get the coupon`,
+  };
+}
+
 export function getOfferHighlight(offer: Row) {
   const type = String(offer["offerType"] ?? "");
   const hay = `${String(offer["title"] ?? "")} ${String(offer["description"] ?? "")}`.toLowerCase();

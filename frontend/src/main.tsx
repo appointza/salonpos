@@ -9,7 +9,7 @@ if (!root) {
 
 async function loadApiUrl() {
   try {
-    const res = await fetch("/krios-urls.json", { cache: "no-store" });
+    const res = await fetch("./krios-urls.json", { cache: "no-store" });
     if (!res.ok) return;
     const urls = (await res.json()) as { frontendApiBaseUrl?: string };
     window.__KRIOS_API_URL__ = String(urls.frontendApiBaseUrl ?? "").trim();
@@ -19,6 +19,8 @@ async function loadApiUrl() {
 }
 
 void (async () => {
+  const { bootNativeShell } = await import("@/native");
+  await bootNativeShell();
   await loadApiUrl();
   const { App } = await import("@/App");
   createRoot(root).render(

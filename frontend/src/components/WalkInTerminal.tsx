@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Layers, MapPin, RotateCcw, Sparkles, UserRound } from "lucide-react";
+import { salonLogoUrl } from "@/brand";
 import { KriosLogo } from "@/components/KriosLogo";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -15,10 +16,14 @@ import { dbWithRow } from "@/pages/Book/booking";
 import { autoApproveCheckin, QR_CHECKINS } from "@/pages/LoyaltyCheckins/checkin-service";
 import { findCustomerByPhoneInOrg, normalizePhone } from "@/pages/Customers/customer-lookup";
 import { isValidPhone, upsertCustomerByPhone } from "@/pages/Customers/customer-store";
+import { toRow } from "@/entity-row";
+import { ReferralShareCard } from "@/components/ReferralShareCard";
+import { ensureCustomerReferralCode, validateWalkInCode, type WalkInCodeResult } from "@/pages/Loyalty/referral-service";
 import {
   activePrograms,
   isBirthdayWindow,
   programOfType,
+  referralCodeFor,
   SCRATCH_PRIZES,
   WHEEL_SEGMENTS,
 } from "@/pages/LoyaltyQr/qr-loyalty";
@@ -27,14 +32,14 @@ import {
   publicBookingSettingsForOrg,
   usePublicBookingSettings,
 } from "@/pages/Book/public-booking-settings";
-import { readRewardDistribution, useRewardDistribution } from "@/pages/PrizeWheel/reward-distribution";
+import { offerAvailWithinMessage, readRewardDistribution, useRewardDistribution } from "@/pages/PrizeWheel/reward-distribution";
 import {
   customerScratchedToday,
   getTodayScratchPlay,
   processScratchResult,
   selectScratchPrize,
 } from "@/pages/ScratchCard/scratch-service";
-import { toRow } from "@/entity-row";
+import { uniquePrizeCatalog } from "@/pages/PrizeWheel/prize-help";
 import { useData, type Row } from "@/store";
 import { customerService } from "@/services/customer.service";
 import { organizationService } from "@/services/organization.service";
@@ -53,11 +58,13 @@ export function WalkInTerminal({
   publicMode = false,
   bookingOrgId,
   initialLocationId,
+  initialReferralCode,
 }: {
   publicMode?: boolean;
   bookingOrgId?: string | number;
   orgSlug?: string;
   initialLocationId?: string;
+  initialReferralCode?: string;
 }) {
   const { user } = useAuth();
   const { tenants, org, location, locationId, scopeLabel, setOrgId } = useTenant();
@@ -151,6 +158,7 @@ export function WalkInTerminal({
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [dob, setDob] = useState("");
+  const [referredBy, setReferredBy] = useState(() => String(initialReferralCode ?? "").trim().toUpperCase());
   const [step, setStep] = useState<Step>("details");
   const [checkinId, setCheckinId] = useState("");
   const [customerId, setCustomerId] = useState("");
@@ -159,6 +167,8 @@ export function WalkInTerminal({
   const [scratchPrize, setScratchPrize] = useState("");
   const [scratchStarted, setScratchStarted] = useState(false);
   const [rewardNotes, setRewardNotes] = useState("");
+  const [codeCheck, setCodeCheck] = useState<WalkInCodeResult | null>(null);
+  const [codeChecking, setCodeChecking] = useState(false);
 
   const staffLabel = publicMode ? "Self walk-in" : user?.name ?? "Walk-in desk";
 
@@ -170,7 +180,7 @@ export function WalkInTerminal({
     const loc = String(effLocationId ?? "");
     const all = (allRows[WHEEL_SEGMENTS] ?? []).filter((s) => String(s["orgId"]) === String(activeOrgId));
     const here = all.filter((s) => !s["locationId"] || String(s["locationId"]) === loc || String(s["locationId"]) === "0");
-    return here.length ? here : all;
+    return uniquePrizeCatalog(here.length ? here : all);
   }, [allRows, activeOrgId, effLocationId]);
   const scratchPrizes = useMemo(() => {
     const loc = String(effLocationId ?? "");
@@ -178,7 +188,7 @@ export function WalkInTerminal({
       (p) => String(p["orgId"]) === String(activeOrgId) && String(p["active"] ?? "Yes") !== "No",
     );
     const here = all.filter((p) => !p["locationId"] || String(p["locationId"]) === loc || String(p["locationId"]) === "0");
-    return here.length ? here : all;
+    return uniquePrizeCatalog(here.length ? here : all);
   }, [allRows, activeOrgId, effLocationId]);
 
   const matchedCustomer = useMemo(
@@ -189,6 +199,11 @@ export function WalkInTerminal({
   const { scratch: showScratchGame, wheel: showWheelGame } = guestRewardGames(bookingSettings);
   const rewardMode = showWheelGame || showScratchGame ? "reward" : null;
   const phoneReady = isValidPhone(phone);
+  const shareCode = matchedCustomer
+    ? ensureCustomerReferralCode(matchedCustomer)
+    : phoneReady && name.trim()
+      ? referralCodeFor(name, phone)
+      : "";
 
   useEffect(() => {
     if (!phoneReady || !activeOrgId) return;
@@ -221,6 +236,31 @@ export function WalkInTerminal({
     // Look up once per completed number. allRows is read from this render; including it refetches forever.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone, phoneReady, activeOrgId, effLocationId, outletName]);
+
+  useEffect(() => {
+    const code = referredBy.trim();
+    if (!code) {
+      setCodeCheck(null);
+      setCodeChecking(false);
+      return;
+    }
+    let cancelled = false;
+    setCodeChecking(true);
+    const timer = window.setTimeout(() => {
+      void validateWalkInCode(allRows, activeOrgId, code, phone, publicMode, {
+        locationId: effLocationId,
+        hasService: false,
+      }).then((res) => {
+        if (cancelled) return;
+        setCodeCheck(res);
+        setCodeChecking(false);
+      });
+    }, 280);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [referredBy, phone, activeOrgId, allRows, publicMode]);
 
   const today = new Date();
   const localDay = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -258,6 +298,7 @@ export function WalkInTerminal({
     setPhone("");
     setName("");
     setDob("");
+    setReferredBy(String(initialReferralCode ?? "").trim().toUpperCase());
     setStep("details");
     setCheckinId("");
     setCustomerId("");
@@ -273,6 +314,16 @@ export function WalkInTerminal({
     if (!name.trim()) return void toast.error("Enter your name");
     if (!effLocationId) return void toast.error("Select an outlet first");
     if (usedWalkInToday) return void toast.info("Walk-in is once a day. This number already checked in today.");
+
+    let offerCode: WalkInCodeResult = { ok: true };
+    if (referredBy.trim()) {
+      offerCode = await validateWalkInCode(allRows, activeOrgId, referredBy, phone, publicMode, {
+        locationId: effLocationId,
+        hasService: false,
+      });
+      setCodeCheck(offerCode);
+      if (!offerCode.ok) return void toast.error(offerCode.reason ?? "Invalid coupon or referral code");
+    }
 
     const store = { db: allRows, create, update };
     const existingToday = matchedCustomer
@@ -293,7 +344,9 @@ export function WalkInTerminal({
         phone,
         locationId: effLocationId,
         outlet: outletName,
-        ...(dob ? { extra: { birthday: dob, dob } } : {}),
+        extra: {
+          ...(dob ? { birthday: dob, dob } : {}),
+        },
       });
     } catch {
       return;
@@ -439,6 +492,37 @@ export function WalkInTerminal({
             <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
             {isBirthdayWindow(dob) ? <Badge className="mt-2">Birthday week — bonus eligible</Badge> : null}
           </div>
+          {!matchedCustomer || !String(matchedCustomer["referredBy"] ?? "").trim() ? (
+            <div>
+              <Label className="mb-1.5">Referral or coupon code (optional)</Label>
+              <Input
+                value={referredBy}
+                onChange={(e) => setReferredBy(e.target.value.toUpperCase())}
+                placeholder="MUTH5400"
+                aria-invalid={!!referredBy.trim() && codeCheck?.ok === false}
+              />
+              {codeChecking ? (
+                <p className="mt-1 text-xs text-muted-foreground">Checking code…</p>
+              ) : codeCheck?.ok && referredBy.trim() ? (
+                <p className="mt-1 text-xs text-emerald-700">{codeCheck.label}</p>
+              ) : codeCheck && !codeCheck.ok ? (
+                <p className="mt-1 text-xs text-destructive">{codeCheck.reason}</p>
+              ) : (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Friend’s referral applies once, on a first service booking at this salon — not on walk-in check-in.
+                </p>
+              )}
+            </div>
+          ) : null}
+          {shareCode ? (
+            <ReferralShareCard
+              className="sm:col-span-2"
+              code={shareCode}
+              salonName={outletName || activeOrg.name}
+              orgSlug={activeOrg.slug}
+              locationId={effLocationId}
+            />
+          ) : null}
           {rewardMode ? (
             <p className="text-xs text-muted-foreground">
               After check-in you can{" "}
@@ -474,7 +558,7 @@ export function WalkInTerminal({
               }
               void checkIn();
             }}
-            disabled={usedWalkInToday && !matchedCustomer}
+            disabled={(usedWalkInToday && !matchedCustomer) || (!!referredBy.trim() && (codeChecking || codeCheck?.ok === false))}
           >
             {usedWalkInToday ? (rewardMode ? "See today's reward" : "Already used today") : "Check in & continue"}
           </Button>
@@ -513,6 +597,9 @@ export function WalkInTerminal({
             <div className="mt-4 rounded-xl bg-muted/50 p-6 text-center">
               <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Today&apos;s prize</p>
               <p className="mt-2 font-display text-2xl font-semibold">{wheelPrize || alreadySpunToday}</p>
+              {offerAvailWithinMessage(rewardDist.offerValidityDays, wheelPrize || alreadySpunToday) ? (
+                <p className="mt-2 text-sm font-medium">{offerAvailWithinMessage(rewardDist.offerValidityDays, wheelPrize || alreadySpunToday)}</p>
+              ) : null}
               {publicMode ? (
                 <p className="mt-2 text-sm text-muted-foreground">Show this at the front desk when you pay.</p>
               ) : null}
@@ -522,6 +609,7 @@ export function WalkInTerminal({
               <SpinWheel
                 segments={wheelSegments}
                 tierWeights={rewardDist.wheel}
+                availWithinDays={rewardDist.offerValidityDays}
                 onResult={(seg) => {
                   const guest =
                     checkedIn && String(checkedIn.id) === String(customerId)
@@ -561,7 +649,9 @@ export function WalkInTerminal({
                     }
                   }
                   setStep("done");
-                  toast.success(`You won: ${result.label}`);
+                  toast.success(`You won: ${result.label}`, {
+                    description: offerAvailWithinMessage(rewardDist.offerValidityDays, result.label),
+                  });
                 }}
               />
             </div>
@@ -569,7 +659,7 @@ export function WalkInTerminal({
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-violet-500/30 bg-card p-5 text-sm text-muted-foreground">
-          Prize wheel is on for this salon, but no wheel segments are set up yet. Add them under Prize wheel.
+          Prize wheel is on for this salon, but no prizes are set up yet. Add them under Guest prizes.
         </div>
       )
       ) : null}
@@ -584,10 +674,15 @@ export function WalkInTerminal({
           <p className="mt-1 text-sm text-muted-foreground">One scratch per guest per day.</p>
           {alreadyScratchedToday && !scratchStarted ? (
             <div className="mt-4 space-y-3">
-              <ScratchCard prizeLabel={alreadyScratchedToday} brandName={activeOrg.name} completed onBegin={() => alreadyScratchedToday} />
+              <ScratchCard prizeLabel={alreadyScratchedToday} brandName={activeOrg.name} completed availWithinDays={rewardDist.offerValidityDays} onBegin={() => alreadyScratchedToday} />
               <p className="text-center text-sm">
                 You earned: <strong>{alreadyScratchedToday}</strong>
               </p>
+              {offerAvailWithinMessage(rewardDist.offerValidityDays, alreadyScratchedToday) ? (
+                <p className="text-center text-sm font-medium">
+                  {offerAvailWithinMessage(rewardDist.offerValidityDays, alreadyScratchedToday)}
+                </p>
+              ) : null}
               {publicMode ? (
                 <p className="text-center text-sm text-muted-foreground">Use this on your next visit when you pay.</p>
               ) : null}
@@ -597,6 +692,7 @@ export function WalkInTerminal({
               <ScratchCard
                 prizeLabel={scratchPrize}
                 brandName={activeOrg.name}
+                availWithinDays={rewardDist.offerValidityDays}
                 onBegin={() => {
                   if (scratchStarted && scratchPrize) return scratchPrize;
                   const prize = selectScratchPrize(scratchPrizes, rewardDist.scratch);
@@ -648,12 +744,19 @@ export function WalkInTerminal({
                 onRevealed={(label) => {
                   setScratchPrize(label);
                   setStep("done");
-                  toast.success(`You earned: ${label}`);
+                  toast.success(`You earned: ${label}`, {
+                    description: offerAvailWithinMessage(rewardDist.offerValidityDays, label),
+                  });
                 }}
               />
               {scratchPrize ? (
                 <p className="text-center text-sm">
                   You earned: <strong>{scratchPrize}</strong>
+                  {offerAvailWithinMessage(rewardDist.offerValidityDays, scratchPrize) ? (
+                    <span className="mt-1 block font-medium">
+                      {offerAvailWithinMessage(rewardDist.offerValidityDays, scratchPrize)}
+                    </span>
+                  ) : null}
                   {publicMode ? (
                     <span className="mt-1 block text-muted-foreground">Use this on your next visit when you pay.</span>
                   ) : null}
@@ -664,7 +767,7 @@ export function WalkInTerminal({
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-amber-500/30 bg-card p-5 text-sm text-muted-foreground">
-          Scratch card is on for this salon, but no scratch prizes are set up yet. Add them under Scratch card.
+          Scratch card is on for this salon, but no prizes are set up yet. Add them under Guest prizes.
         </div>
       )
       ) : null}
@@ -689,9 +792,15 @@ export function WalkInTerminal({
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8">
+    <div className="min-h-dvh bg-background px-3 py-6 sm:px-4 sm:py-8">
       <div className="mx-auto mb-6 flex max-w-2xl flex-wrap items-center justify-between gap-3">
-        <KriosLogo size={40} subtitle="Walk-in · no login required" />
+        <KriosLogo
+          size={40}
+          src={salonLogoUrl(activeOrg.logo || String(orgRow?.["logo"] ?? ""))}
+          alt={activeOrg.name}
+          wordmark={activeOrg.name}
+          subtitle="Walk-in · no login required"
+        />
         <p className="text-sm font-medium text-muted-foreground">{activeOrg.name}</p>
       </div>
       {content}

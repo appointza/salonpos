@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { customerName } from "@/pages/Customers/customer-lookup";
 import { useApi, useCollection } from "@/hooks/useApi";
+import { useListView } from "@/list-view";
 
 function friendlyReason(row: Record<string, unknown>) {
   const reason = String(row["reason"] ?? "");
@@ -17,6 +18,7 @@ function friendlyReason(row: Record<string, unknown>) {
 }
 
 export function LoyaltyHistoryPage() {
+  const { view } = useListView();
   const { tab } = useSearch({ from: "/_app/loyalty/history" });
   const { rows: txs } = useCollection("loyaltyTransactions");
   const { allRows } = useApi();
@@ -51,7 +53,24 @@ export function LoyaltyHistoryPage() {
         <TabsContent value="points" className="mt-4">
           {txs.length === 0 ? (
             <p className="text-sm text-muted-foreground">No point activity yet.</p>
-          ) : (
+          ) : view === "card" ? (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {txs.map((t) => {
+                  const earn = String(t["type"]) === "Earn";
+                  return (
+                    <div key={String(t.id)} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                      <p className="font-medium">{nameOf(String(t["customerId"] ?? ""))}</p>
+                      <p className="mt-1 text-sm">{friendlyReason(t)}</p>
+                      <p className={`mt-2 text-sm ${earn ? "text-emerald-600" : "text-amber-700"}`}>
+                        {earn ? "+" : "−"}
+                        {Number(t["points"] ?? 0)} pts
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">{String(t["createdAt"] ?? t["createdon"] ?? "—")}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
             <div className="rounded-xl border border-border bg-card shadow-sm">
               <Table>
                 <TableHeader>
@@ -88,7 +107,22 @@ export function LoyaltyHistoryPage() {
         <TabsContent value="redeemed" className="mt-4">
           {redemptionRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No rewards used yet.</p>
-          ) : (
+          ) : view === "card" ? (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {redemptionRows.map(({ row }) => (
+                  <div key={String(row.id)} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{nameOf(String(row["customerId"] ?? ""))}</p>
+                      <Badge variant="secondary">{String(row["status"] ?? "Used")}</Badge>
+                    </div>
+                    <p className="mt-1 text-sm">{String(row["offerTitle"] ?? row["label"] ?? row["title"] ?? row.id)}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {String(row["redeemedAt"] ?? row["issuedAt"] ?? "—")}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
             <div className="rounded-xl border border-border bg-card shadow-sm">
               <Table>
                 <TableHeader>

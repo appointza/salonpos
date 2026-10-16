@@ -2,6 +2,7 @@ import type { EntityId } from "@/ids";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { hydrateBookingRules } from "@/pages/Book/booking-rules";
 import { hydratePublicBookingSettings } from "@/pages/Book/public-booking-settings";
+import { hydrateReferralRules } from "@/pages/Loyalty/referral-settings";
 import { hydrateServiceDisplaySettings } from "@/pages/Services/service-display-settings";
 import { useTenant } from "@/tenant";
 import { useAuth } from "@/auth";
@@ -32,6 +33,7 @@ const ORG_WIDE = new Set([
   "stockMovements",
   "serviceProducts",
   "roles",
+  "assets",
 ]);
 
 /** Local-only collections (no backend table yet). */
@@ -83,7 +85,7 @@ async function loadAllFromApi(orgId: number): Promise<Db> {
       }
     }),
   );
-  return hydrateServiceDisplaySettings(hydrateBookingRules(hydratePublicBookingSettings(db)));
+  return hydrateServiceDisplaySettings(hydrateBookingRules(hydratePublicBookingSettings(hydrateReferralRules(db))));
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
@@ -152,7 +154,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       persist((prev) => {
         const next: Db = { ...prev };
         for (const [key, rows] of pairs) next[key] = rows;
-        return hydrateServiceDisplaySettings(hydrateBookingRules(hydratePublicBookingSettings(next)));
+        return hydrateServiceDisplaySettings(
+          hydrateBookingRules(hydratePublicBookingSettings(hydrateReferralRules(next))),
+        );
       });
     },
     [orgId, persist],
@@ -253,7 +257,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
             };
             persist((prev) => ({
               ...prev,
-              [collection]: [next, ...(prev[collection] ?? []).filter((r) => String(r.id) !== String(next.id))],
+              [collection]: [
+                next,
+                ...(prev[collection] ?? []).filter(
+                  (r) => String(r.id) !== String(next.id) && String(r.id) !== String(allowed.id),
+                ),
+              ],
             }));
             return next;
           } catch (e) {

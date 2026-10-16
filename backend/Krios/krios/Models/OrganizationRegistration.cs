@@ -7,6 +7,7 @@ namespace Krios.Models.Krios
         public string domain { get; set; } = "";
         public string website { get; set; } = "";
         public string brandColor { get; set; } = "";
+        public string logo { get; set; } = "";
         public string adminName { get; set; } = "";
         public string adminEmail { get; set; } = "";
         public string adminPassword { get; set; } = "";

@@ -16,9 +16,10 @@ type OfferCardProps = {
   onEdit?: () => void;
   onDelete?: () => void;
   readOnly?: boolean;
+  validityLabel?: string;
 };
 
-export function OfferCard({ offer, outletName, onEdit, onDelete, readOnly }: OfferCardProps) {
+export function OfferCard({ offer, outletName, onEdit, onDelete, readOnly, validityLabel }: OfferCardProps) {
   const { rows: services } = useCollection("services");
   const status = String(offer["status"] ?? "Draft");
   const segment = String(offer["eligibleSegment"] ?? "All");
@@ -84,7 +85,8 @@ export function OfferCard({ offer, outletName, onEdit, onDelete, readOnly }: Off
         <div className="flex items-center gap-2">
           <Calendar className="size-3.5 shrink-0" />
           <span>
-            {String(offer["validityStart"] ?? "—")} → {String(offer["validityEnd"] ?? "—")}
+            {validityLabel ??
+              `${String(offer["validityStart"] ?? "—")} → ${String(offer["validityEnd"] ?? "—")}`}
           </span>
         </div>
         <div className="flex items-center gap-2">

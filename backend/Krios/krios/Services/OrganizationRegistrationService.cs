@@ -8,11 +8,13 @@ namespace Krios.Services.Krios
     {
         private readonly IDbProvider dbprovider;
         private readonly CustomCryptography cryptography;
+        private readonly AssetService assetService;
 
-        public OrganizationRegistrationService(IDbProvider dbprovider, CustomCryptography cryptography)
+        public OrganizationRegistrationService(IDbProvider dbprovider, CustomCryptography cryptography, AssetService assetService)
         {
             this.dbprovider = dbprovider;
             this.cryptography = cryptography;
+            this.assetService = assetService;
         }
 
         public async Task<OrganizationRegistrationRes> Register(OrganizationRegistrationReq req)
@@ -20,16 +22,16 @@ namespace Krios.Services.Krios
             ValidateReq(req);
 
             using IDb db = await dbprovider.GetDb();
-            await db.Connect();
-            await db.BeginTransaction();
+                await db.Connect();
+                await db.BeginTransaction();
 
-            try
-            {
-                if (await EmailExists(db, req.adminEmail))
-                    throw new AppException(AppException.ErrorCodes.UsersDuplicate, "Admin email already registered.");
+                try
+                {
+                    if (await EmailExists(db, req.adminEmail))
+                        throw new AppException(AppException.ErrorCodes.UsersDuplicate, "Admin email already registered.");
 
-                string slugBase = NormalizeSlug(req.organizationName);
-                string slug = await EnsureUniqueSlug(db, slugBase);
+                    string slugBase = NormalizeSlug(req.organizationName);
+                    string slug = await EnsureUniqueSlug(db, slugBase);
 
                 long orgId = await InsertOrganization(db, req, slug);
                 long locationId = await InsertLocation(db, req, orgId);
@@ -38,20 +40,20 @@ namespace Krios.Services.Krios
                 await SeedDefaultLoyalty(db, req, orgId);
                 long userId = await InsertAdminUser(db, req, orgId, locationId);
 
-                await db.CommitTransaction();
+                    await db.CommitTransaction();
 
-                return new OrganizationRegistrationRes
-                {
-                    organizationId = orgId,
-                    adminUserId = userId,
+                    return new OrganizationRegistrationRes
+                    {
+                        organizationId = orgId,
+                        adminUserId = userId,
                     locationId = locationId,
                     slug = slug,
-                };
-            }
-            catch
-            {
-                await db.RollbackTransaction();
-                throw;
+                    };
+                }
+                catch
+                {
+                    await db.RollbackTransaction();
+                    throw;
             }
         }
 
@@ -91,7 +93,7 @@ namespace Krios.Services.Krios
             var cmd = db.GetCommand(query);
             db.AddParameter(cmd, "slug", DbTypes.Types.String).Value = slug;
             using var reader = await db.Execute(cmd);
-            return await reader.ReadAsync();
+                return await reader.ReadAsync();
         }
 
         private static async Task<bool> EmailExists(IDb db, string email)
@@ -100,22 +102,25 @@ namespace Krios.Services.Krios
             var cmd = db.GetCommand(query);
             db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
             using var reader = await db.Execute(cmd);
-            return await reader.ReadAsync();
+                return await reader.ReadAsync();
         }
 
         private async Task<long> InsertOrganization(IDb db, OrganizationRegistrationReq req, string slug)
         {
+            var ensureLogo = db.GetCommand(@"ALTER TABLE organizations ADD COLUMN IF NOT EXISTS logo TEXT;");
+            await db.ExecuteNonQuery(ensureLogo);
+
             const string query = @"
                 INSERT INTO organizations (
                     ""orgId"", ""locationId"", name, slug, domain, website,
-                    ""businessType"", ""brandColor"", status,
+                    ""businessType"", ""brandColor"", logo, status,
                     ""pointsPerRupee"", ""rupeesPerPoint"", ""earnUnitRupees"", ""pointsPerUnit"", ""loyaltyMinSpend"",
                     ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"",
                     createdby, createdon, updatedby, updatedon
                 )
                 VALUES (
                     0, 0, @name, @slug, @domain, @website,
-                    @businessType, @brandColor, @status,
+                    @businessType, @brandColor, @logo, @status,
                     @pointsPerRupee, @rupeesPerPoint, @earnUnitRupees, @pointsPerUnit, @loyaltyMinSpend,
                     @publicBookingShowPrizeWheel, @publicBookingShowScratchCard,
                     @createdby, @createdon, @updatedby, @updatedon
@@ -131,6 +136,9 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "website", DbTypes.Types.String).Value = req.website?.Trim() ?? "";
             db.AddParameter(cmd, "businessType", DbTypes.Types.String).Value = req.businessType?.Trim() ?? "Salon & Spa";
             db.AddParameter(cmd, "brandColor", DbTypes.Types.String).Value = string.IsNullOrWhiteSpace(req.brandColor) ? "#2f5bff" : req.brandColor.Trim();
+            var pendingLogo = req.logo?.Trim() ?? "";
+            db.AddParameter(cmd, "logo", DbTypes.Types.String).Value =
+                pendingLogo.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ? "" : pendingLogo;
             db.AddParameter(cmd, "status", DbTypes.Types.String).Value = "Active";
             db.AddParameter(cmd, "pointsPerRupee", DbTypes.Types.Decimal).Value = 1;
             db.AddParameter(cmd, "rupeesPerPoint", DbTypes.Types.Decimal).Value = 1;
@@ -156,6 +164,15 @@ namespace Krios.Services.Krios
             db.AddParameter(sync, "orgId", DbTypes.Types.Long).Value = orgId;
             db.AddParameter(sync, "id", DbTypes.Types.Long).Value = orgId;
             await db.ExecuteNonQuery(sync);
+
+            if (pendingLogo.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            {
+                var logoId = await assetService.StoreImageId(db, orgId, pendingLogo, "logo");
+                var setLogo = db.GetCommand(@"UPDATE organizations SET logo = @logo WHERE id = @id");
+                db.AddParameter(setLogo, "logo", DbTypes.Types.String).Value = logoId;
+                db.AddParameter(setLogo, "id", DbTypes.Types.Long).Value = orgId;
+                await db.ExecuteNonQuery(setLogo);
+            }
             return orgId;
         }
 
@@ -217,13 +234,13 @@ namespace Krios.Services.Krios
         }
 
         private const string StaffPaths =
-            "/dashboard,/front-desk,/customers,/appointments,/pos,/walk-in,/services,/feedback,/memberships,/loyalty,/offers,/coupons,/prize-wheel,/scratch-card,/campaigns,/inventory,/vendors,/reports,/setup";
+            "/dashboard,/front-desk,/customers,/appointments,/pos,/invoices,/walk-in,/services,/feedback,/memberships,/loyalty,/offers,/coupons,/prize-wheel,/scratch-card,/campaigns,/inventory,/vendors,/reports,/setup";
 
         private const string StylistPaths =
             "/dashboard,/front-desk,/appointments,/customers,/services,/feedback,/shifts,/attendance,/leaves,/commissions";
 
         private const string ReceptionistPaths =
-            "/dashboard,/front-desk,/customers,/appointments,/pos,/walk-in,/services,/feedback";
+            "/dashboard,/front-desk,/customers,/appointments,/pos,/invoices,/walk-in,/services,/feedback";
 
         private async Task SeedDefaultRoles(IDb db, OrganizationRegistrationReq req, long orgId)
         {

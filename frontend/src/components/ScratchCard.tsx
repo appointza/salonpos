@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Gift, Sparkles } from "lucide-react";
 import { cn } from "@/utils/utils";
+import { offerAvailWithinMessage } from "@/pages/PrizeWheel/reward-distribution";
 
 type ScratchCardProps = {
   prizeLabel: string;
   brandName?: string;
   disabled?: boolean;
   completed?: boolean;
+  availWithinDays?: number;
   onBegin: () => string | null | Promise<string | null>;
   onRevealed?: (label: string) => void;
 };
@@ -69,7 +71,7 @@ function paintMetallicFoil(ctx: CanvasRenderingContext2D, width: number, height:
   ctx.strokeRect(10, 10, width - 20, height - 20);
 }
 
-export function ScratchCard({ prizeLabel, brandName, disabled, completed, onBegin, onRevealed }: ScratchCardProps) {
+export function ScratchCard({ prizeLabel, brandName, disabled, completed, availWithinDays, onBegin, onRevealed }: ScratchCardProps) {
   const serial = useId().replace(/:/g, "").slice(0, 8).toUpperCase();
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -160,6 +162,7 @@ export function ScratchCard({ prizeLabel, brandName, disabled, completed, onBegi
   }
 
   const displayLabel = localLabel || prizeLabel || "Your prize";
+  const availHint = offerAvailWithinMessage(availWithinDays ?? 30, displayLabel);
 
   return (
     <div className="mx-auto w-full max-w-md">
@@ -222,6 +225,7 @@ export function ScratchCard({ prizeLabel, brandName, disabled, completed, onBegi
                 {displayLabel}
               </p>
               <p className="mt-2 text-xs text-violet-200/75">Show this at checkout to redeem</p>
+              {availHint ? <p className="mt-1 text-xs font-medium text-amber-100">{availHint}</p> : null}
             </div>
           </div>
 

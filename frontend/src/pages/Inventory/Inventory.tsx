@@ -117,7 +117,7 @@ export function Page() {
   return (
     <div className="space-y-6">
       <StockFlowNote />
-      <div className="flex gap-1 rounded-lg bg-muted p-1 w-fit">
+      <div className="flex w-full max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1 sm:w-fit">
         {TABS.map((t) => (
           <button
             key={t.key}

@@ -73,13 +73,19 @@ const STRING_ENTITY_FIELDS = new Set([
   "whatsappConnected",
   "placeId",
   "bookingRules",
+  "referralRules",
+  "growthClaimPool",
+  "referredBy",
+  "referralCode",
   "serviceDisplaySettings",
   "walkInRewardMode",
+  "guestPrizeKey",
   "rewardWheelWeights",
   "rewardScratchWeights",
   "rewardCustomerTierWeights",
   "publicBookingShowPrizeWheel",
   "publicBookingShowScratchCard",
+  "serviceIds",
 ]);
 
 function isDateEntityField(key: string): boolean {

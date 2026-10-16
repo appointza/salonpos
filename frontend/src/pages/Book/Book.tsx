@@ -7,7 +7,7 @@ export function Page() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4">
         <p className="text-sm text-muted-foreground">Opening booking page…</p>
       </div>
     );
@@ -15,7 +15,7 @@ export function Page() {
 
   if (!slug) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4">
         <p className="text-sm text-muted-foreground">No salon is available to book yet.</p>
       </div>
     );

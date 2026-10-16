@@ -38,6 +38,7 @@ import { useApi, useCollection, type Row } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/tenant";
 import { usePermissions } from "@/pages/Roles/permissions";
+import { useListView } from "@/list-view";
 
 const STATUS_FILTERS: Array<"All" | CouponCodeStatus> = [
   "All",
@@ -63,6 +64,7 @@ export function CouponSchemeLayout() {
 }
 
 function CouponDetailPage() {
+  const { view } = useListView();
   const { couponId } = useParams({ from: "/_app/coupons/$couponId" });
   const { org } = useTenant();
   const { user } = useAuth();
@@ -205,7 +207,7 @@ function CouponDetailPage() {
           </Button>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-3xl tracking-tight">{coupon.title}</h1>
+              <h1 className="font-display text-2xl tracking-tight sm:text-3xl">{coupon.title}</h1>
               <Badge variant={coupon.status === "Active" ? "default" : "secondary"}>{coupon.status}</Badge>
               <span className="font-mono text-xs text-muted-foreground">{coupon.id}</span>
             </div>
@@ -317,7 +319,31 @@ function CouponDetailPage() {
               </Button>
             ) : null}
           </div>
-        ) : (
+        ) : view === "card" ? (
+            <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+              {filteredCodes.length === 0 ? (
+                <p className="col-span-full py-8 text-center text-sm text-muted-foreground">
+                  No codes match your search or filter.
+                </p>
+              ) : (
+                filteredCodes.map((row) => (
+                  <div key={row.id} className="rounded-xl border border-border bg-background p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-mono text-sm font-semibold tracking-wide">{row.code}</p>
+                      <Badge variant={codeStatusVariant(row.status)}>{row.status}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm">{row.customerName || "—"}</p>
+                    {row.customerPhone ? <p className="text-xs text-muted-foreground">{row.customerPhone}</p> : null}
+                    <p className="mt-2 text-xs text-muted-foreground">Issued {row.issuedAt || "—"} · Used {row.redeemedAt || "—"}</p>
+                    <p className="mt-1 font-mono text-xs text-muted-foreground">{row.invoiceId || "—"}</p>
+                    <p className="mt-1 text-sm tabular-nums">
+                      {row.discountAmount > 0 ? `₹${row.discountAmount.toLocaleString("en-IN")}` : "—"} · {row.locationName}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>

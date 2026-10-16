@@ -10,6 +10,17 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+android/.gradle
+android/app/build
+android/build
+android/capacitor-cordova-android-plugins
+android/local.properties
+android/*.apk
+android/*.aab
+ios/App/Pods
+ios/App/build
+ios/DerivedData
+ios/App/App/public
 .output
 .vinxi
 .tanstack/**

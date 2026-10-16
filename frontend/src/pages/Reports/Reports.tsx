@@ -13,6 +13,7 @@ import {
   summarizeSales,
   type ReportPeriod,
 } from "@/pages/Reports/sales-analytics";
+import { useListView } from "@/list-view";
 import { useData } from "@/store";
 import { useTenant } from "@/tenant";
 
@@ -54,7 +55,7 @@ export function Page() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={period} onValueChange={(v) => setPeriod(v as ReportPeriod)}>
-            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {PERIOD_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -92,11 +93,22 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function ReportTable({ title, rows }: { title: string; rows: { name: string; revenue: number; count: number }[] }) {
+  const { view } = useListView();
   return (
     <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
       <h2 className="text-sm font-semibold">{title}</h2>
       {rows.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">No paid invoices in this period.</p>
+      ) : view === "card" ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {rows.map((row) => (
+            <div key={row.name} className="rounded-lg border border-border p-3">
+              <p className="font-medium">{row.name}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{row.count} invoices</p>
+              <p className="mt-1 text-sm tabular-nums">₹{row.revenue.toLocaleString("en-IN")}</p>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm">

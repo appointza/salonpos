@@ -3,6 +3,7 @@ import type { Row } from "@/store";
 import type { BillLine } from "@/pages/Pos/sale";
 import { billTotals } from "@/pages/Pos/sale";
 import { earnPoints, pointsToRupees, resolveLoyaltyRule } from "@/pages/Loyalty/loyalty-rules";
+import { getOrgLoyaltyBalance } from "@/pages/Loyalty/loyalty-service";
 import {
   applyMembershipBenefits,
   findLiveMembership,
@@ -79,7 +80,9 @@ export function quoteUnifiedSale(
   const afterCoupons = Math.max(0, afterRewards - couponQuote.total);
 
   const maxPts = rule.rupeesPerPoint > 0 ? Math.floor(afterCoupons / rule.rupeesPerPoint) : 0;
-  const available = Number(input.customer?.["points"] ?? 0);
+  const available = input.customer
+    ? getOrgLoyaltyBalance(db, ctx.orgId, String(input.customer["phone"] ?? ""))
+    : 0;
   const redeem = Math.max(0, Math.min(input.pointsRedeemed, available, maxPts));
   const loyaltyValue = pointsToRupees(redeem, rule);
 

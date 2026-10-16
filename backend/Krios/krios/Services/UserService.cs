@@ -9,21 +9,25 @@ namespace Krios.Services.Krios
         private readonly IDbProvider dbprovider;
         private readonly IQueryBuilderProvider querybuilderprovider;
         private readonly RequestState requeststate;
+        private readonly CustomCryptography cryptography;
 
         public UserService(
             IDbProvider dbprovider,
             IQueryBuilderProvider querybuilderprovider,
-            RequestState requeststate)
+            RequestState requeststate,
+            CustomCryptography cryptography)
         {
             this.dbprovider = dbprovider;
             this.querybuilderprovider = querybuilderprovider;
             this.requeststate = requeststate;
+            this.cryptography = cryptography;
         }
 
         public async Task<List<User>> Select(UserSelectReq req)
         {
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
+            await UserLanguageSchema.EnsureColumn(db);
             return await SelectTransaction(db, req);
         }
 
@@ -31,8 +35,8 @@ namespace Krios.Services.Krios
         {
             const string query = @"
                 SELECT
-                    id, ""orgId"", ""locationId"", name, email, role, outlet,
-                    permissions, ""lastLogin"", status, passwordhash,
+                    id, ""orgId"", ""locationId"", name, email, phone, role, outlet,
+                    permissions, ""lastLogin"", status, passwordhash, language,
                     createdby, createdon, updatedby, updatedon
                 FROM users
             ";
@@ -72,7 +76,11 @@ namespace Krios.Services.Krios
         {
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
+            await UserLanguageSchema.EnsureColumn(db);
+            ApplyIncomingPassword(user, isInsert: true);
             await InsertTransaction(db, user);
+            user.password = "";
+            user.passwordhash = "";
             return user;
         }
 
@@ -80,13 +88,13 @@ namespace Krios.Services.Krios
         {
             const string query = @"
                 INSERT INTO users (
-                    ""orgId"", ""locationId"", name, email, role, outlet,
-                    permissions, ""lastLogin"", status, passwordhash,
+                    ""orgId"", ""locationId"", name, email, phone, role, outlet,
+                    permissions, ""lastLogin"", status, passwordhash, language,
                     createdby, createdon, updatedby, updatedon
                 )
                 VALUES (
-                    @orgId, @locationId, @name, @email, @role, @outlet,
-                    @permissions, @lastLogin, @status, @passwordhash,
+                    @orgId, @locationId, @name, @email, @phone, @role, @outlet,
+                    @permissions, @lastLogin, @status, @passwordhash, @language,
                     @createdby, @createdon, @updatedby, @updatedon
                 )
                 RETURNING id;
@@ -95,6 +103,10 @@ namespace Krios.Services.Krios
             var today = DateTime.UtcNow.Date;
             var actor = requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : "system";
             user.status = string.IsNullOrWhiteSpace(user.status) ? "Active" : user.status;
+            user.phone = PhoneUtil.Normalize(user.phone);
+            if (string.IsNullOrWhiteSpace(user.email) && user.phone.Length >= 10)
+                user.email = $"{user.phone}@salon.staff";
+            user.lastLogin = "";
             user.createdon = today;
             user.updatedon = today;
             user.createdby = actor;
@@ -112,7 +124,11 @@ namespace Krios.Services.Krios
         {
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
+            await UserLanguageSchema.EnsureColumn(db);
+            ApplyIncomingPassword(user, isInsert: false);
             await UpdateTransaction(db, user);
+            user.password = "";
+            user.passwordhash = "";
             return user;
         }
 
@@ -124,17 +140,22 @@ namespace Krios.Services.Krios
                     ""locationId"" = @locationId,
                     name = @name,
                     email = @email,
+                    phone = @phone,
                     role = @role,
                     outlet = @outlet,
                     permissions = @permissions,
-                    ""lastLogin"" = @lastLogin,
+                    ""lastLogin"" = CASE WHEN @passwordhash = '' THEN ""lastLogin"" ELSE '' END,
                     status = @status,
-                    passwordhash = @passwordhash,
+                    passwordhash = CASE WHEN @passwordhash = '' THEN passwordhash ELSE @passwordhash END,
+                    language = CASE WHEN @language = '' THEN language ELSE @language END,
                     updatedby = @updatedby,
                     updatedon = @updatedon
                 WHERE id = @id
             ";
 
+            user.phone = PhoneUtil.Normalize(user.phone);
+            if (string.IsNullOrWhiteSpace(user.email) && user.phone.Length >= 10)
+                user.email = $"{user.phone}@salon.staff";
             user.updatedon = DateTime.UtcNow.Date;
             user.updatedby = requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : user.updatedby;
 
@@ -177,12 +198,16 @@ namespace Krios.Services.Krios
                 locationId = ReadLong(reader, "locationId"),
                 name = reader["name"]?.ToString() ?? "",
                 email = reader["email"]?.ToString() ?? "",
+                phone = HasColumn(reader, "phone") ? reader["phone"]?.ToString() ?? "" : "",
                 role = reader["role"]?.ToString() ?? "",
                 outlet = reader["outlet"]?.ToString() ?? "",
                 permissions = reader["permissions"]?.ToString() ?? "",
                 lastLogin = reader["lastLogin"]?.ToString() ?? "",
                 status = reader["status"]?.ToString() ?? "",
-                passwordhash = reader["passwordhash"]?.ToString() ?? "",
+                passwordhash = "",
+                language = HasColumn(reader, "language")
+                    ? UserLanguageSchema.Normalize(reader["language"]?.ToString())
+                    : "en",
                 createdby = reader["createdby"]?.ToString() ?? "",
                 createdon = ReadDate(reader, "createdon"),
                 updatedby = reader["updatedby"]?.ToString() ?? "",
@@ -199,16 +224,43 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = user.locationId;
             db.AddParameter(cmd, "name", DbTypes.Types.String).Value = user.name ?? "";
             db.AddParameter(cmd, "email", DbTypes.Types.String).Value = user.email ?? "";
+            db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = PhoneUtil.Normalize(user.phone);
             db.AddParameter(cmd, "role", DbTypes.Types.String).Value = user.role ?? "";
             db.AddParameter(cmd, "outlet", DbTypes.Types.String).Value = user.outlet ?? "";
             db.AddParameter(cmd, "permissions", DbTypes.Types.String).Value = user.permissions ?? "";
             db.AddParameter(cmd, "lastLogin", DbTypes.Types.String).Value = user.lastLogin ?? "";
             db.AddParameter(cmd, "status", DbTypes.Types.String).Value = user.status ?? "";
             db.AddParameter(cmd, "passwordhash", DbTypes.Types.String).Value = user.passwordhash ?? "";
+            db.AddParameter(cmd, "language", DbTypes.Types.String).Value = UserLanguageSchema.Normalize(user.language);
             db.AddParameter(cmd, "createdby", DbTypes.Types.String).Value = user.createdby ?? "";
             db.AddParameter(cmd, "createdon", DbTypes.Types.Date).Value = user.createdon ?? DateTime.UtcNow.Date;
             db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value = user.updatedby ?? "";
             db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = user.updatedon ?? DateTime.UtcNow.Date;
+        }
+
+        private void ApplyIncomingPassword(User user, bool isInsert)
+        {
+            var plain = (user.password ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(plain))
+            {
+                if (isInsert)
+                    throw new AppException(AppException.ErrorCodes.BadRequest, "Set a password of at least 6 characters.");
+                user.passwordhash = "";
+                return;
+            }
+            if (plain.Length < 6)
+                throw new AppException(AppException.ErrorCodes.BadRequest, "Password must be at least 6 characters.");
+            user.passwordhash = cryptography.CalculateSHA256Hash(plain);
+            user.lastLogin = "";
+            user.password = "";
+        }
+
+        private static bool HasColumn(DbDataReader reader, string column)
+        {
+            for (var i = 0; i < reader.FieldCount; i++)
+                if (string.Equals(reader.GetName(i), column, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
         }
 
         private static long ReadLong(DbDataReader reader, string column)

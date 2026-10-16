@@ -191,13 +191,13 @@ export function Page() {
           </li>
         </ol>
       </div>
-      <div className="flex gap-1 rounded-lg bg-muted p-1 w-fit">
+      <div className="flex w-full max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1 sm:w-fit">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={`rounded-md px-3 py-1.5 text-sm ${tab === t.key ? "bg-card shadow-sm" : "text-muted-foreground"}`}
+            className={`shrink-0 rounded-md px-3 py-1.5 text-sm whitespace-nowrap ${tab === t.key ? "bg-card shadow-sm" : "text-muted-foreground"}`}
           >
             {t.label}
           </button>

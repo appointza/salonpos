@@ -245,7 +245,7 @@ namespace Krios.Services.Krios
                 return res;
             }
 
-            if (await HasPointsTransaction(db, req.source, req.referenceId, req.type))
+            if (!req.allowDuplicate && await HasPointsTransaction(db, req.source, req.referenceId, req.type))
             {
                 res.duplicate = true;
                 res.balanceAfter = await GetCustomerPoints(db, req.customerId);
@@ -306,14 +306,13 @@ namespace Krios.Services.Krios
             var txs = await SelectTransaction(db, new LoyaltyTransactionSelectReq
             {
                 orgId = req.orgId,
-                locationId = req.locationId,
             });
             var earn = txs.FirstOrDefault(t =>
                 t.invoiceId == req.invoiceId &&
                 string.Equals(t.type, "Earn", StringComparison.OrdinalIgnoreCase));
-            var redeem = txs.FirstOrDefault(t =>
+            var redeems = txs.Where(t =>
                 t.invoiceId == req.invoiceId &&
-                string.Equals(t.type, "Redeem", StringComparison.OrdinalIgnoreCase));
+                string.Equals(t.type, "Redeem", StringComparison.OrdinalIgnoreCase)).ToList();
 
             long balance = await GetCustomerPoints(db, req.customerId);
             if (earn != null && earn.points > 0)
@@ -322,37 +321,42 @@ namespace Krios.Services.Krios
                 {
                     orgId = req.orgId,
                     locationId = req.locationId,
-                    customerId = req.customerId,
+                    customerId = earn.customerId > 0 ? earn.customerId : req.customerId,
                     type = "Expire",
-                    points = Math.Min(earn.points, balance),
+                    points = Math.Min(earn.points, await GetCustomerPoints(db, earn.customerId > 0 ? earn.customerId : req.customerId)),
                     source = "reversal",
                     referenceId = req.invoiceId * 10 + 1,
                     invoiceId = req.invoiceId,
                     programId = earn.programId,
                     reason = req.reason,
+                    allowDuplicate = true,
                 });
                 if (expire.ok) balance = expire.balanceAfter;
             }
-            if (redeem != null && redeem.points > 0)
+            var slice = 2;
+            foreach (var redeem in redeems)
             {
+                if (redeem.points <= 0) continue;
                 var reverse = await PostPointsTransaction(db, new LoyaltyPostPointsReq
                 {
                     orgId = req.orgId,
-                    locationId = req.locationId,
-                    customerId = req.customerId,
+                    locationId = redeem.locationId > 0 ? redeem.locationId : req.locationId,
+                    customerId = redeem.customerId > 0 ? redeem.customerId : req.customerId,
                     type = "Reverse",
                     points = redeem.points,
                     source = "reversal",
-                    referenceId = req.invoiceId * 10 + 2,
+                    referenceId = req.invoiceId * 10 + slice,
                     invoiceId = req.invoiceId,
                     programId = redeem.programId,
                     reason = req.reason,
+                    allowDuplicate = true,
                 });
+                slice++;
                 if (reverse.ok) balance = reverse.balanceAfter;
             }
 
             res.ok = true;
-            res.balanceAfter = balance;
+            res.balanceAfter = await GetCustomerPoints(db, req.customerId);
             return res;
         }
 
@@ -370,7 +374,7 @@ namespace Krios.Services.Krios
             return await reader.ReadAsync();
         }
 
-        private static async Task<long> GetCustomerPoints(IDb db, long customerId)
+        public static async Task<long> GetCustomerPoints(IDb db, long customerId)
         {
             var cmd = db.GetCommand("SELECT points FROM customers WHERE id = @id LIMIT 1");
             db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = customerId;

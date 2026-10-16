@@ -28,7 +28,7 @@
   </ItemGroup>
 
   <!-- Vite last so publish does not replace wwwroot with an empty/stale copy. -->
-  <Target Name="PublishFrontend" AfterTargets="Publish" Condition="'$(SkipKriosFrontend)' != 'true'">
+  <Target Name="PublishFrontend" AfterTargets="Publish">
     <PropertyGroup>
       <FrontendDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\frontend'))</FrontendDir>
       <FrontendWwwroot>$([System.IO.Path]::Combine('$(PublishDir)','wwwroot'))</FrontendWwwroot>

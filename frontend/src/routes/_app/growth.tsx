@@ -1,9 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { GrowthGuidePage } from "@/pages/Growth/Growth";
+import { Outlet, createFileRoute } from "@tanstack/react-router";
 
 const title = "Loyalty & coupons — Krios";
 const description =
   "How reward points and promotional coupon codes work — separate instruments at POS, linked when points convert to vouchers.";
+
+function GrowthLayout() {
+  return <Outlet />;
+}
 
 export const Route = createFileRoute("/_app/growth")({
   head: () => ({
@@ -14,5 +17,5 @@ export const Route = createFileRoute("/_app/growth")({
       { property: "og:description", content: description },
     ],
   }),
-  component: GrowthGuidePage,
+  component: GrowthLayout,
 });

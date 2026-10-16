@@ -3,6 +3,7 @@ import type { Db, Row } from "@/store";
 import { customerName } from "@/pages/Customers/customer-lookup";
 import { getRewardById } from "@/pages/Loyalty/loyalty-account";
 import { CUSTOMER_REWARDS } from "@/pages/Loyalty/rewards/customer-reward-service";
+import { issuedAtOf, offerExpiryDate, offerValidityDaysFromDb } from "@/pages/PrizeWheel/reward-distribution";
 
 export type UnifiedCustomerReward = {
   id: string;
@@ -33,7 +34,9 @@ function mapCustomerRewardRow(db: Db, row: Row): UnifiedCustomerReward {
     source: String(row["sourceType"] ?? "loyalty"),
     status: String(row["status"] ?? "Available"),
     issuedAt: String(row["issuedAt"] ?? ""),
-    expiresAt: String(row["expiresAt"] ?? ""),
+    expiresAt:
+      String(row["expiresAt"] ?? "") ||
+      offerExpiryDate(String(row["issuedAt"] ?? ""), offerValidityDaysFromDb(db, row["orgId"])),
     invoiceId: String(row["invoiceId"] ?? ""),
     refCollection: "customerRewards",
   };
@@ -52,7 +55,9 @@ function mapWheelSpinRow(db: Db, spin: Row): UnifiedCustomerReward {
       source: "wheel",
       status: String(spin["status"] ?? "Completed"),
       issuedAt: String(spin["spunAt"] ?? spin["createdAt"] ?? ""),
-      expiresAt: String(spin["expiresAt"] ?? ""),
+      expiresAt:
+        String(spin["expiresAt"] ?? "") ||
+        offerExpiryDate(issuedAtOf(spin), offerValidityDaysFromDb(db, spin["orgId"])),
       invoiceId: String(spin["invoiceId"] ?? ""),
       refCollection: "wheelSpins",
     };
@@ -66,7 +71,9 @@ function mapWheelSpinRow(db: Db, spin: Row): UnifiedCustomerReward {
     source: "wheel",
     status: String(spin["status"]) === "Redeemed" ? "Redeemed" : "Available",
     issuedAt: String(spin["spunAt"] ?? spin["createdAt"] ?? ""),
-    expiresAt: String(spin["expiresAt"] ?? ""),
+    expiresAt:
+      String(spin["expiresAt"] ?? "") ||
+      offerExpiryDate(issuedAtOf(spin), offerValidityDaysFromDb(db, spin["orgId"])),
     invoiceId: String(spin["invoiceId"] ?? ""),
     refCollection: "wheelSpins",
   };

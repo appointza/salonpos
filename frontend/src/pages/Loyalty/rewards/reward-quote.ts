@@ -1,7 +1,8 @@
 import { normalizePhone } from "@/pages/Customers/customer-lookup";
 import type { EntityId } from "@/ids";
 import type { Db, Row } from "@/store";
-import { offerDiscountAmount, QR_OFFERS } from "@/pages/Offers/offer-redemption-service";
+import { isOfferInValidityWindow, offerDiscountAmount, QR_OFFERS } from "@/pages/Offers/offer-redemption-service";
+import { isRewardWithinValidity } from "@/pages/PrizeWheel/reward-distribution";
 import { partnerCouponDiscount, PARTNERSHIPS } from "@/pages/LoyaltyPartners/partner-coupon-service";
 import { scratchPlayDiscountAmount, SCRATCH_PLAYS } from "@/pages/ScratchCard/scratch-service";
 import { wheelSpinDiscountAmount, WHEEL_SPINS } from "@/pages/PrizeWheel/wheel-service";
@@ -35,7 +36,7 @@ export function computeRewardDiscounts(
 
   if (refs.wheelSpinId) {
     const spin = (db[WHEEL_SPINS] ?? []).find((s) => String(s.id) === refs.wheelSpinId);
-    if (spin && String(spin["status"]) === "Pending") {
+    if (spin && String(spin["status"]) === "Pending" && isRewardWithinValidity(db, spin)) {
       const amount = Math.min(wheelSpinDiscountAmount(spin, remaining, cart, db), remaining);
       const prizeType = String(hydrateWheelPrize(db, spin).prizeType);
       const claimable = amount > 0 || isClaimWithoutAmount(prizeType);
@@ -48,7 +49,7 @@ export function computeRewardDiscounts(
 
   if (refs.scratchPlayId) {
     const play = (db[SCRATCH_PLAYS] ?? []).find((s) => String(s.id) === refs.scratchPlayId);
-    if (play && String(play["status"]) === "Pending") {
+    if (play && String(play["status"]) === "Pending" && isRewardWithinValidity(db, play)) {
       const amount = Math.min(scratchPlayDiscountAmount(play, remaining, cart, db), remaining);
       const prizeType = String(hydrateScratchPrize(db, play).prizeType);
       const claimable = amount > 0 || isClaimWithoutAmount(prizeType);
@@ -61,10 +62,10 @@ export function computeRewardDiscounts(
 
   if (refs.offerRedemptionId) {
     const redemption = (db["qrOfferRedemptions"] ?? []).find((r) => String(r.id) === refs.offerRedemptionId);
-    if (redemption && String(redemption["status"]) === "Issued") {
+    if (redemption && String(redemption["status"]) === "Issued" && isRewardWithinValidity(db, redemption)) {
       const offer = (db[QR_OFFERS] ?? []).find((o) => String(o.id) === String(redemption["offerId"]));
-      if (offer) {
-        const amount = Math.min(offerDiscountAmount(offer, remaining, cart, services), remaining);
+      if (offer && isOfferInValidityWindow(offer)) {
+        const amount = Math.min(offerDiscountAmount(offer, remaining, cart, db["services"] ?? []), remaining);
         if (amount > 0) {
           lines.push({
             key: "offer",
@@ -113,12 +114,35 @@ export function rewardCustomerIds(db: Db, customer: Row) {
   return ids;
 }
 
+function uniquePending(rows: Row[]) {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = [
+      String(row["label"] ?? ""),
+      String(row["rewardType"] ?? ""),
+      String(row["createdAt"] ?? row["issuedAt"] ?? "").slice(0, 10),
+    ].join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function getCustomerRewardOptions(db: Db, customerId: EntityId, alsoIds?: Iterable<string>) {
   const ids = new Set([String(customerId), ...(alsoIds ?? [])]);
   const owned = (row: Row) => ids.has(String(row["customerId"] ?? ""));
-  const wheelSpins = (db[WHEEL_SPINS] ?? []).filter((s) => owned(s) && String(s["status"]) === "Pending");
-  const scratchPlays = (db[SCRATCH_PLAYS] ?? []).filter((s) => owned(s) && String(s["status"]) === "Pending");
-  const offers = (db["qrOfferRedemptions"] ?? []).filter((r) => owned(r) && String(r["status"]) === "Issued");
+  const live = (row: Row) => isRewardWithinValidity(db, row);
+  const wheelSpins = uniquePending(
+    (db[WHEEL_SPINS] ?? []).filter((s) => owned(s) && String(s["status"]) === "Pending" && live(s)),
+  );
+  const scratchPlays = uniquePending(
+    (db[SCRATCH_PLAYS] ?? []).filter((s) => owned(s) && String(s["status"]) === "Pending" && live(s)),
+  );
+  const offers = (db["qrOfferRedemptions"] ?? []).filter((r) => {
+    if (!owned(r) || String(r["status"]) !== "Issued" || !live(r)) return false;
+    const offer = (db[QR_OFFERS] ?? []).find((o) => String(o.id) === String(r["offerId"]));
+    return !offer || isOfferInValidityWindow(offer);
+  });
   const partners = (db["partnerCoupons"] ?? []).filter((c) => owned(c) && String(c["status"]) === "Issued");
   return { wheelSpins, scratchPlays, offers, partners };
 }

@@ -12,9 +12,9 @@ export function OrgLocationSwitcher({ compact = false }: { compact?: boolean }) 
   const lockLocation = user?.role === "STYLIST" && Boolean(user.locationId);
 
   return (
-    <div className={compact ? "flex flex-col gap-2" : "flex flex-wrap items-center gap-2"}>
+    <div className={compact ? "flex flex-col gap-2" : "flex min-w-0 flex-1 flex-wrap items-center gap-2"}>
       {lockOrg ? (
-        <div className="relative min-w-[11rem]">
+        <div className="relative min-w-0 flex-1 sm:min-w-[11rem] sm:flex-none">
           <Building2 className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             readOnly
@@ -33,7 +33,7 @@ export function OrgLocationSwitcher({ compact = false }: { compact?: boolean }) 
             toast.success(`Switched to ${next?.name ?? "organisation"}`, { description: "Showing all locations" });
           }}
         >
-          <SelectTrigger className="h-9 w-full min-w-[11rem] bg-card sm:w-auto" aria-label="Select organisation">
+          <SelectTrigger className="h-9 w-full min-w-0 max-w-full bg-card sm:w-auto sm:min-w-[11rem]" aria-label="Select organisation">
             <Building2 className="size-4 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
@@ -48,7 +48,7 @@ export function OrgLocationSwitcher({ compact = false }: { compact?: boolean }) 
       )}
 
       {lockLocation ? (
-        <div className="relative min-w-[11rem]">
+        <div className="relative min-w-0 flex-1 sm:min-w-[11rem] sm:flex-none">
           <MapPin className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             readOnly
@@ -69,7 +69,7 @@ export function OrgLocationSwitcher({ compact = false }: { compact?: boolean }) 
             });
           }}
         >
-          <SelectTrigger className="h-9 w-full min-w-[11rem] bg-card sm:w-auto" aria-label="Select location">
+          <SelectTrigger className="h-9 w-full min-w-0 max-w-full bg-card sm:w-auto sm:min-w-[11rem]" aria-label="Select location">
             <MapPin className="size-4 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>

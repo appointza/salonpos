@@ -1,6 +1,7 @@
 import type { EntityId } from "@/ids";
 import type { Db, Row } from "@/store";
 import { findCustomerByPhoneInOrg, getCustomerById, normalizePhone } from "@/pages/Customers/customer-lookup";
+import { ensureCustomerReferralCode } from "@/pages/Loyalty/referral-service";
 import { readRewardDistribution, rollCustomerTier } from "@/pages/PrizeWheel/reward-distribution";
 
 export type CustomerStore = {
@@ -20,7 +21,7 @@ export type UpsertCustomerInput = {
   extra?: Record<string, string | number>;
 };
 
-/** Find or create a customer by phone in the organisation. An existing phone is reused; the visit is recorded on that profile. */
+/** Find or create a customer by phone at this salon. Points from another salon are not reused. */
 export async function upsertCustomerByPhone(store: CustomerStore, input: UpsertCustomerInput): Promise<Row> {
   const existing = findCustomerByPhoneInOrg(
     store.db["customers"] ?? [],
@@ -29,14 +30,19 @@ export async function upsertCustomerByPhone(store: CustomerStore, input: UpsertC
     input.locationId,
     input.outlet,
   );
+  const extra = { ...(input.extra ?? {}) };
+  delete extra["referredBy"];
+
   if (existing) {
     const next: Row = {
       ...existing,
       name: input.name.trim() || String(existing["name"]),
       phone: normalizePhone(input.phone) || String(existing["phone"] ?? ""),
+      referralCode: ensureCustomerReferralCode(existing),
       ...(input.membershipId !== undefined ? { membershipId: input.membershipId } : {}),
       ...(input.lastVisit ? { lastVisit: input.lastVisit } : {}),
-      ...input.extra,
+      ...extra,
+      referredBy: String(existing["referredBy"] ?? "").trim(),
     };
     void store.update("customers", String(existing.id), next);
     return next;
@@ -56,7 +62,13 @@ export async function upsertCustomerByPhone(store: CustomerStore, input: UpsertC
     locationId: input.locationId,
     totalVisits: 0,
     stampsCurrent: 0,
-    ...input.extra,
+    ...extra,
+    referralCode: String(extra["referralCode"] ?? "").trim() || ensureCustomerReferralCode({
+      id: 0,
+      name: input.name.trim(),
+      phone: normalizePhone(input.phone) || input.phone,
+    }),
+    referredBy: "",
   };
   const saved = await store.create("customers", row, input.orgId);
   if (!saved || saved.id === undefined || saved.id === null || Number(saved.id) <= 0) {
@@ -90,4 +102,9 @@ export function patchCustomer(store: CustomerStore, customerId: EntityId, patch:
 
 export function isValidPhone(phone: string) {
   return normalizePhone(phone).length >= 10;
+}
+
+export function isWhatsappNumber(value: unknown) {
+  const v = String(value ?? "").trim().toLowerCase();
+  return v === "yes" || v === "true" || v === "1";
 }

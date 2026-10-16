@@ -4,7 +4,7 @@ import { getCustomerById } from "@/pages/Customers/customer-lookup";
 import { patchCustomer } from "@/pages/Customers/customer-store";
 import { postLoyaltyTransaction, type LoyaltyStore } from "@/pages/Loyalty/loyalty-service";
 import { pickWheelSegment } from "@/pages/LoyaltyQr/qr-loyalty";
-import { pickTierWeightedReward, type TierWeights } from "@/pages/PrizeWheel/reward-distribution";
+import { isRewardWithinValidity, pickTierWeightedReward, type TierWeights } from "@/pages/PrizeWheel/reward-distribution";
 import { hydrateScratchPrize, prizeDiscountAmount } from "@/pages/PrizeWheel/prize-discount";
 
 export const SCRATCH_PRIZES = "scratchPrizes";
@@ -137,6 +137,7 @@ export function redeemScratchPlayAtPos(
   const play = (store.db[SCRATCH_PLAYS] ?? []).find((s) => String(s.id) === input.playId);
   if (!play) return { ok: false, error: "Scratch prize not found" };
   if (String(play["status"]) !== "Pending") return { ok: false, duplicate: true, error: "Scratch prize already used" };
+  if (!isRewardWithinValidity(store.db, play)) return { ok: false, error: "Prize expired" };
 
   store.update(SCRATCH_PLAYS, input.playId, {
     ...play,

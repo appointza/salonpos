@@ -1,9 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useListView } from "@/list-view";
 import { customerName } from "@/pages/Customers/customer-lookup";
 import { useData } from "@/store";
 
 export function RedemptionsPage() {
+  const { view } = useListView();
   const { allRows } = useData();
   const offers = allRows["qrOfferRedemptions"] ?? [];
   const spins = (allRows["wheelSpins"] ?? []).filter((s) => String(s["status"]) === "Redeemed");
@@ -20,6 +22,26 @@ export function RedemptionsPage() {
 
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">No redemptions recorded yet.</p>;
+  }
+
+  if (view === "card") {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {rows.map(({ kind, row }) => (
+          <div key={`${kind}-${String(row.id)}`} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-medium">{kind}</p>
+              <Badge variant="secondary">{String(row["status"] ?? "")}</Badge>
+            </div>
+            <p className="mt-1 text-sm">{customerName(allRows, String(row["customerId"] ?? ""))}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {String(row["offerTitle"] ?? row["label"] ?? row["title"] ?? row.id)}
+            </p>
+            <p className="mt-2 font-mono text-xs text-muted-foreground">{String(row["invoiceId"] ?? "—")}</p>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   return (

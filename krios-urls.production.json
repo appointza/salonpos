@@ -1,4 +1,4 @@
 {
-  "backendListen": "http://0.0.0.0:5050",
+  "backendListen": "http://0.0.0.0:5005",
   "frontendApiBaseUrl": "https://kriosapp.com"
 }

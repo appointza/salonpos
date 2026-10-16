@@ -11,7 +11,7 @@ export function UsersRolesSubnav() {
   return (
     <div className="space-y-2">
       <p className="text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">Access</p>
-      <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1 w-fit">
+      <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1 sm:w-fit">
         {items.map((item) => {
           const active = pathname === item.to;
           return (
@@ -19,7 +19,7 @@ export function UsersRolesSubnav() {
               key={item.to}
               to={item.to}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm",
+                "shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm",
                 active ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >

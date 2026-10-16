@@ -35,9 +35,43 @@ namespace Krios.Services.Krios
                 throw new AppException(AppException.ErrorCodes.InvalidCredential, "User is not active.");
 
             var org = await GetOrganization(db, user.orgId);
-            await TouchLastLogin(db, user.id);
+            var firstLogin = string.IsNullOrWhiteSpace(user.lastLogin);
+            if (!firstLogin)
+                await TouchLastLogin(db, user.id);
 
             var resolvedOrgId = ResolveOrgId(user.orgId, org);
+            return ToLoginRes(user, org, resolvedOrgId, firstLogin);
+        }
+
+        public async Task<UserLoginRes> ChangePassword(UserChangePasswordReq req)
+        {
+            if (string.IsNullOrWhiteSpace(req.email) || string.IsNullOrWhiteSpace(req.currentPassword))
+                throw new AppException(AppException.ErrorCodes.BadRequest, "Email and current password are required.");
+            if (string.IsNullOrWhiteSpace(req.newPassword) || req.newPassword.Length < 6)
+                throw new AppException(AppException.ErrorCodes.BadRequest, "New password must be at least 6 characters.");
+
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+
+            var user = await GetUserByEmail(db, req.email.Trim());
+            if (user == null)
+                throw new AppException(AppException.ErrorCodes.InvalidCredential, "Invalid email or password.");
+
+            var currentHash = cryptography.CalculateSHA256Hash(req.currentPassword);
+            if (!string.Equals(user.passwordhash, currentHash, StringComparison.OrdinalIgnoreCase))
+                throw new AppException(AppException.ErrorCodes.InvalidCredential, "Current password is incorrect.");
+
+            var newHash = cryptography.CalculateSHA256Hash(req.newPassword);
+            await UpdateUserProfileRow(db, user.id, user.email, user.name, newHash);
+            await TouchLastLogin(db, user.id);
+
+            var org = await GetOrganization(db, user.orgId);
+            var resolvedOrgId = ResolveOrgId(user.orgId, org);
+            return ToLoginRes(user, org, resolvedOrgId, mustChangePassword: false);
+        }
+
+        private static UserLoginRes ToLoginRes(User user, Organization? org, long resolvedOrgId, bool mustChangePassword)
+        {
             return new UserLoginRes
             {
                 userId = user.id,
@@ -49,6 +83,8 @@ namespace Krios.Services.Krios
                 locationId = user.locationId,
                 organizationName = org?.name ?? "",
                 organizationSlug = org?.slug ?? "",
+                mustChangePassword = mustChangePassword,
+                language = UserLanguageSchema.Normalize(user.language),
             };
         }
 
@@ -93,6 +129,8 @@ namespace Krios.Services.Krios
 
             string targetName = string.IsNullOrWhiteSpace(req.newName) ? user.name : req.newName.Trim();
             await UpdateUserProfileRow(db, user.id, targetEmail, targetName, targetPasswordHash);
+            if (!string.IsNullOrWhiteSpace(req.newPassword))
+                await TouchLastLogin(db, user.id);
 
             var org = await GetOrganization(db, user.orgId);
             var resolvedOrgId = ResolveOrgId(user.orgId, org);
@@ -112,9 +150,10 @@ namespace Krios.Services.Krios
 
         private static async Task<User?> GetUserByEmail(IDb db, string email)
         {
+            await UserLanguageSchema.EnsureColumn(db);
             const string query = @"
                 SELECT id, ""orgId"", ""locationId"", name, email, role, outlet,
-                       permissions, ""lastLogin"", status, passwordhash,
+                       permissions, ""lastLogin"", status, passwordhash, language,
                        createdby, createdon, updatedby, updatedon
                 FROM users
                 WHERE lower(email) = lower(@email)
@@ -131,9 +170,10 @@ namespace Krios.Services.Krios
 
         private static async Task<User?> GetUserById(IDb db, long userId)
         {
+            await UserLanguageSchema.EnsureColumn(db);
             const string query = @"
                 SELECT id, ""orgId"", ""locationId"", name, email, role, outlet,
-                       permissions, ""lastLogin"", status, passwordhash,
+                       permissions, ""lastLogin"", status, passwordhash, language,
                        createdby, createdon, updatedby, updatedon
                 FROM users
                 WHERE id = @id
@@ -263,6 +303,7 @@ namespace Krios.Services.Krios
                 lastLogin = reader["lastLogin"]?.ToString() ?? "",
                 status = reader["status"]?.ToString() ?? "",
                 passwordhash = reader["passwordhash"]?.ToString() ?? "",
+                language = UserLanguageSchema.Normalize(reader["language"]?.ToString()),
             };
         }
 

@@ -3,6 +3,8 @@ import type { Db } from "@/store";
 import { normalizePhone } from "@/pages/Customers/customer-lookup";
 import { buildCustomerWallet } from "@/pages/Loyalty/rewards/customer-wallet";
 import { activePrograms } from "@/pages/LoyaltyQr/qr-loyalty";
+import { ensureCustomerReferralCode } from "@/pages/Loyalty/referral-service";
+import { orgPublicSlug } from "@/pages/Loyalty/referral-share-url";
 
 export type ShopCoupon = {
   id: string;
@@ -29,6 +31,8 @@ export type CustomerShopVisit = {
   lastVisit: string;
   couponCount: number;
   coupons: ShopCoupon[];
+  referralCode: string;
+  orgSlug: string;
 };
 
 type ShopAccumulator = {
@@ -43,8 +47,12 @@ function shopKey(orgId: EntityId, locationId: EntityId) {
   return `${orgId}::${locationId}`;
 }
 
-function orgName(db: Db, orgId: EntityId) {
-  return String((db["organizations"] ?? []).find((o) => String(o["orgId"]) === orgId)?.["name"] ?? orgId);
+function orgMeta(db: Db, orgId: EntityId) {
+  const row = (db["organizations"] ?? []).find((o) => String(o["orgId"]) === orgId);
+  return {
+    name: String(row?.["name"] ?? orgId),
+    slug: orgPublicSlug(row),
+  };
 }
 
 function locationMeta(db: Db, locationId: EntityId) {
@@ -136,12 +144,14 @@ export function getCustomerShopVisits(db: Db, phone: string): CustomerShopVisit[
 
   const results: CustomerShopVisit[] = [];
   for (const entry of map.values()) {
+    const org = orgMeta(db, entry.orgId);
     const loc = locationMeta(db, entry.locationId);
     let points = 0;
     let tier = "Silver";
     let stampsCurrent = 0;
     let stampsRequired = 8;
     let coupons: ShopCoupon[] = [];
+    let referralCode = "";
 
     if (entry.customerId) {
       const programs = activePrograms(
@@ -149,6 +159,8 @@ export function getCustomerShopVisits(db: Db, phone: string): CustomerShopVisit[
         entry.locationId,
       );
       const wallet = buildCustomerWallet(db, entry.customerId, programs, entry.locationId);
+      const customer = (db["customers"] ?? []).find((c) => String(c.id) === entry.customerId);
+      if (customer) referralCode = ensureCustomerReferralCode(customer);
       if (wallet) {
         points = wallet.points;
         tier = wallet.tier;
@@ -172,7 +184,8 @@ export function getCustomerShopVisits(db: Db, phone: string): CustomerShopVisit[
     results.push({
       key: shopKey(entry.orgId, entry.locationId),
       orgId: entry.orgId,
-      orgName: orgName(db, entry.orgId),
+      orgName: org.name,
+      orgSlug: org.slug,
       locationId: entry.locationId,
       locationName: loc.name,
       city: loc.city,
@@ -186,6 +199,7 @@ export function getCustomerShopVisits(db: Db, phone: string): CustomerShopVisit[
       lastVisit: entry.lastVisit,
       couponCount: coupons.length,
       coupons,
+      referralCode,
     });
   }
 

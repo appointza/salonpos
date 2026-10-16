@@ -37,7 +37,20 @@ export function findCustomerByPhone(customers: Row[], phone: string, locationId?
   return pool.find((c) => normalizePhone(String(c["phone"] ?? "")) === digits) ?? null;
 }
 
-/** One phone is one customer in the organisation. Prefer the profile at this outlet, then the one with loyalty points. */
+/** Every org profile for this mobile — Growth claim and POS share this wallet set. */
+export function customersByPhoneInOrg(
+  customers: Row[],
+  phone: string,
+  orgId: EntityId | number,
+) {
+  const digits = normalizePhone(phone);
+  if (digits.length < 10) return [];
+  return customers.filter(
+    (c) => String(c["orgId"]) === String(orgId) && normalizePhone(String(c["phone"] ?? "")) === digits,
+  );
+}
+
+/** One phone can have a separate profile per salon. Points stay on that salon’s row only. */
 export function findCustomerByPhoneInOrg(
   customers: Row[],
   phone: string,
@@ -47,20 +60,18 @@ export function findCustomerByPhoneInOrg(
 ) {
   const digits = normalizePhone(phone);
   if (digits.length < 10) return null;
-  const matches = customers.filter(
-    (c) => String(c["orgId"]) === String(orgId) && normalizePhone(String(c["phone"] ?? "")) === digits,
-  );
+  const matches = customersByPhoneInOrg(customers, phone, orgId);
   if (matches.length === 0) return null;
+  const scoped =
+    locationId !== undefined && locationId !== null && locationId !== "" && locationId !== "all"
+      ? matches.filter((c) => String(c["locationId"]) === String(locationId))
+      : matches;
+  if (scoped.length === 0) return null;
   const outletName = (outlet ?? "").trim().toLowerCase();
-  return [...matches].sort((a, b) => {
-    const aLoc = locationId && locationId !== "all" && String(a["locationId"]) === String(locationId) ? 1 : 0;
-    const bLoc = locationId && locationId !== "all" && String(b["locationId"]) === String(locationId) ? 1 : 0;
-    if (aLoc !== bLoc) return bLoc - aLoc;
+  return [...scoped].sort((a, b) => {
     const aOut = outletName && String(a["outlet"] ?? "").trim().toLowerCase() === outletName ? 1 : 0;
     const bOut = outletName && String(b["outlet"] ?? "").trim().toLowerCase() === outletName ? 1 : 0;
     if (aOut !== bOut) return bOut - aOut;
-    const points = Number(b["points"] ?? 0) - Number(a["points"] ?? 0);
-    if (points !== 0) return points;
     return String(b["lastVisit"] ?? "").localeCompare(String(a["lastVisit"] ?? ""));
   })[0];
 }

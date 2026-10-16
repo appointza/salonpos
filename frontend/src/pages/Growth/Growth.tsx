@@ -22,6 +22,12 @@ import { useTenant } from "@/tenant";
 
 const CRM_MODULES = [
   {
+    title: "Claim points",
+    purpose: "Enter a mobile number, see offers at this store, tap Claim to add POS points",
+    to: "/growth/claim",
+    icon: Gift,
+  },
+  {
     title: "Loyalty management",
     purpose: "Configure program, view balances, redemption history",
     to: "/loyalty/ledger",

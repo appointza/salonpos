@@ -30,6 +30,7 @@ export type Tenant = {
   website: string;
   businessType: string;
   brandColor: string;
+  logo: string;
   locations: OrgLocation[];
 };
 
@@ -41,6 +42,7 @@ export const EMPTY_TENANT: Tenant = {
   website: "",
   businessType: "",
   brandColor: "#2f5bff",
+  logo: "",
   locations: [],
 };
 
@@ -99,6 +101,7 @@ function tenantsFromApi(orgs: OrganizationRes[], locations: LocationRes[]): Tena
       website: o.website,
       businessType: o.businessType,
       brandColor: o.brandColor,
+      logo: o.logo ?? "",
       locations: locs.filter((l) => Number(l.orgId) === oid).map(locFromApi),
     };
   });

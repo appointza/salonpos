@@ -232,7 +232,7 @@ function CouponsPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl tracking-tight text-foreground">Coupon management</h1>
+          <h1 className="font-display text-2xl tracking-tight text-foreground sm:text-3xl">Coupon management</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Create coupon <strong>schemes</strong> with business rules, auto-generate unique redeem codes, and track
             used vs available codes at POS.
@@ -245,7 +245,7 @@ function CouponsPage() {
         ) : null}
       </header>
 
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
           <StatCard icon={TicketPercent} label="Active codes" value={String(stats.definitions)} />
           <StatCard icon={Gift} label="Issued total" value={String(stats.issued)} />
           <StatCard icon={Gift} label="Active issued" value={String(stats.active)} />
@@ -271,6 +271,76 @@ function CouponsPage() {
               </div>
             </div>
 
+            {view === "card" ? (
+              filteredDefs.length === 0 ? (
+                <p className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+                  No coupon schemes yet. Create a scheme with prefix, suffix, and quantity to auto-generate codes.
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {filteredDefs.map((c) => {
+                    const pool = couponPoolStats(allRows, c.id, c);
+                    const row = (allRows[COUPONS_COLLECTION] ?? []).find((r) => String(r.id) === c.id);
+                    const poolReady = row ? hasCodePoolConfigured(row) : c.couponQuantity > 0 && c.autoGenerateCodes !== "No";
+                    return (
+                      <div key={`${c.source}-${c.id}`} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{c.title}</p>
+                            <p className="font-mono text-xs text-muted-foreground">{c.code}</p>
+                          </div>
+                          <Badge variant={c.status === "Active" ? "default" : "secondary"}>{c.status}</Badge>
+                        </div>
+                        <p className="mt-2 text-sm">{discountTypeLabel(c.discountType)} · {describeCoupon(c)}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {c.validityStart || "—"} → {c.validityEnd || "—"}
+                        </p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {pool.total.toLocaleString("en-IN")} total · {pool.used.toLocaleString("en-IN")} used ·{" "}
+                          {pool.remaining.toLocaleString("en-IN")} available
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-1">
+                          {poolReady ? (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link to="/coupons/$couponId" params={{ couponId: c.id }}>
+                                <Eye className="size-3.5" /> View
+                              </Link>
+                            </Button>
+                          ) : null}
+                          {allowMutate ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setIssueSchemeId(c.id);
+                                  setIssueCustomerId("");
+                                }}
+                              >
+                                Issue
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  const found = rows.find((r) => String(r.id) === c.id);
+                                  if (found) openEdit(found);
+                                }}
+                              >
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => setDeleteId(c.id)}>
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : (
             <div className="rounded-xl border border-border bg-card shadow-sm overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -372,6 +442,7 @@ function CouponsPage() {
                 </TableBody>
               </Table>
             </div>
+            )}
           </TabsContent>
 
           <TabsContent value="issued" className="mt-4">

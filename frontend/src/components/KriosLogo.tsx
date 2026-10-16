@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { BRAND_LOGO, BRAND_NAME } from "@/brand";
+import { BRAND_NAME, salonLogoUrl } from "@/brand";
 import { cn } from "@/utils/utils";
 
 type KriosLogoProps = {
@@ -8,6 +8,9 @@ type KriosLogoProps = {
   subtitle?: string;
   className?: string;
   to?: string;
+  src?: string;
+  alt?: string;
+  wordmark?: string;
 };
 
 export function KriosLogo({
@@ -16,12 +19,15 @@ export function KriosLogo({
   subtitle,
   className,
   to,
+  src,
+  alt,
+  wordmark,
 }: KriosLogoProps) {
   const content = (
     <div className={cn("flex items-center gap-2.5", className)}>
       <img
-        src={BRAND_LOGO}
-        alt={BRAND_NAME}
+        src={salonLogoUrl(src)}
+        alt={alt || wordmark || BRAND_NAME}
         width={size}
         height={size}
         className="shrink-0 object-contain"
@@ -29,7 +35,7 @@ export function KriosLogo({
       />
       {showWordmark ? (
         <div className="min-w-0 text-left">
-          <p className="font-display text-base leading-none font-semibold tracking-tight">{BRAND_NAME}</p>
+          <p className="font-display text-base leading-none font-semibold tracking-tight">{wordmark || BRAND_NAME}</p>
           {subtitle ? <p className="mt-1 truncate text-[10px] tracking-[0.16em] text-muted-foreground uppercase">{subtitle}</p> : null}
         </div>
       ) : null}

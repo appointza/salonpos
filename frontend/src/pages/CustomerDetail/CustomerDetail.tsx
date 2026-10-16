@@ -18,15 +18,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buildCustomerDetail, membershipAvailabilityLabel } from "@/pages/Customers/customer-detail";
+import { isWhatsappNumber } from "@/pages/Customers/customer-store";
 import { useApi } from "@/hooks/useApi";
+import { useListView } from "@/list-view";
 import { useTenant } from "@/tenant";
 import { toRow } from "@/entity-row";
 import type { Row } from "@/store";
 import { customerService } from "@/services/customer.service";
+import { ReferralShareCard } from "@/components/ReferralShareCard";
+import { ensureCustomerReferralCode, persistCustomerReferralCode } from "@/pages/Loyalty/referral-service";
 
 export function CustomerDetailPage() {
+  const { view } = useListView();
   const { customerId } = useParams({ from: "/_app/customers/$customerId" });
-  const { allRows, applyCache } = useApi();
+  const { allRows, applyCache, update } = useApi();
   const { org } = useTenant();
   const detail = buildCustomerDetail(allRows, customerId);
   const [loyaltyRows, setLoyaltyRows] = useState<Row[] | null>(null);
@@ -69,6 +74,11 @@ export function CustomerDetailPage() {
     };
   }, [org.orgId, customerId, applyCache]);
 
+  useEffect(() => {
+    if (!detail?.customer) return;
+    void persistCustomerReferralCode(update, detail.customer);
+  }, [detail?.customer, update]);
+
   if (!detail) {
     return (
       <div className="space-y-4 py-12 text-center">
@@ -108,12 +118,13 @@ export function CustomerDetailPage() {
           </Button>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-3xl tracking-tight">{String(customer["name"])}</h1>
+              <h1 className="font-display text-2xl tracking-tight sm:text-3xl">{String(customer["name"])}</h1>
               <Badge variant="secondary">{String(customer["tier"] ?? "Silver")}</Badge>
               <span className="font-mono text-xs text-muted-foreground">{String(customer.id)}</span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {String(customer["phone"] ?? "—")}
+              {isWhatsappNumber(customer["isWhatsapp"]) ? " · WhatsApp" : ""}
               {customer["email"] ? ` · ${String(customer["email"])}` : ""}
             </p>
           </div>
@@ -143,10 +154,15 @@ export function CustomerDetailPage() {
             <Field label="Anniversary" value={String(customer["anniversary"] ?? "—")} />
             <Field label="Household" value={String(customer["household"] ?? "—")} />
             <Field label="Outlet" value={String(customer["outlet"] ?? "—")} />
-            <Field label="Referral code" value={String(customer["referralCode"] ?? "—")} />
             <Field label="Marketing consent" value={String(customer["marketingConsent"] ?? "—")} />
             <Field label="Last wheel prize" value={String(customer["lastWheelPrize"] ?? "—")} />
           </dl>
+          <ReferralShareCard
+            className="mt-4"
+            code={ensureCustomerReferralCode(customer)}
+            salonName={String(org.name ?? "")}
+            orgSlug={org.slug}
+          />
           {customer["notes"] ? (
             <p className="mt-4 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">{String(customer["notes"])}</p>
           ) : null}
@@ -200,7 +216,29 @@ export function CustomerDetailPage() {
       <Section title="Loyalty ledger" icon={Star}>
         {loyaltyLedger.length === 0 ? (
           <Empty text="No loyalty transactions yet — points are added when you complete a sale on POS." />
-        ) : (
+        ) : view === "card" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {loyaltyLedger.map((t) => (
+                <div key={String(t.id)} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">{String(t["createdon"] ?? "—")}</p>
+                    <Badge variant="secondary">{String(t["type"])}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm">
+                    {String(t["type"]) === "Redeem" ? "−" : "+"}
+                    {Number(t["points"] ?? 0)} pts
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {String(t["balanceBefore"])} → {String(t["balanceAfter"])}
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">
+                    {String(t["referenceId"] ?? t["invoiceId"] ?? "—")}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">{String(t["reason"] ?? t["source"] ?? "")}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>

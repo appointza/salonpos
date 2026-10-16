@@ -6,6 +6,7 @@ export class UserRes {
   locationId: number = 0;
   name: string = "";
   email: string = "";
+  phone: string = "";
   role: string = "";
   outlet: string = "";
   permissions: string = "";
@@ -22,6 +23,8 @@ export class CreateUserReq {
   locationId: number = 0;
   name: string = "";
   email: string = "";
+  phone: string = "";
+  password: string = "";
   role: string = "";
   outlet: string = "";
   permissions: string = "";
@@ -37,6 +40,8 @@ export class UpdateUserReq {
   locationId: number = 0;
   name: string = "";
   email: string = "";
+  phone: string = "";
+  password: string = "";
   role: string = "";
   outlet: string = "";
   permissions: string = "";
@@ -95,8 +100,16 @@ export class UserLoginRes {
   locationId: number = 0;
   organizationName: string = "";
   organizationSlug: string = "";
+  mustChangePassword = false;
+  language: string = "en";
   access_token?: string;
   refresh_token?: string;
+}
+
+export class UserChangePasswordReq {
+  email: string = "";
+  currentPassword: string = "";
+  newPassword: string = "";
 }
 
 export class UserProfileUpdateReq {

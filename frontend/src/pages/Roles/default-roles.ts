@@ -11,6 +11,7 @@ const receptionistPaths = [
   "/customers",
   "/appointments",
   "/pos",
+  "/invoices",
   "/walk-in",
   "/services",
   "/feedback",

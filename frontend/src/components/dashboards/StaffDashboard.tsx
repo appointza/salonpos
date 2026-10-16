@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DashHeader, DashStat, QuickLink, sortAppointments } from "@/components/dashboards/shared";
+import { appointmentServiceLabel } from "@/pages/Appointments/appointment-resolve";
 import { listLowStockAlerts } from "@/pages/Pos/business/inventory-service";
 import { useAuth } from "@/hooks/useAuth";
 import { useData } from "@/store";
@@ -75,7 +76,7 @@ export function StaffDashboard() {
                     {String(a["time"])} · {String(a["customer"])}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {String(a["service"])} · {String(a["staff"])} · {String(a["date"])}
+                    {appointmentServiceLabel(a, db["services"] ?? [])} · {String(a["staff"])} · {String(a["date"])}
                   </p>
                 </div>
                 <Badge variant="secondary">{String(a["status"])}</Badge>

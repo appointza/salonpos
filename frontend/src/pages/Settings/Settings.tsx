@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { CalendarClock, CheckCircle2, Gift, MapPin, MessageSquare, PlugZap, Scissors, Sparkles } from "lucide-react";
+import { CalendarClock, CheckCircle2, Gift, ImagePlus, Languages, MapPin, MessageSquare, Palette, PlugZap, Scissors, Sparkles, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +27,12 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTenant } from "@/tenant";
-import { useCollection } from "@/store";
+import { useCollection, useData } from "@/store";
+import { salonLogoUrl } from "@/brand";
+import { ORG_LOGO_MAX_BYTES, readOrgLogoFile } from "@/pages/Settings/org-logo";
+import { ReferralPanel } from "@/pages/Loyalty/ReferralPanel";
+import { LanguageSwitcher } from "@/i18n/LanguageSwitcher";
+import { useT } from "@/i18n/LanguageContext";
 
 const FIELDS: { name: keyof WhatsAppSettings; label: string; placeholder: string }[] = [
   { name: "displayNumber", label: "WhatsApp business number", placeholder: "+91 90000 00000" },
@@ -37,18 +43,39 @@ const FIELDS: { name: keyof WhatsAppSettings; label: string; placeholder: string
   { name: "apiVersion", label: "Graph API version", placeholder: "v21.0" },
 ];
 
-type SettingsId = "loyalty" | "rewards" | "guest-game" | "prices" | "booking" | "maps" | "whatsapp" | "messages";
+type SettingsId =
+  | "language"
+  | "assets"
+  | "branding"
+  | "loyalty"
+  | "rewards"
+  | "guest-game"
+  | "referral"
+  | "prices"
+  | "booking"
+  | "maps"
+  | "whatsapp"
+  | "messages";
 
 const SETTINGS_NAV: {
   heading: string;
   items: { id: SettingsId; label: string; icon: typeof Gift }[];
 }[] = [
   {
+    heading: "Account",
+    items: [
+      { id: "language", label: "Language", icon: Languages },
+      { id: "assets", label: "Assets", icon: ImagePlus },
+      { id: "branding", label: "Logo & branding", icon: Palette },
+    ],
+  },
+  {
     heading: "Loyalty",
     items: [
       { id: "loyalty", label: "Loyalty points", icon: Gift },
       { id: "rewards", label: "Reward tiers", icon: Gift },
       { id: "guest-game", label: "Guest game", icon: Sparkles },
+      { id: "referral", label: "Referral", icon: UserPlus },
     ],
   },
   {
@@ -72,15 +99,19 @@ const SETTINGS_NAV: {
 ];
 
 export function Page() {
+  const t = useT();
   const { settings, save, isConfigured } = useWhatsAppSettings();
   const { settings: loyalty, save: saveLoyalty } = useLoyaltySettings();
   const { config: rewardConfig, save: saveRewards } = useRewardDistribution();
   const { rules, save: saveRules } = useBookingRules();
   const { settings: displaySettings, save: saveDisplaySettings } = useServiceDisplaySettings();
   const { settings: gameSettings, save: saveGames } = usePublicBookingSettings();
-  const { org } = useTenant();
+  const { org, orgId, upsertTenant } = useTenant();
+  const { allRows, update: updateRow } = useData();
+  const orgRow = (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === String(orgId));
   const { rows: messages } = useCollection("whatsappMessages");
   const { rows: locationRows, update: updateLocation } = useCollection("locations");
+  const { rows: assetRows, create: createAsset, remove: removeAsset } = useCollection("assets", { refetchOnMount: true });
   const [placeIds, setPlaceIds] = useState<Record<string, string>>({});
   const [form, setForm] = useState(settings);
   const [loyaltyForm, setLoyaltyForm] = useState(loyalty);
@@ -88,7 +119,12 @@ export function Page() {
   const [bookingForm, setBookingForm] = useState<BookingRules>(rules);
   const [displayForm, setDisplayForm] = useState<ServiceDisplaySettings>(displaySettings);
   const [guestGame, setGuestGame] = useState<WalkInRewardMode>(resolveWalkInRewardMode(gameSettings) ?? "wheel");
-  const [section, setSection] = useState<SettingsId>("loyalty");
+  const [section, setSection] = useState<SettingsId>("language");
+  const [logoUrl, setLogoUrl] = useState(String(org.logo || orgRow?.["logo"] || ""));
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [assetBusy, setAssetBusy] = useState(false);
+  const assetInputRef = useRef<HTMLInputElement>(null);
+  const orgAssets = assetRows.filter((a) => String(a["orgId"]) === String(orgId));
 
   useEffect(() => setForm(settings), [settings]);
   useEffect(() => setLoyaltyForm(loyalty), [loyalty]);
@@ -96,6 +132,9 @@ export function Page() {
   useEffect(() => setBookingForm(rules), [rules]);
   useEffect(() => setDisplayForm(displaySettings), [displaySettings]);
   useEffect(() => setGuestGame(resolveWalkInRewardMode(gameSettings) ?? gameSettings.walkInReward), [gameSettings]);
+  useEffect(() => {
+    setLogoUrl(String(org.logo || orgRow?.["logo"] || ""));
+  }, [org.logo, orgRow]);
   useEffect(() => {
     const next: Record<string, string> = {};
     for (const loc of locationRows) next[String(loc.id)] = String(loc["placeId"] ?? "");
@@ -111,13 +150,14 @@ export function Page() {
 
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] flex-col lg:flex-row lg:items-stretch">
-        <nav className="shrink-0 border-b border-border bg-card p-3 lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:w-56 lg:overflow-y-auto lg:border-r lg:border-b-0">
+        <nav className="shrink-0 border-b border-border bg-card lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:w-56 lg:overflow-y-auto lg:border-r lg:border-b-0">
+          <div className="flex gap-4 overflow-x-auto p-3 lg:flex-col lg:gap-0 lg:overflow-x-visible">
           {SETTINGS_NAV.map((group) => (
-            <div key={group.heading} className="mb-3 last:mb-0">
-              <p className="px-2 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                {group.heading}
+            <div key={group.heading} className="mb-0 flex shrink-0 items-center gap-1 lg:mb-3 lg:block lg:last:mb-0">
+              <p className="hidden px-2 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase lg:block">
+                {t(group.heading)}
               </p>
-              <div className="space-y-0.5">
+              <div className="flex gap-1 lg:block lg:space-y-0.5">
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const active = section === item.id;
@@ -127,23 +167,270 @@ export function Page() {
                       type="button"
                       onClick={() => setSection(item.id)}
                       className={cn(
-                        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
+                        "flex shrink-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap",
+                        "lg:w-full",
                         active ? "bg-primary/10 font-medium text-primary" : "text-foreground hover:bg-muted",
                       )}
                     >
                       <Icon className="size-4 shrink-0" />
-                      {item.label}
+                      {t(item.label)}
                     </button>
                   );
                 })}
               </div>
             </div>
           ))}
+          </div>
         </nav>
 
         <div className="min-w-0 flex-1">
+      {section === "assets" ? (
+      <section className="p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          <ImagePlus className="size-5 text-primary" />
+          <h2 className="font-display text-lg">{t("Assets")}</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t("Upload any image. It is compressed to under 5 KB, stored as an asset, and given an id. Pick that id on Logo & branding to show it as the salon logo.")}
+        </p>
+        <Separator className="my-4" />
+        <input
+          ref={assetInputRef}
+          id="org-asset-file"
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file) return;
+            void (async () => {
+              try {
+                const dataUrl = await readOrgLogoFile(file);
+                setAssetBusy(true);
+                await createAsset({
+                  orgId: Number(orgId),
+                  kind: "image",
+                  mimeType: "image/jpeg",
+                  content: dataUrl,
+                });
+                toast.success("Asset compressed and uploaded");
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Could not upload asset");
+              } finally {
+                setAssetBusy(false);
+              }
+            })();
+          }}
+        />
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Button type="button" disabled={assetBusy} onClick={() => assetInputRef.current?.click()}>
+            {assetBusy ? t("Uploading…") : t("Upload image")}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Compressed to {ORG_LOGO_MAX_BYTES / 1024} KB JPEG before save. PNG, JPG, GIF, WebP or SVG.
+          </p>
+        </div>
+        {orgAssets.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("No assets yet. Upload an image to get an id.")}</p>
+        ) : (
+          <div className="flex flex-wrap gap-5">
+            {orgAssets.map((asset) => {
+              const id = String(asset.id);
+              const inUse = logoUrl === id;
+              return (
+                <div
+                  key={id}
+                  className={cn(
+                    "w-[11.5rem] rounded-2xl border bg-card p-4 shadow-sm",
+                    inUse ? "border-primary/40 ring-2 ring-primary/15" : "border-border",
+                  )}
+                >
+                  <div className="relative rounded-xl bg-muted/40 p-3">
+                    <img
+                      src={salonLogoUrl(id)}
+                      alt=""
+                      width={88}
+                      height={88}
+                      className="mx-auto size-[5.5rem] object-contain"
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="secondary"
+                      className="absolute top-2 right-2 size-8 rounded-full shadow-sm"
+                      disabled={assetBusy}
+                      aria-label={`Delete asset ${id}`}
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            setAssetBusy(true);
+                            if (inUse && orgRow) {
+                              await updateRow("organizations", String(orgRow.id), { ...orgRow, logo: "" });
+                              upsertTenant({ ...org, logo: "" });
+                              setLogoUrl("");
+                            }
+                            await removeAsset(id);
+                            toast.success(`Asset ${id} deleted`);
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Could not delete asset");
+                          } finally {
+                            setAssetBusy(false);
+                          }
+                        })();
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    <p className="truncate text-sm font-medium">Asset {id}</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={inUse ? "secondary" : "outline"}
+                      className="h-8 w-full"
+                      disabled={logoBusy || !orgRow || inUse}
+                      onClick={() => {
+                        if (!orgRow) return;
+                        void (async () => {
+                          try {
+                            setLogoBusy(true);
+                            await updateRow("organizations", String(orgRow.id), { ...orgRow, logo: id });
+                            upsertTenant({ ...org, logo: id });
+                            setLogoUrl(id);
+                            toast.success(`Salon logo set to asset ${id}`);
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Could not set logo");
+                          } finally {
+                            setLogoBusy(false);
+                          }
+                        })();
+                      }}
+                    >
+                      {inUse ? t("Current logo") : t("Use as logo")}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      ) : null}
+      {section === "branding" ? (
+      <section className="p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          <Palette className="size-5 text-primary" />
+          <h2 className="font-display text-lg">{t("Logo & branding")}</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t("Choose an uploaded asset id as this salon’s logo. Upload files on the Assets screen.")}
+        </p>
+        <Separator className="my-4" />
+        <div className="flex flex-wrap items-start gap-6">
+          <img
+            src={salonLogoUrl(logoUrl)}
+            alt={org.name}
+            width={96}
+            height={96}
+            className="size-24 rounded-lg border border-border bg-card object-contain p-1"
+          />
+          <div className="min-w-0 flex-1 space-y-3">
+            <p className="text-sm">
+              {/^\d+$/.test(logoUrl)
+                ? `Using asset ${logoUrl}`
+                : logoUrl
+                  ? "A logo is set for this salon"
+                  : "No custom logo yet — using the Krios mark"}
+            </p>
+            {orgAssets.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("No assets yet. Open Assets and upload an image first.")}</p>
+            ) : (
+              <div>
+                <Label className="mb-1.5">{t("Logo asset")}</Label>
+                <Select
+                  value={/^\d+$/.test(logoUrl) ? logoUrl : undefined}
+                  onValueChange={(id) => {
+                    if (!orgRow) return toast.error("Organisation not loaded");
+                    void (async () => {
+                      try {
+                        setLogoBusy(true);
+                        await updateRow("organizations", String(orgRow.id), { ...orgRow, logo: id });
+                        upsertTenant({ ...org, logo: id });
+                        setLogoUrl(id);
+                        toast.success(`Salon logo set to asset ${id}`);
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Could not set logo");
+                      } finally {
+                        setLogoBusy(false);
+                      }
+                    })();
+                  }}
+                  disabled={logoBusy}
+                >
+                  <SelectTrigger className="w-full max-w-xs">
+                    <SelectValue placeholder={t("Select asset id…")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orgAssets.map((asset) => (
+                      <SelectItem key={String(asset.id)} value={String(asset.id)}>
+                        Asset {String(asset.id)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={() => setSection("assets")}>
+                {t("Open Assets")}
+              </Button>
+              {logoUrl ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={logoBusy || !orgRow}
+                  onClick={() => {
+                    if (!orgRow) return;
+                    void (async () => {
+                      try {
+                        setLogoBusy(true);
+                        await updateRow("organizations", String(orgRow.id), { ...orgRow, logo: "" });
+                        upsertTenant({ ...org, logo: "" });
+                        setLogoUrl("");
+                        toast.success("Salon logo removed");
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Could not remove logo");
+                      } finally {
+                        setLogoBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  {t("Remove")}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </section>
+      ) : null}
+      {section === "language" ? (
+      <section className="p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          <Languages className="size-5 text-primary" />
+          <h2 className="font-display text-lg">{t("Language")}</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t("Choose the language for this user. Default is English. It applies on every screen after you save it here.")}
+        </p>
+        <Separator className="my-4" />
+        <LanguageSwitcher notify />
+      </section>
+      ) : null}
       {section === "loyalty" ? (
-      <section className="p-5">
+      <section className="p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Gift className="size-5 text-primary" />
           <h2 className="font-display text-lg">Loyalty points</h2>
@@ -225,14 +512,15 @@ export function Page() {
       ) : null}
 
       {section === "rewards" ? (
-      <section className="p-5">
+      <section className="p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Gift className="size-5 text-primary" />
           <h2 className="font-display text-lg">Reward tiers</h2>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
           For each tier (Bronze, Silver, Gold, Platinum) choose Scratch card, Prize wheel, or Both, plus how many
-          prizes of that tier sit on each game.
+          prizes of that tier sit on each game. Offer validity (default 30 days) is how long a prize or issued offer
+          stays usable at POS.
         </p>
         <Separator className="my-4" />
         <RewardDistributionPanel value={rewardForm} onChange={setRewardForm} />
@@ -249,14 +537,18 @@ export function Page() {
       ) : null}
 
       {section === "guest-game" ? (
-      <section className="p-5">
+      <section className="p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Sparkles className="size-5 text-primary" />
           <h2 className="font-display text-lg">Guest reward game</h2>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose the one game a customer plays on the public booking page and at walk-in. The prize stays pending and
-          is the discount on their next POS bill.
+          Choose the one game a customer plays on the public booking page and at walk-in. Prizes are the same list for
+          both games — edit them on{" "}
+          <Link to="/prize-wheel" className="text-primary underline-offset-4 hover:underline">
+            Guest prizes
+          </Link>
+          . The prize stays pending and is the discount on their next POS bill.
         </p>
         <Separator className="my-4" />
         <div className="max-w-xs">
@@ -287,8 +579,10 @@ export function Page() {
       </section>
       ) : null}
 
+      {section === "referral" ? <ReferralPanel /> : null}
+
       {section === "prices" ? (
-      <section className="p-5">
+      <section className="p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Scissors className="size-5 text-primary" />
           <h2 className="font-display text-lg">Service price display</h2>
@@ -349,7 +643,7 @@ export function Page() {
       ) : null}
 
       {section === "booking" ? (
-      <section className="p-5">
+      <section className="p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <CalendarClock className="size-5 text-primary" />
           <h2 className="font-display text-lg">Appointment slots & booking rules</h2>
@@ -452,7 +746,7 @@ export function Page() {
       ) : null}
 
       {section === "maps" ? (
-      <section className="p-5">
+      <section className="p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <MapPin className="size-5 text-primary" />
           <h2 className="font-display text-lg">Google Maps listings</h2>
@@ -501,7 +795,7 @@ export function Page() {
       ) : null}
 
       {section === "whatsapp" ? (
-      <section className="p-5">
+      <section className="p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <PlugZap className="size-5 text-primary" />

@@ -83,7 +83,7 @@ export function Page() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl tracking-tight">Payroll</h1>
+          <h1 className="font-display text-2xl tracking-tight sm:text-3xl">Payroll</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Base salary comes from Staff. Commission is the sum of the commission ledger for the month. Unpaid leave and
             absences deduct a daily rate (salary ÷ 30). Incentive and extra deductions are the only typed adjustments.

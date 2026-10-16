@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
-import type { Row } from "@/store";
+import type { EntityId } from "@/ids";
+import type { Db, Row } from "@/store";
 import { useData } from "@/store";
 import { useTenant } from "@/tenant";
 
@@ -24,7 +25,11 @@ export type RewardDistributionConfig = {
   scratch: TierWeights;
   customerTier: TierWeights;
   tierGames: TierGames;
+  /** Days a won prize or issued offer stays usable at POS. */
+  offerValidityDays: number;
 };
+
+export const DEFAULT_OFFER_VALIDITY_DAYS = 30;
 
 export const DEFAULT_TIER_WEIGHTS: TierWeights = {
   Bronze: 30,
@@ -45,7 +50,66 @@ export const DEFAULT_REWARD_DISTRIBUTION: RewardDistributionConfig = {
   scratch: weightsFromGames(DEFAULT_TIER_GAMES, "scratch"),
   customerTier: { Bronze: 40, Silver: 35, Gold: 20, Platinum: 5 },
   tierGames: { ...DEFAULT_TIER_GAMES },
+  offerValidityDays: DEFAULT_OFFER_VALIDITY_DAYS,
 };
+
+export function normalizeOfferValidityDays(raw: unknown): number {
+  const value = Math.round(Number(raw));
+  if (!Number.isFinite(value) || value < 1) return DEFAULT_OFFER_VALIDITY_DAYS;
+  return Math.min(3650, value);
+}
+
+export function addCalendarDays(from: string, days: number): string {
+  const base = from.slice(0, 10);
+  const parts = base.split("-").map(Number);
+  const d =
+    parts.length === 3 && parts.every((n) => Number.isFinite(n))
+      ? new Date(parts[0], parts[1] - 1, parts[2])
+      : new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function issuedAtOf(row: Row): string {
+  return String(row["issuedAt"] ?? row["createdAt"] ?? row["createdon"] ?? "").slice(0, 10);
+}
+
+export function offerExpiryDate(issuedAt: string, validityDays: number): string {
+  const start = issuedAt.slice(0, 10);
+  if (!start) return "";
+  return addCalendarDays(start, validityDays);
+}
+
+/** Guest-facing copy after a wheel spin or scratch (Settings → Reward tiers validity). */
+export function offerAvailWithinMessage(days: number, prizeLabel?: string): string {
+  const label = String(prizeLabel ?? "").trim().toLowerCase();
+  if (label === "try again" || label === "no prize") return "";
+  const n = normalizeOfferValidityDays(days);
+  return n === 1 ? "Avail this offer within 1 day." : `Avail this offer within ${n} days.`;
+}
+
+export function isIssuedOfferOpen(row: Row, validityDays: number, onDate?: string): boolean {
+  const issued = issuedAtOf(row);
+  if (!issued) return true;
+  const day = onDate ?? new Date().toISOString().slice(0, 10);
+  const expiry = offerExpiryDate(issued, validityDays);
+  return !expiry || day <= expiry;
+}
+
+export function offerValidityDaysFromDb(db: Db, orgId?: EntityId): number {
+  const orgRow = orgId
+    ? (db["organizations"] ?? []).find((r) => String(r["orgId"]) === String(orgId))
+    : (db["organizations"] ?? [])[0];
+  return readRewardDistribution(orgRow).offerValidityDays;
+}
+
+export function isRewardWithinValidity(db: Db, row: Row, onDate?: string): boolean {
+  return isIssuedOfferOpen(row, offerValidityDaysFromDb(db, row["orgId"] as EntityId | undefined), onDate);
+}
 
 function weightsFromGames(games: TierGames, side: "scratch" | "wheel"): TierWeights {
   const next = {} as TierWeights;
@@ -61,6 +125,7 @@ function weightsFromGames(games: TierGames, side: "scratch" | "wheel"): TierWeig
 export function applyTierGames(config: RewardDistributionConfig): RewardDistributionConfig {
   return {
     ...config,
+    offerValidityDays: normalizeOfferValidityDays(config.offerValidityDays),
     wheel: weightsFromGames(config.tierGames, "wheel"),
     scratch: weightsFromGames(config.tierGames, "scratch"),
   };
@@ -205,13 +270,23 @@ function gamesFromWeights(scratch: TierWeights, wheel: TierWeights): TierGames {
 }
 
 export function readRewardDistribution(orgRow: Row | undefined | null): RewardDistributionConfig {
-  if (!orgRow) return applyTierGames({ ...DEFAULT_REWARD_DISTRIBUTION, tierGames: { ...DEFAULT_TIER_GAMES } });
+  if (!orgRow) {
+    return applyTierGames({
+      ...DEFAULT_REWARD_DISTRIBUTION,
+      tierGames: { ...DEFAULT_TIER_GAMES },
+      offerValidityDays: DEFAULT_OFFER_VALIDITY_DAYS,
+    });
+  }
   const customerRaw = orgRow[CHANNEL_FIELDS.customerTier];
   let embeddedGames: TierGames | null = null;
+  let offerValidityDays = DEFAULT_OFFER_VALIDITY_DAYS;
   if (typeof customerRaw === "string" && customerRaw.trim()) {
     try {
-      const parsed = JSON.parse(customerRaw) as { games?: unknown };
+      const parsed = JSON.parse(customerRaw) as { games?: unknown; offerValidityDays?: unknown };
       embeddedGames = parseTierGames(parsed?.games);
+      if (parsed && parsed.offerValidityDays != null) {
+        offerValidityDays = normalizeOfferValidityDays(parsed.offerValidityDays);
+      }
     } catch {
       embeddedGames = null;
     }
@@ -224,6 +299,7 @@ export function readRewardDistribution(orgRow: Row | undefined | null): RewardDi
     scratch,
     customerTier: parseWeights(customerRaw, DEFAULT_REWARD_DISTRIBUTION.customerTier),
     tierGames,
+    offerValidityDays,
   });
 }
 
@@ -235,6 +311,7 @@ export function serializeRewardDistribution(config: RewardDistributionConfig) {
     [CHANNEL_FIELDS.customerTier]: JSON.stringify({
       ...normalizeTierWeights(applied.customerTier, DEFAULT_REWARD_DISTRIBUTION.customerTier),
       games: applied.tierGames,
+      offerValidityDays: normalizeOfferValidityDays(applied.offerValidityDays),
     }),
   };
 }

@@ -11,19 +11,32 @@ namespace Krios.Utils
             long rewardValue,
             string label,
             decimal subtotal,
-            IEnumerable<(long Id, string Name, decimal Price, long Qty)> lines)
+            IEnumerable<(long Id, string Name, decimal Price, long Qty)> lines,
+            long serviceId = 0)
         {
+            var cart = (lines ?? Enumerable.Empty<(long Id, string Name, decimal Price, long Qty)>()).ToList();
+            var scopedId = serviceId > 0 ? serviceId : 0;
+            var serviceBase = scopedId > 0
+                ? cart.Where(l => l.Id == scopedId).Sum(l => l.Price * l.Qty)
+                : 0m;
+
             if (string.Equals(rewardType, "Flat discount", StringComparison.OrdinalIgnoreCase))
-                return Math.Min(rewardValue, subtotal);
+            {
+                var cap = scopedId > 0 ? serviceBase : subtotal;
+                return Math.Min(rewardValue, cap);
+            }
             if (string.Equals(rewardType, "Percentage discount", StringComparison.OrdinalIgnoreCase))
-                return Math.Round(subtotal * (rewardValue / 100m), 0);
+            {
+                var basis = scopedId > 0 ? serviceBase : subtotal;
+                return Math.Round(basis * (rewardValue / 100m), 0);
+            }
             if (string.Equals(rewardType, "Free service", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(rewardType, "Free item", StringComparison.OrdinalIgnoreCase))
             {
-                if (rewardValue <= 0) return 0;
-                var line = (lines ?? Enumerable.Empty<(long Id, string Name, decimal Price, long Qty)>())
-                    .FirstOrDefault(l => l.Id == rewardValue);
-                if (line.Id != rewardValue) return 0;
+                var id = scopedId > 0 ? scopedId : rewardValue;
+                if (id <= 0) return 0;
+                var line = cart.FirstOrDefault(l => l.Id == id);
+                if (line.Id != id) return 0;
                 return Math.Round(line.Price * line.Qty, 0);
             }
             return 0;

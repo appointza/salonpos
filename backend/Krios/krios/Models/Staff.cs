@@ -23,6 +23,8 @@ namespace Krios.Models.Krios
         public string idProofRef { get; set; } = "";
         public string addressProofType { get; set; } = "";
         public string addressProofRef { get; set; } = "";
+        /** Plain password from the staff form. Stored as SHA256 on users.passwordhash, never on staff. */
+        public string password { get; set; } = "";
         public string createdby { get; set; } = "";
         public DateTime? createdon { get; set; }
         public string updatedby { get; set; } = "";

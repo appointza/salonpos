@@ -37,6 +37,25 @@ export function RewardDistributionPanel({
         For each reward tier, pick Scratch card, Prize wheel, or Both, then how many prizes of that tier sit on each
         game. Walk-in and public booking only show the game for that customer’s tier.
       </p>
+      <div className="max-w-xs">
+        <Label className="mb-1.5">Offer validity (days)</Label>
+        <Input
+          type="number"
+          min={1}
+          max={3650}
+          value={String(value.offerValidityDays)}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              offerValidityDays: Math.max(1, Math.min(3650, Math.round(Number(e.target.value) || 0) || 1)),
+            })
+          }
+        />
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          How long a won prize or issued offer can be claimed at POS. Default is 30 days. New QR offers use this as the
+          end date.
+        </p>
+      </div>
       {CUSTOMER_TIERS.map((tier) => {
         const game = value.tierGames[tier];
         return (

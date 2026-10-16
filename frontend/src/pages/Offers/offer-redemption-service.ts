@@ -5,6 +5,7 @@ import { getCustomerById } from "@/pages/Customers/customer-lookup";
 import { isBirthdayWindow } from "@/pages/LoyaltyQr/qr-loyalty";
 import type { LoyaltyStore } from "@/pages/Loyalty/loyalty-service";
 import { lineMatchesServiceSpec } from "@/pages/Memberships/membership";
+import { isRewardWithinValidity } from "@/pages/PrizeWheel/reward-distribution";
 
 export const QR_OFFER_REDEMPTIONS = "qrOfferRedemptions";
 export const QR_OFFERS = "qrOffers";
@@ -25,7 +26,7 @@ export function isNewCustomer(db: Db, customerId: EntityId) {
   return visits <= 1 && priorCheckins <= 1;
 }
 
-function isOfferInValidityWindow(offer: Row, onDate = today()) {
+export function isOfferInValidityWindow(offer: Row, onDate = today()) {
   const start = String(offer["validityStart"] ?? "");
   const end = String(offer["validityEnd"] ?? "");
   if (start && onDate < start) return false;
@@ -159,9 +160,12 @@ export function issueEligibleOffers(
 }
 
 export function getPendingOfferRedemptions(db: Db, customerId: EntityId) {
-  return (db[QR_OFFER_REDEMPTIONS] ?? []).filter(
-    (r) => sameId(r["customerId"], customerId) && String(r["status"]) === "Issued",
-  );
+  return (db[QR_OFFER_REDEMPTIONS] ?? []).filter((r) => {
+    if (!sameId(r["customerId"], customerId) || String(r["status"]) !== "Issued") return false;
+    if (!isRewardWithinValidity(db, r)) return false;
+    const offer = (db[QR_OFFERS] ?? []).find((o) => sameId(o.id, r["offerId"]));
+    return !offer || isOfferInValidityWindow(offer);
+  });
 }
 
 export function listOfferClaims(
@@ -226,6 +230,9 @@ export function redeemOfferAtPos(
   const row = (store.db[QR_OFFER_REDEMPTIONS] ?? []).find((r) => String(r.id) === input.redemptionId);
   if (!row) return { ok: false, error: "Offer redemption not found" };
   if (String(row["status"]) !== "Issued") return { ok: false, duplicate: true, error: "Offer already used" };
+  if (!isRewardWithinValidity(store.db, row)) return { ok: false, error: "Offer expired" };
+  const scheme = (store.db[QR_OFFERS] ?? []).find((o) => sameId(o.id, row["offerId"]));
+  if (scheme && !isOfferInValidityWindow(scheme)) return { ok: false, error: "Offer expired" };
 
   store.update(QR_OFFER_REDEMPTIONS, input.redemptionId, {
     ...row,

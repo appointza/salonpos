@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DashHeader, DashStat, QuickLink, sortAppointments } from "@/components/dashboards/shared";
+import { appointmentServiceLabel } from "@/pages/Appointments/appointment-resolve";
 import { useAuth } from "@/hooks/useAuth";
 import { shiftOn } from "@/pages/Attendance/hr";
 import { resolveStaffForUser } from "@/pages/Staff/staff-scope";
@@ -91,7 +92,7 @@ export function StylistDashboard() {
                     {String(a["date"])} {String(a["time"])} · {String(a["customer"])}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {String(a["service"])} · {String(a["duration"] ?? "")} min
+                    {appointmentServiceLabel(a, db["services"] ?? [])} · {String(a["duration"] ?? "")} min
                   </p>
                 </div>
                 <Badge variant="secondary">{String(a["status"])}</Badge>

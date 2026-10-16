@@ -30,7 +30,7 @@ namespace Krios.Services.Krios
         public async Task<List<WheelSegment>> SelectTransaction(IDb db, WheelSegmentSelectReq req)
         {
             const string query = @"
-                SELECT id, ""orgId"", ""locationId"", ""programId"", label, ""rewardTier"", ""prizeType"", ""prizeValue"", ""winWeight"", ""colorHex"", active
+                SELECT id, ""orgId"", ""locationId"", ""programId"", label, ""rewardTier"", ""prizeType"", ""prizeValue"", ""serviceId"", ""winWeight"", ""colorHex"", active
                 FROM ""wheelSegments""
             ";
 
@@ -66,10 +66,10 @@ namespace Krios.Services.Krios
         {
             const string query = @"
                 INSERT INTO ""wheelSegments"" (
-                    ""orgId"", ""locationId"", ""programId"", label, ""rewardTier"", ""prizeType"", ""prizeValue"", ""winWeight"", ""colorHex"", active
+                    ""orgId"", ""locationId"", ""programId"", label, ""rewardTier"", ""prizeType"", ""prizeValue"", ""serviceId"", ""winWeight"", ""colorHex"", active
                 )
                 VALUES (
-                    @orgId, @locationId, @programId, @label, @rewardTier, @prizeType, @prizeValue, @winWeight, @colorHex, @active
+                    @orgId, @locationId, @programId, @label, @rewardTier, @prizeType, @prizeValue, @serviceId, @winWeight, @colorHex, @active
                 )
                 RETURNING id;
             ";
@@ -105,6 +105,7 @@ namespace Krios.Services.Krios
                     ""rewardTier"" = @rewardTier,
                     ""prizeType"" = @prizeType,
                     ""prizeValue"" = @prizeValue,
+                    ""serviceId"" = @serviceId,
                     ""winWeight"" = @winWeight,
                     ""colorHex"" = @colorHex,
                     active = @active
@@ -145,6 +146,7 @@ namespace Krios.Services.Krios
                 rewardTier = reader["rewardTier"]?.ToString() ?? "",
                 prizeType = reader["prizeType"]?.ToString() ?? "",
                 prizeValue = ReadLong(reader, "prizeValue"),
+                serviceId = ReadLong(reader, "serviceId"),
                 winWeight = ReadDecimal(reader, "winWeight"),
                 colorHex = reader["colorHex"]?.ToString() ?? "",
                 active = reader["active"]?.ToString() ?? "",
@@ -162,6 +164,7 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "rewardTier", DbTypes.Types.String).Value = entity.rewardTier ?? "";
             db.AddParameter(cmd, "prizeType", DbTypes.Types.String).Value = entity.prizeType ?? "";
             db.AddParameter(cmd, "prizeValue", DbTypes.Types.Long).Value = entity.prizeValue;
+            db.AddParameter(cmd, "serviceId", DbTypes.Types.Long).Value = entity.serviceId;
             db.AddParameter(cmd, "winWeight", DbTypes.Types.Decimal).Value = entity.winWeight;
             db.AddParameter(cmd, "colorHex", DbTypes.Types.String).Value = entity.colorHex ?? "";
             db.AddParameter(cmd, "active", DbTypes.Types.String).Value = entity.active ?? "";

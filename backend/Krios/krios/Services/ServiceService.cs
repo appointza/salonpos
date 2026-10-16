@@ -9,6 +9,7 @@ namespace Krios.Services.Krios
         private readonly IDbProvider dbprovider;
         private readonly IQueryBuilderProvider querybuilderprovider;
         private readonly RequestState requeststate;
+        private static bool imageIdColumnReady;
 
         public ServiceService(
             IDbProvider dbprovider,
@@ -29,8 +30,9 @@ namespace Krios.Services.Krios
 
         public async Task<List<Service>> SelectTransaction(IDb db, ServiceSelectReq req)
         {
+            await EnsureImageIdColumn(db);
             const string query = @"
-                SELECT id, ""orgId"", ""locationId"", name, category, duration, price, ""gstRate"", commission, outlet, active, createdby, createdon, updatedby, updatedon, type, ""comboItems"", ""productNeeds""
+                SELECT id, ""orgId"", ""locationId"", name, category, duration, price, ""gstRate"", commission, outlet, active, createdby, createdon, updatedby, updatedon, type, ""comboItems"", ""productNeeds"", ""imageId""
                 FROM services
             ";
 
@@ -66,12 +68,13 @@ namespace Krios.Services.Krios
 
         public async Task InsertTransaction(IDb db, Service entity)
         {
+            await EnsureImageIdColumn(db);
             const string query = @"
                 INSERT INTO services (
-                    ""orgId"", ""locationId"", name, category, duration, price, ""gstRate"", commission, outlet, active, createdby, createdon, updatedby, updatedon, type, ""comboItems"", ""productNeeds""
+                    ""orgId"", ""locationId"", name, category, duration, price, ""gstRate"", commission, outlet, active, createdby, createdon, updatedby, updatedon, type, ""comboItems"", ""productNeeds"", ""imageId""
                 )
                 VALUES (
-                    @orgId, @locationId, @name, @category, @duration, @price, @gstRate, @commission, @outlet, @active, @createdby, @createdon, @updatedby, @updatedon, @type, @comboItems, @productNeeds
+                    @orgId, @locationId, @name, @category, @duration, @price, @gstRate, @commission, @outlet, @active, @createdby, @createdon, @updatedby, @updatedon, @type, @comboItems, @productNeeds, @imageId
                 )
                 RETURNING id;
             ";
@@ -101,6 +104,7 @@ namespace Krios.Services.Krios
 
         public async Task<bool> UpdateTransaction(IDb db, Service entity)
         {
+            await EnsureImageIdColumn(db);
             const string query = @"
                 UPDATE services SET
                     ""orgId"" = @orgId,
@@ -119,7 +123,8 @@ namespace Krios.Services.Krios
                     updatedon = @updatedon,
                     type = @type,
                     ""comboItems"" = @comboItems,
-                    ""productNeeds"" = @productNeeds
+                    ""productNeeds"" = @productNeeds,
+                    ""imageId"" = @imageId
                 WHERE id = @id
             ";
 
@@ -169,6 +174,7 @@ namespace Krios.Services.Krios
                 type = reader["type"]?.ToString() ?? "",
                 comboItems = reader["comboItems"]?.ToString() ?? "",
                 productNeeds = reader["productNeeds"]?.ToString() ?? "",
+                imageId = ReadString(reader, "imageId"),
             };
         }
 
@@ -193,6 +199,28 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "type", DbTypes.Types.String).Value = entity.type ?? "";
             db.AddParameter(cmd, "comboItems", DbTypes.Types.String).Value = entity.comboItems ?? "";
             db.AddParameter(cmd, "productNeeds", DbTypes.Types.String).Value = entity.productNeeds ?? "";
+            db.AddParameter(cmd, "imageId", DbTypes.Types.String).Value = entity.imageId ?? "";
+        }
+
+        private static async Task EnsureImageIdColumn(IDb db)
+        {
+            if (imageIdColumnReady) return;
+            var cmd = db.GetCommand(@"ALTER TABLE services ADD COLUMN IF NOT EXISTS ""imageId"" VARCHAR(64);");
+            await db.ExecuteNonQuery(cmd);
+            imageIdColumnReady = true;
+        }
+
+        private static string ReadString(DbDataReader reader, string column)
+        {
+            try
+            {
+                var value = reader[column];
+                return value == DBNull.Value ? "" : value?.ToString() ?? "";
+            }
+            catch
+            {
+                return "";
+            }
         }
 
         private static long ReadLong(DbDataReader reader, string column)

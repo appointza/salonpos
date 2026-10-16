@@ -9,16 +9,19 @@ namespace Krios.Services.Krios
         private readonly IDbProvider dbprovider;
         private readonly IQueryBuilderProvider querybuilderprovider;
         private readonly RequestState requeststate;
+        private readonly CustomCryptography cryptography;
         private static bool profileColumnsReady;
 
         public StaffService(
             IDbProvider dbprovider,
             IQueryBuilderProvider querybuilderprovider,
-            RequestState requeststate)
+            RequestState requeststate,
+            CustomCryptography cryptography)
         {
             this.dbprovider = dbprovider;
             this.querybuilderprovider = querybuilderprovider;
             this.requeststate = requeststate;
+            this.cryptography = cryptography;
         }
 
         public async Task<List<Staff>> Select(StaffSelectReq req)
@@ -67,6 +70,8 @@ namespace Krios.Services.Krios
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
             await InsertTransaction(db, entity);
+            await UpsertLoginUser(db, entity);
+            entity.password = "";
             return entity;
         }
 
@@ -104,6 +109,8 @@ namespace Krios.Services.Krios
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
             await UpdateTransaction(db, entity);
+            await UpsertLoginUser(db, entity);
+            entity.password = "";
             return entity;
         }
 
@@ -232,6 +239,152 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "createdon", DbTypes.Types.Date).Value = entity.createdon ?? DateTime.UtcNow.Date;
             db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value = entity.updatedby ?? "";
             db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = entity.updatedon ?? DateTime.UtcNow.Date;
+        }
+
+        private async Task UpsertLoginUser(IDb db, Staff staff)
+        {
+            var password = (staff.password ?? "").Trim();
+            var phone = PhoneUtil.Normalize(staff.phone);
+            var email = (staff.email ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(email) && phone.Length >= 10)
+                email = $"{phone}@salon.staff";
+
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                if (staff.id > 0)
+                    await SyncLoginUserProfile(db, staff, email, phone, hash: null);
+                return;
+            }
+
+            if (password.Length < 6)
+                throw new AppException(AppException.ErrorCodes.BadRequest, "Password must be at least 6 characters.");
+            if (string.IsNullOrWhiteSpace(email) && phone.Length < 10)
+                throw new AppException(AppException.ErrorCodes.BadRequest, "Email or mobile is required to set a login password.");
+
+            var hash = cryptography.CalculateSHA256Hash(password);
+            await SyncLoginUserProfile(db, staff, email, phone, hash);
+        }
+
+        private async Task SyncLoginUserProfile(IDb db, Staff staff, string email, string phone, string? hash)
+        {
+            if (string.IsNullOrWhiteSpace(email) && phone.Length < 10) return;
+
+            var existing = await FindLoginUser(db, email, phone);
+            var role = LoginRole(staff.role);
+            var actor = requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : "system";
+            var today = DateTime.UtcNow.Date;
+
+            await UserLanguageSchema.EnsureColumn(db);
+
+            if (existing == null)
+            {
+                if (string.IsNullOrWhiteSpace(hash)) return;
+                const string insert = @"
+                    INSERT INTO users (
+                        ""orgId"", ""locationId"", name, email, phone, role, outlet, permissions,
+                        ""lastLogin"", status, passwordhash,
+                        createdby, createdon, updatedby, updatedon
+                    )
+                    VALUES (
+                        @orgId, @locationId, @name, @email, @phone, @role, @outlet, '',
+                        '', @status, @passwordhash,
+                        @actor, @today, @actor, @today
+                    );
+                ";
+                var cmd = db.GetCommand(insert);
+                BindLoginUser(cmd, db, staff, email, phone, role, hash, actor, today);
+                await db.ExecuteNonQuery(cmd);
+                return;
+            }
+
+            const string update = @"
+                UPDATE users SET
+                    ""orgId"" = @orgId,
+                    ""locationId"" = @locationId,
+                    name = @name,
+                    email = @email,
+                    phone = @phone,
+                    role = @role,
+                    outlet = @outlet,
+                    status = @status,
+                    passwordhash = CASE WHEN @passwordhash = '' THEN passwordhash ELSE @passwordhash END,
+                    ""lastLogin"" = CASE WHEN @passwordhash = '' THEN ""lastLogin"" ELSE '' END,
+                    updatedby = @actor,
+                    updatedon = @today
+                WHERE id = @id
+                  AND role <> 'CUSTOMER'
+                  AND role <> 'SUPER_ADMIN';
+            ";
+            var upd = db.GetCommand(update);
+            BindLoginUser(upd, db, staff, email, phone, role, hash ?? "", actor, today);
+            db.AddParameter(upd, "id", DbTypes.Types.Long).Value = existing.id;
+            await db.ExecuteNonQuery(upd);
+        }
+
+        private static void BindLoginUser(
+            DbCommand cmd,
+            IDb db,
+            Staff staff,
+            string email,
+            string phone,
+            string role,
+            string hash,
+            string actor,
+            DateTime today)
+        {
+            db.AddParameter(cmd, "orgId", DbTypes.Types.Long).Value = staff.orgId;
+            db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = staff.locationId;
+            db.AddParameter(cmd, "name", DbTypes.Types.String).Value = staff.name ?? "";
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
+            db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = phone;
+            db.AddParameter(cmd, "role", DbTypes.Types.String).Value = role;
+            db.AddParameter(cmd, "outlet", DbTypes.Types.String).Value = staff.outlet ?? "";
+            db.AddParameter(cmd, "status", DbTypes.Types.String).Value =
+                string.Equals(staff.status, "Inactive", StringComparison.OrdinalIgnoreCase) ? "Inactive" : "Active";
+            db.AddParameter(cmd, "passwordhash", DbTypes.Types.String).Value = hash ?? "";
+            db.AddParameter(cmd, "actor", DbTypes.Types.String).Value = actor;
+            db.AddParameter(cmd, "today", DbTypes.Types.Date).Value = today;
+        }
+
+        private static async Task<User?> FindLoginUser(IDb db, string email, string phone)
+        {
+            const string query = @"
+                SELECT id, email, role
+                FROM users
+                WHERE status <> 'Inactive'
+                  AND role <> 'CUSTOMER'
+                  AND (
+                    (@email <> '' AND lower(email) = lower(@email))
+                    OR (@phone <> '' AND RIGHT(regexp_replace(COALESCE(phone, ''), '\D', '', 'g'), 10) = @phone)
+                  )
+                ORDER BY CASE WHEN @email <> '' AND lower(email) = lower(@email) THEN 0 ELSE 1 END, id
+                LIMIT 1;
+            ";
+            var cmd = db.GetCommand(query);
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email ?? "";
+            db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = phone ?? "";
+            using var reader = await db.Execute(cmd);
+            if (!await reader.ReadAsync()) return null;
+            return new User
+            {
+                id = Convert.ToInt64(reader["id"]),
+                email = reader["email"]?.ToString() ?? "",
+                role = reader["role"]?.ToString() ?? "",
+            };
+        }
+
+        private static string LoginRole(string? staffRole)
+        {
+            var role = (staffRole ?? "").Trim();
+            if (role.Equals("SUPER_ADMIN", StringComparison.OrdinalIgnoreCase)) return "SUPER_ADMIN";
+            if (role.Equals("ADMIN", StringComparison.OrdinalIgnoreCase) ||
+                role.Equals("Outlet Manager", StringComparison.OrdinalIgnoreCase) ||
+                role.Equals("Owner", StringComparison.OrdinalIgnoreCase))
+                return "ADMIN";
+            if (role.Equals("STAFF", StringComparison.OrdinalIgnoreCase) ||
+                role.Equals("Receptionist", StringComparison.OrdinalIgnoreCase))
+                return "STAFF";
+            return "STYLIST";
         }
 
         private static async Task EnsureProfileColumns(IDb db)

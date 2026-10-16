@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export function Page() {
   const { orgSlug } = useParams({ from: "/$orgSlug/" });
-  const { loc } = useSearch({ from: "/$orgSlug/" });
+  const { loc, ref } = useSearch({ from: "/$orgSlug/" });
   const { tenants, org, setOrgId, loading, error, reloadTenants, ensureTenantBySlug } = useTenant();
   const match = matchTenantBySlug(tenants, orgSlug);
   const [lookupDone, setLookupDone] = useState(false);
@@ -27,12 +27,12 @@ export function Page() {
   }, [loading, match, orgSlug, ensureTenantBySlug]);
 
   if (match) {
-    return <PublicBooking showSwitcher={false} initialLocationId={loc} bookingOrgId={match.orgId} />;
+    return <PublicBooking showSwitcher={false} initialLocationId={loc} bookingOrgId={match.orgId} initialReferralCode={ref} />;
   }
 
   if (loading || !lookupDone) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4">
         <p className="text-sm text-muted-foreground">Loading booking page…</p>
       </div>
     );
@@ -40,7 +40,7 @@ export function Page() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4">
         <div className="max-w-md text-center">
           <h1 className="font-display text-2xl">Booking is unavailable</h1>
           <p className="mt-2 text-sm text-muted-foreground">The salon list did not load. Start the API, then try again.</p>
@@ -53,7 +53,7 @@ export function Page() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="font-display text-2xl">Booking page not found</h1>
         <p className="mt-2 text-sm text-muted-foreground">

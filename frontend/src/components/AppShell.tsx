@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/pages/Roles/permissions";
 import { useTenant } from "@/tenant";
-import { BRAND_LOGO } from "@/brand";
+import { salonLogoUrl } from "@/brand";
 import { adminBreadcrumbLabel } from "@/pages/Dashboard/breadcrumb";
 import { OrgLocationSwitcher } from "@/components/OrgLocationSwitcher";
 import { ViewToggle } from "@/list-view";
+import { LanguageSwitcher } from "@/i18n/LanguageSwitcher";
+import { useT } from "@/i18n/LanguageContext";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -19,20 +21,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { org, scopeLabel } = useTenant();
   const { allowedNav } = usePermissions();
   const navigate = useNavigate();
+  const t = useT();
 
   const allowed = user?.role === "SUPER_ADMIN" ? "all" : allowedNav;
   const breadcrumb = adminBreadcrumbLabel(pathname);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={cn("min-h-dvh bg-background", open && "max-lg:overflow-hidden")}>
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-[16.5rem] flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar transition-transform lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex w-[min(16.5rem,100%)] flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar transition-transform lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <img src={BRAND_LOGO} alt="Krios" width={36} height={36} className="size-9 shrink-0 object-contain" />
+          <img src={salonLogoUrl(org.logo)} alt={org.name} width={36} height={36} className="size-9 shrink-0 object-contain" />
           <div className="min-w-0">
             <p className="font-display truncate text-[15px] leading-tight font-semibold text-sidebar-foreground">
               {org.name}
@@ -56,12 +59,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                   navigate({ to: "/" });
                 }}
               >
-                <LogOut /> Sign out
+                <LogOut /> {t("Sign out")}
               </Button>
             </div>
           ) : (
             <Button asChild size="sm" className="w-full rounded-xl">
-              <Link to="/login">Log in</Link>
+              <Link to="/login">{t("Log in")}</Link>
             </Button>
           )}
         </div>
@@ -70,32 +73,34 @@ export function AppShell({ children }: { children: ReactNode }) {
       {open && <div className="fixed inset-0 z-30 bg-foreground/30 lg:hidden" onClick={() => setOpen(false)} />}
 
       <div className="lg:pl-[16.5rem]">
-        <header className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-border bg-background/85 px-3 py-2.5 backdrop-blur sm:gap-3 sm:px-6 sm:py-3">
           <Button
             variant="outline"
             size="icon"
-            className="lg:hidden"
+            className="shrink-0 lg:hidden"
             onClick={() => setOpen(true)}
-            aria-label="Open navigation"
+            aria-label={t("Open navigation")}
           >
             <Menu className="size-4" />
           </Button>
-          <nav aria-label="Breadcrumb" className="hidden items-center gap-1.5 text-sm text-muted-foreground sm:flex">
-            <span>{org.name}</span>
-            <ChevronRight className="size-3.5" />
-            <span>{scopeLabel}</span>
-            <ChevronRight className="size-3.5" />
-            <span className="font-medium text-foreground">{breadcrumb}</span>
+          <p className="min-w-0 flex-1 truncate text-sm font-medium sm:hidden">{t(breadcrumb)}</p>
+          <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-sm text-muted-foreground sm:flex">
+            <span className="truncate">{org.name}</span>
+            <ChevronRight className="size-3.5 shrink-0" />
+            <span className="truncate">{scopeLabel}</span>
+            <ChevronRight className="size-3.5 shrink-0" />
+            <span className="truncate font-medium text-foreground">{t(breadcrumb)}</span>
           </nav>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex w-full min-w-0 items-center justify-end gap-1.5 sm:ml-auto sm:w-auto sm:gap-2">
             <OrgLocationSwitcher />
-            <ViewToggle />
-            <span className="hidden size-9 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground sm:flex">
+            <LanguageSwitcher compact className="max-w-[7.5rem] shrink-0 sm:max-w-none" />
+            <ViewToggle className="shrink-0" />
+            <span className="hidden size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground md:flex">
               {(user?.name ?? "Admin").slice(0, 2).toUpperCase()}
             </span>
           </div>
         </header>
-        <main className={cn(pathname === "/settings" ? "px-0 py-0" : "mx-auto max-w-7xl px-4 py-8 sm:px-6")}>
+        <main className={cn(pathname === "/settings" ? "px-0 py-0" : "mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8")}>
           {children}
         </main>
       </div>

@@ -98,5 +98,13 @@ namespace Krios.Controllers.Krios
             result.item = await customerService.LookupAtPos(req.item);
             return Ok(result);
         }
+
+        [HttpPost("ValidateWalkInCode")]
+        public async Task<ActionResult<ActionRes<CustomerValidateWalkInCodeRes>>> ValidateWalkInCode(ActionReq<CustomerValidateWalkInCodeReq> req)
+        {
+            ActionRes<CustomerValidateWalkInCodeRes> result = new ActionRes<CustomerValidateWalkInCodeRes>();
+            result.item = await customerService.ValidateWalkInCode(req.item);
+            return Ok(result);
+        }
     }
 }

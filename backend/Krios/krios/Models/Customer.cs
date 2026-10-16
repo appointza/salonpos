@@ -7,6 +7,7 @@ namespace Krios.Models.Krios
         public long locationId { get; set; }
         public string name { get; set; } = "";
         public string phone { get; set; } = "";
+        public string isWhatsapp { get; set; } = "";
         public string email { get; set; } = "";
         public string gender { get; set; } = "";
         public DateTime? birthday { get; set; }
@@ -26,6 +27,7 @@ namespace Krios.Models.Krios
         public long stampsCurrent { get; set; }
         public decimal totalVisits { get; set; }
         public string referralCode { get; set; } = "";
+        public string referredBy { get; set; } = "";
         public string marketingConsent { get; set; } = "";
     }
 
@@ -81,5 +83,22 @@ namespace Krios.Models.Krios
         public List<PartnerCoupon> partnerCoupons { get; set; } = new();
         public List<Loyalty> loyalty { get; set; } = new();
         public string errorMessage { get; set; } = "";
+    }
+
+    public class CustomerValidateWalkInCodeReq
+    {
+        public long orgId { get; set; }
+        public string code { get; set; } = "";
+        public string guestPhone { get; set; } = "";
+    }
+
+    public class CustomerValidateWalkInCodeRes
+    {
+        public bool ok { get; set; }
+        public string kind { get; set; } = "";
+        public string label { get; set; } = "";
+        public string reason { get; set; } = "";
+        public string referrerName { get; set; } = "";
+        public string title { get; set; } = "";
     }
 }

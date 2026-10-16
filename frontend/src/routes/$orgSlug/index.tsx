@@ -4,9 +4,12 @@ import { Page } from "@/pages/OrgSlug/OrgSlug";
 const title = "Book online — Salon booking page";
 const description = "Public salon booking page: pick a location, service and stylist, then confirm your appointment online.";
 
+import { parseReferralSearch } from "@/pages/Loyalty/referral-share-url";
+
 export const Route = createFileRoute("/$orgSlug/")({
   validateSearch: (search: Record<string, unknown>) => ({
     loc: typeof search.loc === "string" ? search.loc : undefined,
+    ref: parseReferralSearch(search),
   }),
   head: ({ params }) => ({
     meta: [

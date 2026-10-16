@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Home } from "@/pages/Home/Home";
 
-const title = "Krios — All-in-one platform for salons & studios";
+const title = "Kriosapp | Salon & Spa Management Software, CRM & Loyalty Program";
 const description =
-  "Manage QR codes, digital menus, services, customers, appointments, loyalty, rewards, check-ins, WhatsApp ordering, staff, analytics and subscriptions in one multi-tenant platform.";
+  "Kriosapp is an all-in-one salon and spa management platform with CRM, appointment booking, inventory, staff management, WhatsApp marketing, subscriptions, and loyalty programs. Manage your salon with Krios Desk and retain customers with Krios Points.";
 
 export const Route = createFileRoute("/")({
   head: () => ({

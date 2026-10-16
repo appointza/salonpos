@@ -14,6 +14,9 @@ namespace Krios.Models.Krios
         public string lastLogin { get; set; } = "";
         public string status { get; set; } = "";
         public string passwordhash { get; set; } = "";
+        /** Plain password from the users form. Stored as SHA256 in passwordhash. */
+        public string password { get; set; } = "";
+        public string language { get; set; } = "en";
         public string createdby { get; set; } = "";
         public DateTime? createdon { get; set; }
         public string updatedby { get; set; } = "";

@@ -184,7 +184,7 @@ export function AdminDashboard() {
           </div>
           <div className="mt-5 flex justify-center">
             <div className="rounded-xl border border-border bg-background p-3">
-              <img src={qrSrc} alt={`QR code for ${checkinUrl}`} width={220} height={220} className="size-[220px]" />
+              <img src={qrSrc} alt={`QR code for ${checkinUrl}`} width={220} height={220} className="h-auto w-full max-w-[220px]" />
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">

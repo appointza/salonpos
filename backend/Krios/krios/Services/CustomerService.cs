@@ -1,6 +1,7 @@
 using Krios.Models.Krios;
 using Krios.Utils;
 using System.Data.Common;
+using System.Linq;
 
 namespace Krios.Services.Krios
 {
@@ -60,10 +61,13 @@ namespace Krios.Services.Krios
             return await SelectTransaction(db, req);
         }
 
+        private static bool isWhatsappColumnReady;
+
         public async Task<List<Customer>> SelectTransaction(IDb db, CustomerSelectReq req)
         {
+            await EnsureIsWhatsappColumn(db);
             const string query = @"
-                SELECT id, ""orgId"", ""locationId"", name, phone, email, gender, birthday, anniversary, household, tier, points, ""walletBalance"", outlet, ""lastVisit"", notes, createdby, createdon, updatedby, updatedon, ""membershipId"", ""stampsCurrent"", ""totalVisits"", ""referralCode"", ""marketingConsent""
+                SELECT id, ""orgId"", ""locationId"", name, phone, ""isWhatsapp"", email, gender, birthday, anniversary, household, tier, points, ""walletBalance"", outlet, ""lastVisit"", notes, createdby, createdon, updatedby, updatedon, ""membershipId"", ""stampsCurrent"", ""totalVisits"", ""referralCode"", ""referredBy"", ""marketingConsent""
                 FROM customers
             ";
 
@@ -93,13 +97,44 @@ namespace Krios.Services.Krios
         {
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
-            var existing = await FindByPhone(db, entity.orgId, entity.phone);
+            var existing = await FindByPhone(db, entity.orgId, entity.phone, entity.locationId);
             if (existing != null) return existing;
             await InsertTransaction(db, entity);
             return entity;
         }
 
-        private async Task<Customer?> FindByPhone(IDb db, long orgId, string? phone)
+        public async Task<List<Customer>> FindAllByPhone(IDb db, long orgId, string? phone)
+        {
+            var digits = PhoneDigits(phone);
+            var list = new List<Customer>();
+            if (orgId <= 0 || digits.Length < 10) return list;
+
+            const string query = @"
+                SELECT id
+                FROM customers
+                WHERE ""orgId"" = @orgId
+                  AND RIGHT(regexp_replace(COALESCE(phone, ''), '\D', '', 'g'), 10) = @phone
+                ORDER BY id ASC;
+            ";
+            var cmd = db.GetCommand(query);
+            db.AddParameter(cmd, "orgId", DbTypes.Types.Long).Value = orgId;
+            db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = digits;
+            var ids = new List<long>();
+            using (var reader = await db.Execute(cmd))
+            {
+                while (await reader.ReadAsync())
+                    ids.Add(Convert.ToInt64(reader["id"]));
+            }
+            foreach (var id in ids)
+            {
+                var rows = await SelectTransaction(db, new CustomerSelectReq { id = id, orgId = orgId });
+                var row = rows.FirstOrDefault();
+                if (row != null) list.Add(row);
+            }
+            return list;
+        }
+
+        private async Task<Customer?> FindByPhone(IDb db, long orgId, string? phone, long locationId = 0)
         {
             var digits = PhoneDigits(phone);
             if (orgId <= 0 || digits.Length < 10) return null;
@@ -109,12 +144,14 @@ namespace Krios.Services.Krios
                 FROM customers
                 WHERE ""orgId"" = @orgId
                   AND RIGHT(regexp_replace(COALESCE(phone, ''), '\D', '', 'g'), 10) = @phone
-                ORDER BY points DESC, id ASC
+                  AND (@locationId = 0 OR ""locationId"" = @locationId)
+                ORDER BY id ASC
                 LIMIT 1;
             ";
             var cmd = db.GetCommand(query);
             db.AddParameter(cmd, "orgId", DbTypes.Types.Long).Value = orgId;
             db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = digits;
+            db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = locationId;
             long id;
             using (var reader = await db.Execute(cmd))
             {
@@ -152,7 +189,9 @@ namespace Krios.Services.Krios
                 customer = byId.FirstOrDefault();
             }
             if (customer == null && digits.Length >= 10)
-                customer = await FindByPhone(db, req.orgId, digits);
+                customer = await FindByPhone(db, req.orgId, digits, req.locationId);
+            if (customer != null && req.locationId > 0 && customer.locationId > 0 && customer.locationId != req.locationId)
+                customer = digits.Length >= 10 ? await FindByPhone(db, req.orgId, digits, req.locationId) : null;
             if (customer == null)
             {
                 res.errorMessage = "Customer not found";
@@ -176,14 +215,155 @@ namespace Krios.Services.Krios
             return res;
         }
 
-        public async Task InsertTransaction(IDb db, Customer entity)
+        public async Task<CustomerValidateWalkInCodeRes> ValidateWalkInCode(CustomerValidateWalkInCodeReq req)
+        {
+            var res = new CustomerValidateWalkInCodeRes();
+            var code = NormalizeCode(req.code);
+            if (string.IsNullOrEmpty(code))
+            {
+                res.ok = true;
+                return res;
+            }
+            if (code.Length < 4)
+            {
+                res.reason = "Enter the full code";
+                return res;
+            }
+            if (req.orgId <= 0)
+            {
+                res.reason = "Salon not found";
+                return res;
+            }
+
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+
+            var customers = await SelectTransaction(db, new CustomerSelectReq { orgId = req.orgId });
+            var referrer = customers.FirstOrDefault(c =>
+                NormalizeCode(c.referralCode) == code || ReferralCodeFor(c.name, c.phone) == code);
+            if (referrer != null)
+            {
+                var guestDigits = PhoneDigits(req.guestPhone);
+                if (guestDigits.Length >= 10 && PhoneDigits(referrer.phone) == guestDigits)
+                {
+                    res.reason = "Use a friend's code, not your own";
+                    return res;
+                }
+                res.ok = true;
+                res.kind = "referral";
+                res.referrerName = referrer.name ?? "";
+                res.label = string.IsNullOrWhiteSpace(referrer.name)
+                    ? $"Valid referral code {code}"
+                    : $"Valid — {referrer.name}'s referral code";
+                return res;
+            }
+
+            var vouchers = await voucherService.SelectTransaction(db, new VoucherSelectReq { orgId = req.orgId });
+            var voucher = vouchers.FirstOrDefault(v => NormalizeCode(v.code) == code);
+            if (voucher != null)
+            {
+                var status = voucher.status ?? "";
+                if (status.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+                {
+                    res.reason = "Coupon cancelled";
+                    return res;
+                }
+                if (status.Equals("Redeemed", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(voucher.unlimited, "Yes", StringComparison.OrdinalIgnoreCase))
+                {
+                    res.reason = "Coupon already used";
+                    return res;
+                }
+                var title = string.IsNullOrWhiteSpace(voucher.schemeTitle) ? code : voucher.schemeTitle;
+                res.ok = true;
+                res.kind = "coupon";
+                res.title = title;
+                res.label = $"Valid coupon — {title}. Staff will apply it on the bill.";
+                return res;
+            }
+
+            var coupon = await FindCouponByCode(db, req.orgId, code);
+            if (coupon is { } hit)
+            {
+                if (string.Equals(hit.status, "Inactive", StringComparison.OrdinalIgnoreCase))
+                {
+                    res.reason = "Coupon is not active";
+                    return res;
+                }
+                var title = string.IsNullOrWhiteSpace(hit.title) ? hit.code : hit.title;
+                res.ok = true;
+                res.kind = "coupon";
+                res.title = title;
+                res.label = $"Valid offer — {title}. Staff will apply it on the bill.";
+                return res;
+            }
+
+            var partners = await partnerCouponService.SelectTransaction(db, new PartnerCouponSelectReq { orgId = req.orgId });
+            var partner = partners.FirstOrDefault(p => NormalizeCode(p.couponCode) == code);
+            if (partner != null)
+            {
+                if (string.Equals(partner.status, "Redeemed", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(partner.status, "Cancelled", StringComparison.OrdinalIgnoreCase))
+                {
+                    res.reason = "Coupon already used or cancelled";
+                    return res;
+                }
+                var title = string.IsNullOrWhiteSpace(partner.offer) ? code : partner.offer;
+                res.ok = true;
+                res.kind = "coupon";
+                res.title = title;
+                res.label = $"Valid coupon — {title}. Staff will apply it on the bill.";
+                return res;
+            }
+
+            res.reason = "Code not found for this salon";
+            return res;
+        }
+
+        public static string ReferralCodeFor(string? name, string? phone)
+        {
+            var letters = new string((name ?? "").Where(char.IsLetter).ToArray()).ToUpperInvariant();
+            var stem = string.IsNullOrEmpty(letters) ? "KRIOS" : (letters.Length <= 4 ? letters : letters[..4]);
+            var digits = PhoneDigits(phone);
+            var tail = digits.Length <= 4 ? digits : digits[^4..];
+            return stem + tail;
+        }
+
+        private static string NormalizeCode(string? value) =>
+            (value ?? "").Trim().TrimStart('#').ToUpperInvariant();
+
+        private async Task<(string code, string title, string status)?> FindCouponByCode(IDb db, long orgId, string code)
         {
             const string query = @"
+                SELECT code, title, status
+                FROM coupons
+                WHERE ""orgId"" = @orgId
+            ";
+            var cmd = db.GetCommand(query);
+            db.AddParameter(cmd, "orgId", DbTypes.Types.Long).Value = orgId;
+            using DbDataReader reader = await db.Execute(cmd);
+            while (await reader.ReadAsync())
+            {
+                var rowCode = NormalizeCode(reader["code"]?.ToString());
+                if (rowCode != code) continue;
+                return (
+                    reader["code"]?.ToString() ?? "",
+                    reader["title"]?.ToString() ?? "",
+                    reader["status"]?.ToString() ?? ""
+                );
+            }
+            return null;
+        }
+
+        public async Task InsertTransaction(IDb db, Customer entity)
+        {
+            await EnsureIsWhatsappColumn(db);
+            const string query = @"
                 INSERT INTO customers (
-                    ""orgId"", ""locationId"", name, phone, email, gender, birthday, anniversary, household, tier, points, ""walletBalance"", outlet, ""lastVisit"", notes, createdby, createdon, updatedby, updatedon, ""membershipId"", ""stampsCurrent"", ""totalVisits"", ""referralCode"", ""marketingConsent""
+                    ""orgId"", ""locationId"", name, phone, ""isWhatsapp"", email, gender, birthday, anniversary, household, tier, points, ""walletBalance"", outlet, ""lastVisit"", notes, createdby, createdon, updatedby, updatedon, ""membershipId"", ""stampsCurrent"", ""totalVisits"", ""referralCode"", ""referredBy"", ""marketingConsent""
                 )
                 VALUES (
-                    @orgId, @locationId, @name, @phone, @email, @gender, @birthday, @anniversary, @household, @tier, @points, @walletBalance, @outlet, @lastVisit, @notes, @createdby, @createdon, @updatedby, @updatedon, @membershipId, @stampsCurrent, @totalVisits, @referralCode, @marketingConsent
+                    @orgId, @locationId, @name, @phone, @isWhatsapp, @email, @gender, @birthday, @anniversary, @household, @tier, @points, @walletBalance, @outlet, @lastVisit, @notes, @createdby, @createdon, @updatedby, @updatedon, @membershipId, @stampsCurrent, @totalVisits, @referralCode, @referredBy, @marketingConsent
                 )
                 RETURNING id;
             ";
@@ -213,12 +393,14 @@ namespace Krios.Services.Krios
 
         public async Task<bool> UpdateTransaction(IDb db, Customer entity)
         {
+            await EnsureIsWhatsappColumn(db);
             const string query = @"
                 UPDATE customers SET
                     ""orgId"" = @orgId,
                     ""locationId"" = @locationId,
                     name = @name,
                     phone = @phone,
+                    ""isWhatsapp"" = @isWhatsapp,
                     email = @email,
                     gender = @gender,
                     birthday = @birthday,
@@ -238,6 +420,7 @@ namespace Krios.Services.Krios
                     ""stampsCurrent"" = @stampsCurrent,
                     ""totalVisits"" = @totalVisits,
                     ""referralCode"" = @referralCode,
+                    ""referredBy"" = @referredBy,
                     ""marketingConsent"" = @marketingConsent
                 WHERE id = @id
             ";
@@ -318,6 +501,7 @@ namespace Krios.Services.Krios
                 locationId = ReadLong(reader, "locationId"),
                 name = reader["name"]?.ToString() ?? "",
                 phone = reader["phone"]?.ToString() ?? "",
+                isWhatsapp = ReadString(reader, "isWhatsapp"),
                 email = reader["email"]?.ToString() ?? "",
                 gender = reader["gender"]?.ToString() ?? "",
                 birthday = ReadDate(reader, "birthday"),
@@ -337,6 +521,7 @@ namespace Krios.Services.Krios
                 stampsCurrent = ReadLong(reader, "stampsCurrent"),
                 totalVisits = ReadDecimal(reader, "totalVisits"),
                 referralCode = reader["referralCode"]?.ToString() ?? "",
+                referredBy = reader["referredBy"]?.ToString() ?? "",
                 marketingConsent = reader["marketingConsent"]?.ToString() ?? "",
             };
         }
@@ -349,6 +534,7 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = entity.locationId;
             db.AddParameter(cmd, "name", DbTypes.Types.String).Value = entity.name ?? "";
             db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = entity.phone ?? "";
+            db.AddParameter(cmd, "isWhatsapp", DbTypes.Types.String).Value = NormalizeYesNo(entity.isWhatsapp);
             db.AddParameter(cmd, "email", DbTypes.Types.String).Value = entity.email ?? "";
             db.AddParameter(cmd, "gender", DbTypes.Types.String).Value = entity.gender ?? "";
             db.AddParameter(cmd, "birthday", DbTypes.Types.Date).Value = entity.birthday ?? DateTime.UtcNow.Date;
@@ -368,7 +554,39 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "stampsCurrent", DbTypes.Types.Long).Value = entity.stampsCurrent;
             db.AddParameter(cmd, "totalVisits", DbTypes.Types.Decimal).Value = entity.totalVisits;
             db.AddParameter(cmd, "referralCode", DbTypes.Types.String).Value = entity.referralCode ?? "";
+            db.AddParameter(cmd, "referredBy", DbTypes.Types.String).Value = entity.referredBy ?? "";
             db.AddParameter(cmd, "marketingConsent", DbTypes.Types.String).Value = entity.marketingConsent ?? "";
+        }
+
+        private static async Task EnsureIsWhatsappColumn(IDb db)
+        {
+            if (isWhatsappColumnReady) return;
+            var cmd = db.GetCommand(@"ALTER TABLE customers ADD COLUMN IF NOT EXISTS ""isWhatsapp"" VARCHAR(16);");
+            await db.ExecuteNonQuery(cmd);
+            isWhatsappColumnReady = true;
+        }
+
+        private static string NormalizeYesNo(string? value)
+        {
+            var v = (value ?? "").Trim();
+            if (v.Equals("Yes", StringComparison.OrdinalIgnoreCase)
+                || v.Equals("true", StringComparison.OrdinalIgnoreCase)
+                || v == "1")
+                return "Yes";
+            return "No";
+        }
+
+        private static string ReadString(DbDataReader reader, string column)
+        {
+            try
+            {
+                var value = reader[column];
+                return value == DBNull.Value ? "" : value?.ToString() ?? "";
+            }
+            catch
+            {
+                return "";
+            }
         }
 
         private static long ReadLong(DbDataReader reader, string column)

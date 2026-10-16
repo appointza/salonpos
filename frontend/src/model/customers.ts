@@ -6,6 +6,7 @@ export class CustomerRes {
   locationId: number = 0;
   name: string = "";
   phone: string = "";
+  isWhatsapp: string = "";
   email: string = "";
   gender: string = "";
   birthday: string = "";
@@ -25,6 +26,7 @@ export class CustomerRes {
   stampsCurrent: number = 0;
   totalVisits: number = 0;
   referralCode: string = "";
+  referredBy: string = "";
   marketingConsent: string = "";
 }
 
@@ -33,6 +35,7 @@ export class CreateCustomerReq {
   locationId: number = 0;
   name: string = "";
   phone: string = "";
+  isWhatsapp: string = "";
   email: string = "";
   gender: string = "";
   birthday: string = "";
@@ -48,6 +51,7 @@ export class CreateCustomerReq {
   stampsCurrent: number = 0;
   totalVisits: number = 0;
   referralCode: string = "";
+  referredBy: string = "";
   marketingConsent: string = "";
 }
 
@@ -59,6 +63,7 @@ export class UpdateCustomerReq {
   locationId: number = 0;
   name: string = "";
   phone: string = "";
+  isWhatsapp: string = "";
   email: string = "";
   gender: string = "";
   birthday: string = "";
@@ -74,6 +79,7 @@ export class UpdateCustomerReq {
   stampsCurrent: number = 0;
   totalVisits: number = 0;
   referralCode: string = "";
+  referredBy: string = "";
   marketingConsent: string = "";
 }
 
@@ -131,6 +137,21 @@ export class CustomerPosLookupReq {
   locationId: number = 0;
   customerId: number = 0;
   phone: string = "";
+}
+
+export class CustomerValidateWalkInCodeReq {
+  orgId: number = 0;
+  code: string = "";
+  guestPhone: string = "";
+}
+
+export class CustomerValidateWalkInCodeRes {
+  ok: boolean = false;
+  kind: string = "";
+  label: string = "";
+  reason: string = "";
+  referrerName: string = "";
+  title: string = "";
 }
 
 export class CustomerPosLookupRes {

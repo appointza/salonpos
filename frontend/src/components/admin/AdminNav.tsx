@@ -10,7 +10,6 @@ import {
   Gift,
   Globe,
   IdCard,
-  Layers,
   LayoutDashboard,
   ListChecks,
   Lock,
@@ -19,12 +18,14 @@ import {
   Package,
   PiggyBank,
   PlaneTakeoff,
+  FileText,
   Receipt,
   Scissors,
   Settings,
   ShieldCheck,
   Smartphone,
   Sparkles,
+  Star,
   Store,
   Ticket,
   TicketPercent,
@@ -34,6 +35,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "@/utils/utils";
+import { useT } from "@/i18n/LanguageContext";
 import { publicSlug, useTenant } from "@/tenant";
 
 type Allowed = "all" | string[];
@@ -78,6 +80,7 @@ function NavItem({
 }
 
 export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate?: () => void }) {
+  const t = useT();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { org } = useTenant();
   const slug = publicSlug(org);
@@ -95,13 +98,13 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
   return (
     <nav className="flex-1 space-y-5 px-3 pb-6">
       <div>
-        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">Admin Overview</p>
+        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">{t("Admin Overview")}</p>
         <ul className="space-y-0.5">
           {canSee(allowed, "/dashboard")
             ? wrap(
                 <NavItem
                   to="/dashboard"
-                  label="Dashboard"
+                  label={t("Dashboard")}
                   icon={<LayoutDashboard className="size-4 shrink-0" />}
                   active={isActive("/dashboard")}
                 />,
@@ -111,7 +114,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/reports"
-                  label="Reports"
+                  label={t("Reports")}
                   icon={<BarChart3 className="size-4 shrink-0" />}
                   active={isActive("/reports")}
                 />,
@@ -121,7 +124,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/setup"
-                  label="Easy setup"
+                  label={t("Easy setup")}
                   icon={<ListChecks className="size-4 shrink-0" />}
                   active={isActive("/setup")}
                 />,
@@ -131,7 +134,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/front-desk"
-                  label="Front desk"
+                  label={t("Front desk")}
                   icon={<UserRound className="size-4 shrink-0" />}
                   active={isActive("/front-desk")}
                 />,
@@ -141,13 +144,13 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
       </div>
 
       <div>
-        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">Front desk</p>
+        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">{t("Front desk")}</p>
         <ul className="space-y-0.5">
           {canSee(allowed, "/customers")
             ? wrap(
                 <NavItem
                   to="/customers"
-                  label="Customers"
+                  label={t("Customers")}
                   icon={<Users className="size-4 shrink-0" />}
                   active={isActive("/customers")}
                 />,
@@ -157,7 +160,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/appointments"
-                  label="Appointments"
+                  label={t("Appointments")}
                   icon={<CalendarDays className="size-4 shrink-0" />}
                   active={isActive("/appointments")}
                 />,
@@ -167,9 +170,19 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/pos"
-                  label="POS & Billing"
+                  label={t("POS")}
                   icon={<Receipt className="size-4 shrink-0" />}
                   active={isActive("/pos")}
+                />,
+              )
+            : null}
+          {canSee(allowed, "/invoices")
+            ? wrap(
+                <NavItem
+                  to="/invoices"
+                  label={t("Invoices")}
+                  icon={<FileText className="size-4 shrink-0" />}
+                  active={isActive("/invoices")}
                 />,
               )
             : null}
@@ -177,7 +190,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/services"
-                  label="Services"
+                  label={t("Services")}
                   icon={<Scissors className="size-4 shrink-0" />}
                   active={isActive("/services")}
                 />,
@@ -187,7 +200,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/feedback"
-                  label="Feedback"
+                  label={t("Feedback")}
                   icon={<MessageSquareHeart className="size-4 shrink-0" />}
                   active={isActive("/feedback")}
                 />,
@@ -197,13 +210,13 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
       </div>
 
       <div>
-        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">Operations</p>
+        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">{t("Operations")}</p>
         <ul className="space-y-0.5">
           {canSee(allowed, "/inventory")
             ? wrap(
                 <NavItem
                   to="/inventory"
-                  label="Inventory"
+                  label={t("Inventory")}
                   icon={<Package className="size-4 shrink-0" />}
                   active={isActive("/inventory")}
                 />,
@@ -213,7 +226,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/vendors"
-                  label="Vendors"
+                  label={t("Vendors")}
                   icon={<Truck className="size-4 shrink-0" />}
                   active={isActive("/vendors")}
                 />,
@@ -223,7 +236,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/expenses"
-                  label="Expenses"
+                  label={t("Expenses")}
                   icon={<Wallet className="size-4 shrink-0" />}
                   active={isActive("/expenses")}
                 />,
@@ -233,18 +246,18 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
       </div>
 
       <div>
-        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">People</p>
+        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">{t("People")}</p>
         <ul className="space-y-0.5">
           {canSee(allowed, "/staff")
             ? wrap(
-                <NavItem to="/staff" label="Staff" icon={<IdCard className="size-4 shrink-0" />} active={isActive("/staff")} />,
+                <NavItem to="/staff" label={t("Staff")} icon={<IdCard className="size-4 shrink-0" />} active={isActive("/staff")} />,
               )
             : null}
           {canSee(allowed, "/shifts")
             ? wrap(
                 <NavItem
                   to="/shifts"
-                  label="Shifts"
+                  label={t("Shifts")}
                   icon={<CalendarClock className="size-4 shrink-0" />}
                   active={isActive("/shifts")}
                 />,
@@ -254,7 +267,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/attendance"
-                  label="Attendance"
+                  label={t("Attendance")}
                   icon={<Clock className="size-4 shrink-0" />}
                   active={isActive("/attendance")}
                 />,
@@ -264,7 +277,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/leaves"
-                  label="Leaves"
+                  label={t("Leaves")}
                   icon={<PlaneTakeoff className="size-4 shrink-0" />}
                   active={isActive("/leaves")}
                 />,
@@ -274,7 +287,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/payroll"
-                  label="Payroll"
+                  label={t("Payroll")}
                   icon={<BadgeIndianRupee className="size-4 shrink-0" />}
                   active={isActive("/payroll")}
                 />,
@@ -284,7 +297,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/commissions"
-                  label="Commissions"
+                  label={t("Commissions")}
                   icon={<PiggyBank className="size-4 shrink-0" />}
                   active={isActive("/commissions")}
                 />,
@@ -294,18 +307,28 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
       </div>
 
       <div>
-        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">Growth</p>
+        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">{t("Growth")}</p>
         <ul className="space-y-0.5">
+          {canSee(allowed, "/growth")
+            ? wrap(
+                <NavItem
+                  to="/growth/claim"
+                  label={t("Claim points")}
+                  icon={<Star className="size-4 shrink-0" />}
+                  active={isActive("/growth")}
+                />,
+              )
+            : null}
           {canSee(allowed, "/loyalty")
             ? wrap(
-                <NavItem to="/loyalty" label="Loyalty" icon={<Gift className="size-4 shrink-0" />} active={isActive("/loyalty")} />,
+                <NavItem to="/loyalty" label={t("Loyalty")} icon={<Gift className="size-4 shrink-0" />} active={isActive("/loyalty")} />,
               )
             : null}
           {canSee(allowed, "/offers")
             ? wrap(
                 <NavItem
                   to="/offers"
-                  label="Offers"
+                  label={t("Offers")}
                   icon={<TicketPercent className="size-4 shrink-0" />}
                   active={isActive("/offers")}
                 />,
@@ -315,29 +338,19 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/coupons"
-                  label="Coupon management"
+                  label={t("Coupon management")}
                   icon={<Ticket className="size-4 shrink-0" />}
                   active={isActive("/coupons")}
                 />,
               )
             : null}
-          {canSee(allowed, "/prize-wheel")
+          {canSee(allowed, "/prize-wheel") || canSee(allowed, "/scratch-card")
             ? wrap(
                 <NavItem
                   to="/prize-wheel"
-                  label="Prize wheel"
+                  label={t("Guest prizes")}
                   icon={<Sparkles className="size-4 shrink-0" />}
-                  active={isActive("/prize-wheel")}
-                />,
-              )
-            : null}
-          {canSee(allowed, "/scratch-card")
-            ? wrap(
-                <NavItem
-                  to="/scratch-card"
-                  label="Scratch card"
-                  icon={<Layers className="size-4 shrink-0" />}
-                  active={isActive("/scratch-card")}
+                  active={isActive("/prize-wheel") || isActive("/scratch-card")}
                 />,
               )
             : null}
@@ -345,7 +358,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/memberships"
-                  label="Memberships"
+                  label={t("Memberships")}
                   icon={<CreditCard className="size-4 shrink-0" />}
                   active={isActive("/memberships")}
                 />,
@@ -355,7 +368,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to={walkInUrl}
-                  label="Walk-in (public)"
+                  label={t("Walk-in (public)")}
                   icon={<UserRound className="size-4 shrink-0" />}
                   active={false}
                   external
@@ -366,7 +379,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to={bookingUrl}
-                  label="Public booking site"
+                  label={t("Public booking site")}
                   icon={<Globe className="size-4 shrink-0" />}
                   active={false}
                   external
@@ -377,13 +390,13 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
       </div>
 
       <div>
-        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">CRM</p>
+        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">{t("CRM")}</p>
         <ul className="space-y-0.5">
           {canSee(allowed, "/campaigns")
             ? wrap(
                 <NavItem
                   to="/campaigns"
-                  label="Campaigns"
+                  label={t("Campaigns")}
                   icon={<Megaphone className="size-4 shrink-0" />}
                   active={isActive("/campaigns")}
                 />,
@@ -393,13 +406,13 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
       </div>
 
       <div>
-        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">Network</p>
+        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">{t("Network")}</p>
         <ul className="space-y-0.5">
           {canSee(allowed, "/franchises")
             ? wrap(
                 <NavItem
                   to="/franchises"
-                  label="Outlets"
+                  label={t("Outlets")}
                   icon={<Store className="size-4 shrink-0" />}
                   active={isActive("/franchises")}
                 />,
@@ -409,7 +422,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/brand-apps"
-                  label="White-Label Apps"
+                  label={t("White-Label Apps")}
                   icon={<Smartphone className="size-4 shrink-0" />}
                   active={isActive("/brand-apps")}
                 />,
@@ -419,7 +432,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/users"
-                  label="Users"
+                  label={t("Users")}
                   icon={<ShieldCheck className="size-4 shrink-0" />}
                   active={isActive("/users")}
                 />,
@@ -429,7 +442,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/roles"
-                  label="Roles & permissions"
+                  label={t("Roles & permissions")}
                   icon={<Lock className="size-4 shrink-0" />}
                   active={isActive("/roles")}
                 />,
@@ -439,7 +452,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/subscription"
-                  label="Subscription"
+                  label={t("Subscription")}
                   icon={<CreditCard className="size-4 shrink-0" />}
                   active={isActive("/subscription")}
                 />,
@@ -449,7 +462,7 @@ export function AdminNav({ allowed, onNavigate }: { allowed: Allowed; onNavigate
             ? wrap(
                 <NavItem
                   to="/settings"
-                  label="Settings"
+                  label={t("Settings")}
                   icon={<Settings className="size-4 shrink-0" />}
                   active={isActive("/settings")}
                 />,

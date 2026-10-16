@@ -1,4 +1,5 @@
 import type { KriosBaseService } from "@/services/krios-base.service";
+import { assetService } from "@/services/asset.service";
 import { appointmentService } from "@/services/appointment.service";
 import { attendanceService } from "@/services/attendance.service";
 import { brandAppService } from "@/services/brandApp.service";
@@ -43,6 +44,7 @@ import { wheelSpinService } from "@/services/wheelSpin.service";
 
 /** Collection key → Krios API service */
 export const ENTITY_SERVICE_MAP: Record<string, KriosBaseService<{ id?: number }>> = {
+  assets: assetService,
   organizations: organizationService,
   locations: locationService,
   customers: customerService,

@@ -6,7 +6,8 @@ export function adminBreadcrumbLabel(pathname: string): string {
   if (pathname === "/front-desk" || pathname.startsWith("/front-desk/")) return "Front desk";
   if (pathname === "/customers" || pathname.startsWith("/customers/")) return "Customers";
   if (pathname === "/appointments" || pathname.startsWith("/appointments/")) return "Appointments";
-  if (pathname === "/pos" || pathname.startsWith("/pos/")) return "POS & Billing";
+  if (pathname === "/pos" || pathname.startsWith("/pos/")) return "POS";
+  if (pathname === "/invoices" || pathname.startsWith("/invoices/")) return "Invoices";
   if (pathname === "/services" || pathname.startsWith("/services/")) return "Services";
   if (pathname === "/feedback" || pathname.startsWith("/feedback/")) return "Feedback";
   if (pathname === "/inventory" || pathname.startsWith("/inventory/")) return "Inventory";
@@ -21,8 +22,8 @@ export function adminBreadcrumbLabel(pathname: string): string {
   if (pathname === "/loyalty" || pathname.startsWith("/loyalty/")) return "Loyalty";
   if (pathname === "/offers" || pathname.startsWith("/offers/")) return "Offers";
   if (pathname === "/coupons" || pathname.startsWith("/coupons/")) return "Coupon management";
-  if (pathname === "/prize-wheel" || pathname.startsWith("/prize-wheel/")) return "Prize wheel";
-  if (pathname === "/scratch-card" || pathname.startsWith("/scratch-card/")) return "Scratch card";
+  if (pathname === "/prize-wheel" || pathname.startsWith("/prize-wheel/") || pathname.startsWith("/scratch-card"))
+    return "Guest prizes";
   if (pathname === "/memberships" || pathname.startsWith("/memberships/")) return "Memberships";
   if (pathname === "/campaigns" || pathname.startsWith("/campaigns/")) return "Campaigns";
   if (pathname === "/franchises" || pathname.startsWith("/franchises/")) return "Outlets";

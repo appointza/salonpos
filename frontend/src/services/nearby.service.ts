@@ -49,6 +49,7 @@ function tenantsFromApi(orgs: OrganizationRes[], locations: LocationRes[]): Tena
         website: o.website,
         businessType: o.businessType,
         brandColor: o.brandColor,
+        logo: o.logo ?? "",
         locations: locations
           .filter((l) => (l.orgId || 0) === oid && String(l.status ?? "Active") !== "Inactive")
           .map(locFromApi),

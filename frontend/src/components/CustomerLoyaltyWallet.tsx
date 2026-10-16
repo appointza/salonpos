@@ -2,8 +2,12 @@ import { Gift, RotateCcw, Sparkles, Star, TicketPercent } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SpinWheel } from "@/components/SpinWheel";
+import { ReferralShareCard } from "@/components/ReferralShareCard";
 import type { Row } from "@/store";
 import type { CustomerWallet } from "@/pages/Loyalty/rewards/customer-wallet";
+import { offerAvailWithinMessage, useRewardDistribution } from "@/pages/PrizeWheel/reward-distribution";
+import { ensureCustomerReferralCode } from "@/pages/Loyalty/referral-service";
+import { orgPublicSlug } from "@/pages/Loyalty/referral-share-url";
 
 export function CustomerLoyaltyWallet({
   salonName,
@@ -25,6 +29,8 @@ export function CustomerLoyaltyWallet({
   spinResult: string;
 }) {
   const { customer, points, tier, stampsCurrent, stampsRequired, spinAvailable, availableRewards, activity } = wallet;
+  const { config } = useRewardDistribution();
+  const availHint = offerAvailWithinMessage(config.offerValidityDays, spinResult);
 
   return (
     <div className="space-y-4">
@@ -44,6 +50,8 @@ export function CustomerLoyaltyWallet({
         </div>
       </div>
 
+      <ReferralShareCard code={ensureCustomerReferralCode(customer)} salonName={salonName} orgSlug={orgPublicSlug({ name: salonName })} />
+
       {wheelProgram && spinAvailable && !spinResult ? (
         <div className="rounded-2xl border border-border bg-card p-4">
           <p className="mb-1 text-center text-sm font-semibold">Spin & Win</p>
@@ -52,6 +60,7 @@ export function CustomerLoyaltyWallet({
             segments={segments}
             disabled={!spinAvailable}
             showFrame={false}
+            availWithinDays={config.offerValidityDays}
             onSpinStart={onSpinStart}
             onResult={onSpinComplete}
           />
@@ -63,6 +72,7 @@ export function CustomerLoyaltyWallet({
           <p className="text-sm text-muted-foreground">You won</p>
           <p className="font-display text-xl">{spinResult}</p>
           <p className="mt-1 text-xs text-muted-foreground">Show this at the desk or redeem at checkout</p>
+          {availHint ? <p className="mt-1 text-xs font-medium">{availHint}</p> : null}
         </div>
       ) : null}
 

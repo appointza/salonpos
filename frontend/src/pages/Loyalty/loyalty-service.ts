@@ -1,7 +1,7 @@
 import type { EntityId } from "@/ids";
 import type { Db, Row } from "@/store";
 import { addExpiry } from "@/pages/Loyalty/loyalty-rules";
-import { getCustomerById } from "@/pages/Customers/customer-lookup";
+import { customersByPhoneInOrg, getCustomerById } from "@/pages/Customers/customer-lookup";
 
 export const LOYALTY_TX = "loyaltyTransactions";
 
@@ -210,6 +210,108 @@ export function postLoyaltyReversal(
 
   if (!earn && !redeem) return { ok: false, reversed: 0, balanceAfter, error: "No loyalty transactions to reverse" };
   return { ok: true, reversed, balanceAfter };
+}
+
+/** Organisation wallet — same total POS and /growth/claim use. */
+export function getOrgLoyaltyBalance(db: Db, orgId: EntityId, phone: string) {
+  return customersByPhoneInOrg(db["customers"] ?? [], phone, orgId).reduce(
+    (sum, row) => sum + getCustomerLoyaltyBalance(db, String(row.id)),
+    0,
+  );
+}
+
+function withLiveDb(store: LoyaltyStore): LoyaltyStore {
+  let db = store.db;
+  return {
+    get db() {
+      return db;
+    },
+    create(collection, row, orgOverride) {
+      store.create(collection, row, orgOverride);
+      db = { ...db, [collection]: [...(db[collection] ?? []), row] };
+    },
+    update(collection, id, row) {
+      store.update(collection, id, row);
+      db = {
+        ...db,
+        [collection]: (db[collection] ?? []).map((r) => (String(r.id) === String(id) ? row : r)),
+      };
+    },
+  };
+}
+
+/** Claim subtracts, Add credits — identical ledger used by POS checkout and Growth claim. */
+export function applyOrgLoyaltyChange(
+  store: LoyaltyStore,
+  input: {
+    orgId: EntityId;
+    phone: string;
+    points: number;
+    mode: "claim" | "add";
+    source: string;
+    referenceId: string;
+    reason: string;
+    preferCustomerId?: EntityId;
+    programId?: string;
+  },
+): { ok: boolean; orgBalanceAfter: number; error?: string } {
+  const pts = Math.max(0, Math.floor(Number(input.points) || 0));
+  const live = withLiveDb(store);
+  const profiles = customersByPhoneInOrg(live.db["customers"] ?? [], input.phone, input.orgId);
+  const orgBefore = profiles.reduce((sum, row) => sum + getCustomerLoyaltyBalance(live.db, String(row.id)), 0);
+  if (pts <= 0) return { ok: false, orgBalanceAfter: orgBefore, error: "Enter points" };
+  if (profiles.length === 0) return { ok: false, orgBalanceAfter: 0, error: "Customer not found" };
+
+  if (input.mode === "add") {
+    const target =
+      profiles.find((p) => String(p.id) === String(input.preferCustomerId ?? "")) ?? profiles[0];
+    const posted = postLoyaltyTransaction(live, {
+      customerId: target.id,
+      type: "Adjust",
+      points: pts,
+      source: input.source,
+      referenceId: input.referenceId,
+      orgId: input.orgId,
+      locationId: String(target["locationId"] ?? ""),
+      programId: input.programId,
+      reason: input.reason,
+      allowDuplicate: true,
+    });
+    if (!posted.ok) return { ok: false, orgBalanceAfter: orgBefore, error: posted.error };
+    return { ok: true, orgBalanceAfter: orgBefore + pts };
+  }
+
+  if (pts > orgBefore) {
+    return { ok: false, orgBalanceAfter: orgBefore, error: `Only ${orgBefore.toLocaleString("en-IN")} points` };
+  }
+
+  let remaining = pts;
+  const ordered = [...profiles].sort(
+    (a, b) => getCustomerLoyaltyBalance(live.db, String(b.id)) - getCustomerLoyaltyBalance(live.db, String(a.id)),
+  );
+  for (const profile of ordered) {
+    if (remaining <= 0) break;
+    const bal = getCustomerLoyaltyBalance(live.db, String(profile.id));
+    const take = Math.min(bal, remaining);
+    if (take <= 0) continue;
+    const posted = postLoyaltyTransaction(live, {
+      customerId: profile.id,
+      type: "Redeem",
+      points: take,
+      source: input.source,
+      referenceId: `${input.referenceId}:${profile.id}`,
+      invoiceId: input.referenceId,
+      orgId: input.orgId,
+      locationId: String(profile["locationId"] ?? ""),
+      programId: input.programId,
+      reason: input.reason,
+      allowDuplicate: true,
+    });
+    if (!posted.ok) return { ok: false, orgBalanceAfter: orgBefore - (pts - remaining), error: posted.error };
+    remaining -= take;
+  }
+
+  return { ok: true, orgBalanceAfter: orgBefore - pts };
 }
 
 export { addExpiry };

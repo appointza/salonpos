@@ -10,14 +10,18 @@ import type { AuthIdentifyRes } from "@/model/auth";
 import { useCustomerSession } from "@/pages/Login/customer-session";
 import { normalizePhone } from "@/pages/Login/phone";
 import { authService } from "@/services/auth.service";
+import { LanguageSwitcher } from "@/i18n/LanguageSwitcher";
+import { useT } from "@/i18n/LanguageContext";
 import { apiErrorMessage } from "@/utils/api-error";
+import type { UserLoginRes } from "@/model/users";
 
-type Step = "identify" | "org-password" | "customer-password" | "customer-setup";
+type Step = "identify" | "org-password" | "org-change-password" | "customer-password" | "customer-setup";
 
 export function LoginPage() {
   const { signIn } = useAuth();
   const { signIn: signInCustomer } = useCustomerSession();
   const navigate = useNavigate();
+  const t = useT();
 
   const [step, setStep] = useState<Step>("identify");
   const [identifier, setIdentifier] = useState("");
@@ -69,10 +73,21 @@ export function LoginPage() {
     }
   }
 
+  function forgotPasswordHref() {
+    const raw = identifier.trim() || profile?.email || profile?.phone || "";
+    return raw ? `/forgot-password?identifier=${encodeURIComponent(raw)}` : "/forgot-password";
+  }
+
   async function sendOtp(phone: string) {
-    const res = await authService.sendOtp({ phone });
-    setOtpHint(res.hint || "Demo OTP: 123456");
-    toast.success("Verification code sent", { description: res.maskedPhone || maskHint(phone) });
+    const res = await authService.sendOtp({
+      identifier: identifier.trim() || phone,
+      phone,
+      email: profile?.email || "",
+    });
+    setOtpHint(res.hint || "Check your email for the verification code.");
+    toast.success("Verification code sent", {
+      description: res.maskedEmail || res.maskedPhone || maskHint(phone),
+    });
   }
 
   function maskHint(phone: string) {
@@ -88,20 +103,52 @@ export function LoginPage() {
     setBusy(true);
     try {
       const res = await authService.loginOrganization({ email: profile.email, password });
-      const apiRole = (res.role?.toUpperCase().replace(/\s+/g, "_") || "ADMIN") as Role;
-      signIn(res.email, apiRole, {
-        id: res.userId,
-        name: res.name,
-        phone: profile.phone,
-        orgId: Number(res.orgId || res.organizationId) || 0,
-        locationId: res.locationId,
-      });
-      toast.success(`Signed in as ${res.name}`, { description: res.organizationName });
-      navigate({ to: apiRole === "SUPER_ADMIN" ? "/platform" : "/dashboard" });
+      if (res.mustChangePassword) {
+        setStep("org-change-password");
+        setConfirmPassword("");
+        toast.message("Create a new password to continue");
+        setBusy(false);
+        return;
+      }
+      finishOrgSession(res);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Invalid email or password"));
       setBusy(false);
     }
+  }
+
+  async function changeOrgPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!profile?.email) return void toast.error("Missing workspace email");
+    if (confirmPassword.length < 6) return void toast.error("New password must be at least 6 characters");
+    if (confirmPassword === password) return void toast.error("Choose a different password from the one you were given");
+
+    setBusy(true);
+    try {
+      const res = await authService.changePassword({
+        email: profile.email,
+        currentPassword: password,
+        newPassword: confirmPassword,
+      });
+      finishOrgSession(res);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not change password"));
+      setBusy(false);
+    }
+  }
+
+  function finishOrgSession(res: UserLoginRes) {
+    const apiRole = (res.role?.toUpperCase().replace(/\s+/g, "_") || "ADMIN") as Role;
+    signIn(res.email, apiRole, {
+      id: res.userId,
+      name: res.name,
+      phone: profile?.phone,
+      orgId: Number(res.orgId || res.organizationId) || 0,
+      locationId: res.locationId,
+      language: res.language,
+    });
+    toast.success(`Signed in as ${res.name}`, { description: res.organizationName });
+    navigate({ to: apiRole === "SUPER_ADMIN" ? "/platform" : "/dashboard" });
   }
 
   async function loginCustomer(e: React.FormEvent) {
@@ -158,12 +205,16 @@ export function LoginPage() {
   }
 
   const isOrg = step === "org-password";
+  const isOrgChange = step === "org-change-password";
   const isCustomerPassword = step === "customer-password";
   const isCustomerSetup = step === "customer-setup";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-3 py-8 sm:px-4 sm:py-12">
       <div className="w-full max-w-lg">
+        <div className="mb-4 flex justify-end">
+          <LanguageSwitcher compact />
+        </div>
         <Link to="/" className="mb-8 flex items-center justify-center gap-2">
           <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Sparkles className="size-4" />
@@ -174,7 +225,7 @@ export function LoginPage() {
         <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
           {step === "identify" ? (
             <>
-              <h1 className="font-display text-2xl tracking-tight">Sign in</h1>
+              <h1 className="font-display text-2xl tracking-tight">{t("Sign in")}</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Enter your mobile number. We&apos;ll detect whether you&apos;re a salon team member or a customer.
               </p>
@@ -192,7 +243,10 @@ export function LoginPage() {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={busy}>
-                  {busy ? "Checking…" : "Continue"}
+                  {busy ? t("Saving…") : t("Continue")}
+                </Button>
+                <Button type="button" variant="ghost" className="w-full" disabled={busy} asChild>
+                  <a href={forgotPasswordHref()}>Forgot password?</a>
                 </Button>
               </form>
             </>
@@ -234,6 +288,43 @@ export function LoginPage() {
                     <Button type="submit" className="w-full" disabled={busy}>
                       {busy ? "Signing in…" : "Sign in to workspace"}
                     </Button>
+                    <Button type="button" variant="ghost" className="w-full" disabled={busy} asChild>
+                      <a href={forgotPasswordHref()}>Forgot password?</a>
+                    </Button>
+                  </form>
+                </>
+              )}
+
+              {isOrgChange && (
+                <>
+                  <div className="mb-4 flex items-start gap-3 rounded-lg border border-border bg-muted/40 p-3">
+                    <Building2 className="mt-0.5 size-5 shrink-0 text-primary" />
+                    <div>
+                      <p className="font-medium">First sign-in</p>
+                      <p className="text-sm text-muted-foreground">
+                        {profile?.name ? `${profile.name} · ` : ""}
+                        {profile?.email}
+                      </p>
+                    </div>
+                  </div>
+                  <h1 className="font-display text-2xl tracking-tight">Choose your password</h1>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Replace the password your admin set. You will use this one next time.
+                  </p>
+                  <form className="mt-6 space-y-4" onSubmit={changeOrgPassword}>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="org-new-password">New password</Label>
+                      <Input
+                        id="org-new-password"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={busy}>
+                      {busy ? "Saving…" : "Save password & continue"}
+                    </Button>
                   </form>
                 </>
               )}
@@ -264,26 +355,8 @@ export function LoginPage() {
                     <Button type="submit" className="w-full" disabled={busy}>
                       {busy ? "Signing in…" : "Sign in"}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="w-full"
-                      disabled={busy}
-                      onClick={async () => {
-                        const phone = profile?.phone || normalizePhone(identifier);
-                        setBusy(true);
-                        try {
-                          await sendOtp(phone);
-                          setPassword("");
-                          setStep("customer-setup");
-                        } catch (err) {
-                          toast.error(apiErrorMessage(err, "Could not send code"));
-                        } finally {
-                          setBusy(false);
-                        }
-                      }}
-                    >
-                      Forgot password? Verify with OTP
+                    <Button type="button" variant="ghost" className="w-full" disabled={busy} asChild>
+                      <a href={forgotPasswordHref()}>Forgot password?</a>
                     </Button>
                   </form>
                 </>
@@ -305,7 +378,7 @@ export function LoginPage() {
                   </div>
                   <h1 className="font-display text-2xl tracking-tight">Verify &amp; create password</h1>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    We sent a code to your mobile. {otpHint || "Demo OTP: 123456"}
+                    {otpHint || "We sent a verification code."}
                   </p>
                   <form className="mt-6 space-y-4" onSubmit={setupCustomerPassword}>
                     {!profile?.name && (

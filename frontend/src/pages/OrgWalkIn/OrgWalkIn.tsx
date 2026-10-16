@@ -6,7 +6,7 @@ import { matchTenantBySlug, useTenant } from "@/tenant";
 
 export function Page() {
   const { orgSlug } = useParams({ from: "/$orgSlug/walk-in" });
-  const { loc } = useSearch({ from: "/$orgSlug/walk-in" });
+  const { loc, ref } = useSearch({ from: "/$orgSlug/walk-in" });
   const { tenants, org, setOrgId, loading, error, reloadTenants, ensureTenantBySlug } = useTenant();
   const match = matchTenantBySlug(tenants, orgSlug);
   const [lookupDone, setLookupDone] = useState(false);
@@ -33,13 +33,14 @@ export function Page() {
         bookingOrgId={match.orgId}
         orgSlug={match.slug}
         initialLocationId={loc}
+        initialReferralCode={ref}
       />
     );
   }
 
   if (loading || !lookupDone) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4">
         <p className="text-sm text-muted-foreground">Loading walk-in check-in…</p>
       </div>
     );
@@ -47,7 +48,7 @@ export function Page() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4">
         <div className="max-w-md text-center">
           <h1 className="font-display text-2xl">Walk-in check-in is unavailable</h1>
           <p className="mt-2 text-sm text-muted-foreground">The salon list did not load. Start the API, then try again.</p>
@@ -60,7 +61,7 @@ export function Page() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="font-display text-2xl">Walk-in page not found</h1>
         <p className="mt-2 text-sm text-muted-foreground">

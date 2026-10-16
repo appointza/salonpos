@@ -52,6 +52,7 @@ namespace Krios.Models.Krios
         public long programId { get; set; }
         public DateTime? expiresOn { get; set; }
         public string reason { get; set; } = "";
+        public bool allowDuplicate { get; set; }
     }
 
     public class LoyaltyPostPointsRes

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
+import { ServiceThumb } from "@/components/ServiceThumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,8 +25,12 @@ import {
 } from "@/pages/LoyaltyQr/qr-loyalty";
 import { autoApproveCheckin, hasApprovedCheckinToday } from "@/pages/LoyaltyCheckins/checkin-service";
 import { customerSpunToday, processWheelSpinResult } from "@/pages/PrizeWheel/wheel-service";
+import { offerAvailWithinMessage, readRewardDistribution } from "@/pages/PrizeWheel/reward-distribution";
 import { readServiceDisplaySettings } from "@/pages/Services/service-display-settings";
 import { ServicePriceDisplay } from "@/components/ServicePriceDisplay";
+import { ReferralShareCard } from "@/components/ReferralShareCard";
+import { ensureCustomerReferralCode } from "@/pages/Loyalty/referral-service";
+import { orgPublicSlug } from "@/pages/Loyalty/referral-share-url";
 
 export function QrCheckinPage() {
   const { locationId } = useParams({ from: "/qr/$locationId" });
@@ -34,6 +39,7 @@ export function QrCheckinPage() {
   const orgId = String(location?.["orgId"] ?? "");
   const org = (allRows["organizations"] ?? []).find((o) => String(o["orgId"]) === orgId);
   const serviceDisplay = useMemo(() => readServiceDisplaySettings(org, orgId), [org, orgId]);
+  const rewardDist = useMemo(() => readRewardDistribution(org), [org]);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [verified, setVerified] = useState(false);
@@ -103,7 +109,7 @@ export function QrCheckinPage() {
   const wheelBlocked = customerId ? customerSpunToday(allRows, customerId) : false;
 
   return (
-    <div className="mx-auto min-h-screen max-w-md bg-background px-4 py-8">
+    <div className="mx-auto min-h-dvh max-w-md bg-background px-3 py-6 sm:px-4 sm:py-8">
       <div className="mb-6 flex items-center gap-2">
         <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <Sparkles className="size-4" />
@@ -199,6 +205,7 @@ export function QrCheckinPage() {
                   birthday,
                   anniversary,
                   marketingConsent: "Yes",
+                  referralCode: ensureCustomerReferralCode({ ...customer, name: name.trim(), phone }),
                 });
               }
               const cid = String(customer.id);
@@ -296,11 +303,14 @@ export function QrCheckinPage() {
             ) : null}
           </div>
 
+          <ReferralShareCard code={referralCodeFor(name, phone)} salonName={outlet} orgSlug={orgPublicSlug(org)} locationId={locationId} />
+
           {approved && wheel && !spun && !wheelBlocked ? (
             <div className="rounded-xl border border-border bg-card p-4">
               <p className="mb-3 text-sm font-medium">Your prize wheel</p>
               <SpinWheel
                 segments={segments}
+                availWithinDays={rewardDist.offerValidityDays}
                 onResult={(seg) => {
                   if (!customerId) return;
                   const store = { db: allRows, create, update };
@@ -329,7 +339,9 @@ export function QrCheckinPage() {
                       rewardEarned: `${mine["rewardEarned"]} · Wheel: ${result.label}`,
                     });
                   }
-                  toast.success(`You won: ${result.label}`);
+                  toast.success(`You won: ${result.label}`, {
+                    description: offerAvailWithinMessage(rewardDist.offerValidityDays, result.label),
+                  });
                 }}
               />
             </div>
@@ -337,7 +349,14 @@ export function QrCheckinPage() {
           {wheelBlocked && !spun ? (
             <p className="text-sm text-muted-foreground">Prize wheel already used today.</p>
           ) : null}
-          {spun ? <p className="text-sm">Wheel result: <strong>{spun}</strong> — show this at the desk.</p> : null}
+          {spun ? (
+            <p className="text-sm">
+              Wheel result: <strong>{spun}</strong> — show this at the desk.
+              {offerAvailWithinMessage(rewardDist.offerValidityDays, spun) ? (
+                <span className="mt-1 block font-medium">{offerAvailWithinMessage(rewardDist.offerValidityDays, spun)}</span>
+              ) : null}
+            </p>
+          ) : null}
 
           {offers.length > 0 ? (
             <div className="rounded-xl border border-border bg-card p-4">
@@ -361,7 +380,8 @@ export function QrCheckinPage() {
                 const on = cart.includes(line);
                 return (
                   <li key={String(s.id)} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="flex min-w-0 flex-wrap items-center gap-2">
+                      <ServiceThumb imageId={s["imageId"]} name={String(s["name"])} size={28} />
                       {String(s["name"])}
                       <span className="inline-flex flex-wrap items-center gap-1.5 text-muted-foreground">
                         · <ServicePriceDisplay price={Number(s["price"] ?? 0)} settings={serviceDisplay} size="xs" />

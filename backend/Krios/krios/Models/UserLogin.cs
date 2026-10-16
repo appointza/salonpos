@@ -17,6 +17,15 @@ namespace Krios.Models.Krios
         public long locationId { get; set; }
         public string organizationName { get; set; } = "";
         public string organizationSlug { get; set; } = "";
+        public bool mustChangePassword { get; set; }
+        public string language { get; set; } = "en";
+    }
+
+    public class UserChangePasswordReq
+    {
+        public string email { get; set; } = "";
+        public string currentPassword { get; set; } = "";
+        public string newPassword { get; set; } = "";
     }
 
     public class UserProfileUpdateReq

@@ -47,7 +47,7 @@ function QrLinkCard({
       <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       <div className="mt-5 flex justify-center">
         <div className="rounded-xl border border-border bg-background p-3">
-          <img src={qrSrc} alt={`QR for ${url}`} width={220} height={220} className="size-[220px]" />
+          <img src={qrSrc} alt={`QR for ${url}`} width={220} height={220} className="h-auto w-full max-w-[220px]" />
         </div>
       </div>
       <p className="mt-3 break-all font-mono text-xs text-muted-foreground">{url}</p>

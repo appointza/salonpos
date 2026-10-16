@@ -4,7 +4,7 @@ import { getCustomerById } from "@/pages/Customers/customer-lookup";
 import { patchCustomer } from "@/pages/Customers/customer-store";
 import { postLoyaltyTransaction, type LoyaltyStore } from "@/pages/Loyalty/loyalty-service";
 import { pickWheelSegment } from "@/pages/LoyaltyQr/qr-loyalty";
-import { pickTierWeightedReward, type TierWeights } from "@/pages/PrizeWheel/reward-distribution";
+import { isRewardWithinValidity, pickTierWeightedReward, type TierWeights } from "@/pages/PrizeWheel/reward-distribution";
 import { hydrateWheelPrize, prizeDiscountAmount } from "@/pages/PrizeWheel/prize-discount";
 
 export const WHEEL_SPINS = "wheelSpins";
@@ -156,7 +156,10 @@ export function processWheelSpinResult(store: WheelStore, input: ProcessWheelSpi
 
 export function getPendingWheelSpins(db: Db, customerId: EntityId) {
   return (db[WHEEL_SPINS] ?? []).filter(
-    (s) => String(s["customerId"]) === customerId && String(s["status"]) === "Pending",
+    (s) =>
+      String(s["customerId"]) === customerId &&
+      String(s["status"]) === "Pending" &&
+      isRewardWithinValidity(db, s),
   );
 }
 
@@ -176,6 +179,7 @@ export function redeemWheelSpinAtPos(
   const spin = (store.db[WHEEL_SPINS] ?? []).find((s) => String(s.id) === input.spinId);
   if (!spin) return { ok: false, error: "Wheel spin not found" };
   if (String(spin["status"]) !== "Pending") return { ok: false, duplicate: true, error: "Wheel reward already used" };
+  if (!isRewardWithinValidity(store.db, spin)) return { ok: false, error: "Prize expired" };
 
   store.update(WHEEL_SPINS, input.spinId, {
     ...spin,

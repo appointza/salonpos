@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CrudPage, type ModuleDef } from "@/components/CrudPage";
+import { ServiceThumb } from "@/components/ServiceThumb";
 import { useAuth } from "@/hooks/useAuth";
-import { useData, type Row } from "@/store";
+import { useCollection, useData, type Row } from "@/store";
 import { parseProductNeeds, serializeProductNeeds, recipesForService, SERVICE_PRODUCTS } from "@/pages/Services/service-recipe";
 import { useStockService } from "@/pages/Inventory/stock";
 
@@ -20,6 +22,7 @@ const servicesModule: ModuleDef = {
   fields: [
     { name: "type", label: "Type", type: "select", options: ["Single", "Combo"], table: true, badge: true },
     { name: "name", label: "Service name", table: true },
+    { name: "imageId", label: "Image", table: true },
     { name: "category", label: "Category", type: "select", options: ["Hair", "Skin", "Grooming", "Bridal", "Spa"], table: true },
     { name: "duration", label: "Duration (min)", type: "number", table: true },
     { name: "price", label: "Price", type: "number", money: true, table: true },
@@ -97,7 +100,8 @@ function ComboPicker({
                   onCheckedChange={(value) => toggle(id, value === true)}
                 />
                 <label htmlFor={`combo-${id}`} className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-3 text-sm">
-                  <span className="truncate">
+                  <span className="flex min-w-0 items-center gap-2 truncate">
+                    <ServiceThumb imageId={s["imageId"]} name={String(s["name"])} size={28} />
                     {String(s["name"])}{" "}
                     <span className="text-muted-foreground">· {String(s["category"])}</span>
                   </span>
@@ -194,10 +198,14 @@ function ProductNeedsPicker({
   );
 }
 
+const NONE = "__none__";
+
 export function Page() {
   const { user } = useAuth();
   const { allRows, create, remove, orgId } = useData();
+  const { rows: assets } = useCollection("assets");
   const isStylist = user?.role === "STYLIST";
+  const orgAssets = assets.filter((a) => String(a["orgId"]) === String(orgId));
 
   function syncRecipes(row: Row) {
     const serviceId = String(row.id);
@@ -255,6 +263,41 @@ export function Page() {
           <ProductNeedsPicker editing={editing} setEditing={setEditing} />
         </>
       )}
+      renderFormField={(field, editing, setEditing) => {
+        if (field.name !== "imageId") return undefined;
+        const current = String(editing["imageId"] ?? "");
+        return (
+          <div>
+            <Label className="mb-1.5">Image</Label>
+            <div className="flex items-center gap-3">
+              <ServiceThumb imageId={current} name={String(editing["name"] ?? "")} size={48} />
+              <Select
+                value={current || NONE}
+                onValueChange={(v) => setEditing({ ...editing, imageId: v === NONE ? "" : v })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select asset id…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>No image</SelectItem>
+                  {orgAssets.map((a) => (
+                    <SelectItem key={String(a.id)} value={String(a.id)}>
+                      Asset {String(a.id)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {orgAssets.length === 0 ? (
+              <p className="mt-1.5 text-xs text-muted-foreground">Upload images under Settings → Assets first.</p>
+            ) : null}
+          </div>
+        );
+      }}
+      renderCell={(field, row) => {
+        if (field.name !== "imageId") return undefined;
+        return <ServiceThumb imageId={row["imageId"]} name={String(row["name"] ?? "")} size={36} />;
+      }}
       validate={(row) => {
         if (String(row["type"]) !== "Combo") return null;
         const count = String(row["comboItems"] ?? "")

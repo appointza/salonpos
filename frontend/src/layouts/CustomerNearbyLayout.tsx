@@ -1,20 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { CalendarCheck, ClipboardList, LogOut, MapPin, Menu, Sparkles, X } from "lucide-react";
+import { CalendarCheck, ClipboardList, LogOut, MapPin, Menu, Sparkles, TicketPercent, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCustomerSession } from "@/pages/Login/customer-session";
 import { cn } from "@/utils/utils";
 
 const NAV = [
   { to: "/nearby", label: "Nearby", icon: MapPin, exact: true },
+  { to: "/nearby/offers", label: "Offers", icon: TicketPercent, exact: false },
   { to: "/nearby/booking", label: "Booking", icon: CalendarCheck, exact: false },
   { to: "/nearby/my-bookings", label: "My bookings", icon: ClipboardList, exact: false },
 ] as const;
 
 function pageTitle(pathname: string) {
+  if (pathname.startsWith("/nearby/offers")) return "Offers";
   if (pathname.startsWith("/nearby/booking")) return "Booking";
   if (pathname.startsWith("/nearby/my-bookings")) return "My bookings";
-  if (pathname.startsWith("/nearby/my-shops")) return "My shops & rewards";
   return "Nearby";
 }
 
@@ -41,20 +42,20 @@ export function CustomerNearbyLayout() {
     return pathname === to || pathname.startsWith(`${to}/`);
   }
 
-  function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+  function SidebarNav({ onNavigate, className }: { onNavigate?: () => void; className?: string }) {
     return (
-      <>
-        <div className="flex items-center gap-2.5 border-b border-sidebar-border px-5 py-5">
+      <div className={cn("flex h-full min-h-0 flex-col", className)}>
+        <div className="flex shrink-0 items-center gap-2.5 border-b border-sidebar-border px-5 py-5">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Sparkles className="size-4" />
           </span>
           <div className="min-w-0">
-            <p className="font-display truncate text-[15px] font-semibold leading-tight">Luxe Salon</p>
-            <p className="truncate text-[11px] text-muted-foreground">Customer app</p>
+            <p className="font-display truncate text-[15px] font-semibold leading-tight">Krios</p>
+            <p className="truncate text-[11px] text-muted-foreground">All salons</p>
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {NAV.map(({ to, label, icon: Icon, exact }) => {
             const active = isActive(to, exact);
             return (
@@ -76,7 +77,7 @@ export function CustomerNearbyLayout() {
           })}
         </nav>
 
-        <div className="border-t border-sidebar-border px-4 py-4">
+        <div className="mt-auto shrink-0 border-t border-sidebar-border px-4 py-4">
           <p className="truncate text-xs font-medium text-foreground">{customer.name}</p>
           <p className="truncate text-xs text-muted-foreground">{customer.phone}</p>
           <Button
@@ -92,35 +93,35 @@ export function CustomerNearbyLayout() {
             Sign out
           </Button>
         </div>
-      </>
+      </div>
     );
   }
 
+  const lockPage = pathname.startsWith("/nearby/booking");
+
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Desktop / tablet sidebar — always visible */}
-      <aside className="hidden w-[16rem] shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
+    <div className={cn("flex min-h-dvh bg-background", lockPage && "h-dvh overflow-hidden")}>
+      <aside className="sticky top-0 hidden h-dvh w-[16rem] shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
         <SidebarNav />
       </aside>
 
-      {/* Mobile drawer */}
       {mobileOpen ? (
         <>
           <div className="fixed inset-0 z-40 bg-foreground/40 md:hidden" onClick={() => setMobileOpen(false)} />
-          <aside className="fixed inset-y-0 left-0 z-50 flex w-[16rem] flex-col border-r border-sidebar-border bg-sidebar shadow-xl md:hidden">
-            <div className="flex justify-end px-3 pt-3">
+          <aside className="fixed inset-y-0 left-0 z-50 flex h-dvh w-[16rem] flex-col border-r border-sidebar-border bg-sidebar shadow-xl md:hidden">
+            <div className="flex shrink-0 justify-end px-3 pt-3">
               <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Close menu">
                 <X className="size-4" />
               </Button>
             </div>
-            <SidebarNav onNavigate={() => setMobileOpen(false)} />
+            <SidebarNav className="min-h-0 flex-1" onNavigate={() => setMobileOpen(false)} />
           </aside>
         </>
       ) : null}
 
       {/* Right content panel */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card px-3 py-3 sm:px-4">
+      <div className={cn("flex min-w-0 flex-1 flex-col", lockPage && "min-h-0 overflow-hidden")}>
+        <header className="z-20 flex shrink-0 items-center gap-3 border-b border-border bg-card px-3 py-3 sm:px-4">
           <Button
             variant="outline"
             size="icon"
@@ -136,8 +137,18 @@ export function CustomerNearbyLayout() {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto bg-muted/15">
-          <div className="w-full px-3 py-4 sm:px-4 sm:py-5">
+        <main
+          className={cn(
+            "min-h-0 flex-1 bg-muted/15",
+            lockPage ? "flex flex-col overflow-hidden" : "overflow-y-auto",
+          )}
+        >
+          <div
+            className={cn(
+              "w-full px-3 py-4 sm:px-4 sm:py-5",
+              lockPage && "flex min-h-0 flex-1 flex-col overflow-hidden",
+            )}
+          >
             <Outlet />
           </div>
         </main>

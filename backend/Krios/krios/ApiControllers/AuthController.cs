@@ -52,5 +52,26 @@ namespace Krios.Controllers.Krios
             var result = new ActionRes<UserLoginRes> { item = await userLoginService.Login(req.item) };
             return Ok(result);
         }
+
+        [HttpPost("ChangePassword")]
+        public async Task<ActionResult<ActionRes<UserLoginRes>>> ChangePassword(ActionReq<UserChangePasswordReq> req)
+        {
+            var result = new ActionRes<UserLoginRes> { item = await userLoginService.ChangePassword(req.item) };
+            return Ok(result);
+        }
+
+        [HttpPost("ResetOrganizationPassword")]
+        public async Task<ActionResult<ActionRes<UserLoginRes>>> ResetOrganizationPassword(ActionReq<AuthResetOrganizationPasswordReq> req)
+        {
+            var result = new ActionRes<UserLoginRes> { item = await authService.ResetOrganizationPassword(req.item) };
+            return Ok(result);
+        }
+
+        [HttpPost("UpdateLanguage")]
+        public async Task<ActionResult<ActionRes<AuthUpdateLanguageRes>>> UpdateLanguage(ActionReq<AuthUpdateLanguageReq> req)
+        {
+            var result = new ActionRes<AuthUpdateLanguageRes> { item = await authService.UpdateLanguage(req.item) };
+            return Ok(result);
+        }
     }
 }

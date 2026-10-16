@@ -1,7 +1,7 @@
 import type { EntityId } from "@/ids";
 import type { BillLine } from "@/pages/Pos/sale";
 import { AUDIT, MEMBERSHIP_USAGE } from "@/pages/Pos/sale";
-import { addExpiry, postLoyaltyTransaction } from "@/pages/Loyalty/loyalty-service";
+import { addExpiry, applyOrgLoyaltyChange, getOrgLoyaltyBalance, postLoyaltyTransaction } from "@/pages/Loyalty/loyalty-service";
 import { redeemOfferAtPos } from "@/pages/Offers/offer-redemption-service";
 import { redeemPartnerCouponAtPos } from "@/pages/LoyaltyPartners/partner-coupon-service";
 import { redeemScratchPlayAtPos } from "@/pages/ScratchCard/scratch-service";
@@ -48,7 +48,10 @@ export function completeSale(
     quote.rule.rupeesPerPoint > 0
       ? Math.floor(Math.max(afterMember - quote.rewardDiscount - quote.couponDiscount, 0) / quote.rule.rupeesPerPoint)
       : 0;
-  const redeem = Math.max(0, Math.min(pointsRedeemed, Number(customer["points"] ?? 0), maxPts));
+  const redeem = Math.max(
+    0,
+    Math.min(pointsRedeemed, getOrgLoyaltyBalance(store.db, tenant.orgId, String(customer["phone"] ?? "")), maxPts),
+  );
 
   const stockErr = stock.assertCanIssue(lines);
   if (stockErr) {
@@ -201,21 +204,21 @@ export function completeSale(
     });
   }
 
-  let running = Number(customer["points"] ?? 0);
+  let running = getOrgLoyaltyBalance(store.db, tenant.orgId, String(customer["phone"] ?? ""));
   if (redeem > 0) {
-    const redeemed = postLoyaltyTransaction(store, {
-      customerId: String(customer.id),
-      type: "Redeem",
+    const redeemed = applyOrgLoyaltyChange(store, {
+      orgId: tenant.orgId,
+      phone: String(customer["phone"] ?? ""),
       points: redeem,
+      mode: "claim",
       source: "invoice",
       referenceId: invoiceId,
       programId: quote.rule.programId,
-      locationId: effLocation,
       reason: "POS redemption",
-      orgId: tenant.orgId,
+      preferCustomerId: customer.id,
     });
     if (redeemed.ok) {
-      running = redeemed.balanceAfter;
+      running = redeemed.orgBalanceAfter;
       emitBusinessEvent(store, {
         type: "LOYALTY_REDEEMED",
         orgId: tenant.orgId,

@@ -56,7 +56,7 @@ export function issueStampReward(
     value: 0,
     status: "Available",
     issuedAt,
-    expiresAt: addDays(issuedAt, input.validityDays ?? 90),
+    expiresAt: addDays(issuedAt, input.validityDays ?? 30),
     redeemedAt: "",
     invoiceId: "",
   };

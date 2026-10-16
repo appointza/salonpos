@@ -19,6 +19,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatServiceSpec } from "@/pages/Memberships/membership";
 import { customerName } from "@/pages/Customers/customer-lookup";
 import { issueOfferToCustomer, listOfferClaims } from "@/pages/Offers/offer-redemption-service";
+import { addCalendarDays, offerExpiryDate, useRewardDistribution } from "@/pages/PrizeWheel/reward-distribution";
+import { useListView } from "@/list-view";
 import { useCollection, useData, type Row } from "@/store";
 import { useTenant } from "@/tenant";
 
@@ -26,7 +28,9 @@ const title = "QR Offers — Luxe Salon CRM";
 const description = "Birthday, welcome and tier offers shown after customer check-in.";
 
 export function OffersPage() {
+  const { view } = useListView();
   const { org, locationId, orgId } = useTenant();
+  const { config: rewardConfig } = useRewardDistribution();
   const { allRows, create } = useData();
   const { rows: customers } = useCollection("customers");
   const { rows: offerRows } = useCollection("qrOffers");
@@ -62,7 +66,7 @@ export function OffersPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-display text-3xl tracking-tight text-foreground">QR offers</h1>
+        <h1 className="font-display text-2xl tracking-tight text-foreground sm:text-3xl">QR offers</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Create offer schemes here. After QR check-in (or Issue below), a claim appears on the Claims tab. Staff apply
           it at POS; redeemed claims stay on that list.
@@ -120,6 +124,15 @@ export function OffersPage() {
                 },
               ],
             }}
+            prepareNew={(row) => {
+              const start = new Date().toISOString().slice(0, 10);
+              return {
+                ...row,
+                validityStart: String(row["validityStart"] ?? "") || start,
+                validityEnd: String(row["validityEnd"] ?? "") || addCalendarDays(start, rewardConfig.offerValidityDays),
+                status: String(row["status"] ?? "") || "Active",
+              };
+            }}
             displayValue={(field, row) => {
               if (field.name === "serviceName") return formatServiceSpec(row["serviceName"], services) || undefined;
               return undefined;
@@ -169,7 +182,37 @@ export function OffersPage() {
               No claim records yet. Active offers are issued when a matching guest checks in, or use Issue to customer
               on the schemes tab. They redeem at POS.
             </p>
-          ) : (
+          ) : view === "card" ? (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredClaims.map((row) => {
+                  const invoice = String(row["invoiceId"] ?? "");
+                  const showInvoice = invoice && invoice !== "0";
+                  const expires = offerExpiryDate(String(row["issuedAt"] ?? ""), rewardConfig.offerValidityDays);
+                  const expired =
+                    String(row["status"]) === "Issued" && expires && expires < new Date().toISOString().slice(0, 10);
+                  return (
+                    <div key={String(row.id)} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium">{String(row["offerTitle"] ?? row["offerId"] ?? "Offer")}</p>
+                        <Badge variant={String(row["status"]) === "Redeemed" || expired ? "outline" : "secondary"}>
+                          {expired ? "Expired" : String(row["status"] ?? "")}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-sm">{customerName(allRows, String(row["customerId"] ?? ""))}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {String(row["offerType"] ?? "—")} · {locName(String(row["locationId"] ?? ""))}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Issued {String(row["issuedAt"] || "—")} · Expires {expires || "—"}
+                      </p>
+                      <p className="mt-1 font-mono text-xs text-muted-foreground">
+                        Bill {showInvoice ? invoice : "—"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
             <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
               <Table>
                 <TableHeader>
@@ -179,6 +222,7 @@ export function OffersPage() {
                     <TableHead>Type</TableHead>
                     <TableHead>Outlet</TableHead>
                     <TableHead>Issued</TableHead>
+                    <TableHead>Expires</TableHead>
                     <TableHead>Redeemed</TableHead>
                     <TableHead>Invoice</TableHead>
                     <TableHead>Status</TableHead>
@@ -188,6 +232,9 @@ export function OffersPage() {
                   {filteredClaims.map((row) => {
                     const invoice = String(row["invoiceId"] ?? "");
                     const showInvoice = invoice && invoice !== "0";
+                    const expires = offerExpiryDate(String(row["issuedAt"] ?? ""), rewardConfig.offerValidityDays);
+                    const expired =
+                      String(row["status"]) === "Issued" && expires && expires < new Date().toISOString().slice(0, 10);
                     return (
                       <TableRow key={String(row.id)}>
                         <TableCell className="font-medium">{String(row["offerTitle"] ?? row["offerId"] ?? "Offer")}</TableCell>
@@ -195,11 +242,12 @@ export function OffersPage() {
                         <TableCell className="text-sm text-muted-foreground">{String(row["offerType"] ?? "—")}</TableCell>
                         <TableCell className="text-sm">{locName(String(row["locationId"] ?? ""))}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{String(row["issuedAt"] || "—")}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{expires || "—"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{String(row["redeemedAt"] || "—")}</TableCell>
                         <TableCell className="font-mono text-xs">{showInvoice ? invoice : "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={String(row["status"]) === "Redeemed" ? "outline" : "secondary"}>
-                            {String(row["status"] ?? "")}
+                          <Badge variant={String(row["status"]) === "Redeemed" || expired ? "outline" : "secondary"}>
+                            {expired ? "Expired" : String(row["status"] ?? "")}
                           </Badge>
                         </TableCell>
                       </TableRow>

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Page } from "@/pages/Pos/Pos";
 
-const title = "POS & Billing — Luxe Salon CRM";
+const title = "POS — Luxe Salon CRM";
 const description = "Search customers by phone, bill services and products, and send receipts on WhatsApp.";
 
 function parseAppointmentSearch(raw: unknown): string | undefined {

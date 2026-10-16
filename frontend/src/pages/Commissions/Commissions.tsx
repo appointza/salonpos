@@ -20,7 +20,7 @@ export function Page() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-display text-3xl tracking-tight">Commission ledger</h1>
+        <h1 className="font-display text-2xl tracking-tight sm:text-3xl">Commission ledger</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Each row is created when a POS bill is posted (staff + invoice + service/product). Payroll sums these amounts
           for the month. This list is not a separate master to type by hand.

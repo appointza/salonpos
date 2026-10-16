@@ -1,6 +1,8 @@
 using Krios.Models.Krios;
 using Krios.Utils;
+using System.Collections.Generic;
 using System.Data.Common;
+using System.Linq;
 
 namespace Krios.Services.Krios
 {
@@ -30,7 +32,7 @@ namespace Krios.Services.Krios
         public async Task<List<Appointment>> SelectTransaction(IDb db, AppointmentSelectReq req)
         {
             const string query = @"
-                SELECT id, ""orgId"", ""locationId"", ""customerId"", customer, ""serviceId"", service, ""staffId"", staff, outlet, date, time, duration, status, source, notes, createdby, createdon, updatedby, updatedon
+                SELECT id, ""orgId"", ""locationId"", ""customerId"", customer, ""serviceId"", ""serviceIds"", service, ""staffId"", staff, outlet, date, time, duration, status, source, notes, createdby, createdon, updatedby, updatedon
                 FROM appointments
             ";
 
@@ -51,10 +53,13 @@ namespace Krios.Services.Krios
             var command = qb.GetCommand(db);
 
             var result = new List<Appointment>();
-            using DbDataReader reader = await db.Execute(command);
-            while (await reader.ReadAsync())
-                result.Add(Map(reader));
+            using (DbDataReader reader = await db.Execute(command))
+            {
+                while (await reader.ReadAsync())
+                    result.Add(Map(reader));
+            }
 
+            await FillServiceNames(db, result);
             return result;
         }
 
@@ -70,10 +75,10 @@ namespace Krios.Services.Krios
         {
             const string query = @"
                 INSERT INTO appointments (
-                    ""orgId"", ""locationId"", ""customerId"", customer, ""serviceId"", service, ""staffId"", staff, outlet, date, time, duration, status, source, notes, createdby, createdon, updatedby, updatedon
+                    ""orgId"", ""locationId"", ""customerId"", customer, ""serviceId"", ""serviceIds"", service, ""staffId"", staff, outlet, date, time, duration, status, source, notes, createdby, createdon, updatedby, updatedon
                 )
                 VALUES (
-                    @orgId, @locationId, @customerId, @customer, @serviceId, @service, @staffId, @staff, @outlet, @date, @time, @duration, @status, @source, @notes, @createdby, @createdon, @updatedby, @updatedon
+                    @orgId, @locationId, @customerId, @customer, @serviceId, @serviceIds, @service, @staffId, @staff, @outlet, @date, @time, @duration, @status, @source, @notes, @createdby, @createdon, @updatedby, @updatedon
                 )
                 RETURNING id;
             ";
@@ -112,6 +117,7 @@ namespace Krios.Services.Krios
                     ""customerId"" = @customerId,
                     customer = @customer,
                     ""serviceId"" = @serviceId,
+                    ""serviceIds"" = @serviceIds,
                     service = @service,
                     ""staffId"" = @staffId,
                     staff = @staff,
@@ -173,6 +179,7 @@ namespace Krios.Services.Krios
                 customerId = ReadLong(reader, "customerId"),
                 customer = reader["customer"]?.ToString() ?? "",
                 serviceId = ReadLong(reader, "serviceId"),
+                serviceIds = ReadString(reader, "serviceIds"),
                 service = reader["service"]?.ToString() ?? "",
                 staffId = ReadLong(reader, "staffId"),
                 staff = reader["staff"]?.ToString() ?? "",
@@ -199,6 +206,7 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "customerId", DbTypes.Types.Long).Value = entity.customerId;
             db.AddParameter(cmd, "customer", DbTypes.Types.String).Value = entity.customer ?? "";
             db.AddParameter(cmd, "serviceId", DbTypes.Types.Long).Value = entity.serviceId;
+            db.AddParameter(cmd, "serviceIds", DbTypes.Types.String).Value = entity.serviceIds ?? "";
             db.AddParameter(cmd, "service", DbTypes.Types.String).Value = entity.service ?? "";
             db.AddParameter(cmd, "staffId", DbTypes.Types.Long).Value = entity.staffId;
             db.AddParameter(cmd, "staff", DbTypes.Types.String).Value = entity.staff ?? "";
@@ -213,6 +221,50 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "createdon", DbTypes.Types.Date).Value = entity.createdon ?? DateTime.UtcNow.Date;
             db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value = entity.updatedby ?? "";
             db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = entity.updatedon ?? DateTime.UtcNow.Date;
+        }
+
+        private static List<long> ServiceIdsOf(Appointment appt)
+        {
+            var ids = new List<long>();
+            if (!string.IsNullOrWhiteSpace(appt.serviceIds))
+            {
+                foreach (var part in appt.serviceIds.Split(new[] { ',', '|', '[', ']', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (long.TryParse(part.Trim(), out var id) && id > 0 && !ids.Contains(id))
+                        ids.Add(id);
+                }
+            }
+            if (appt.serviceId > 0 && !ids.Contains(appt.serviceId))
+                ids.Insert(0, appt.serviceId);
+            return ids;
+        }
+
+        private static async Task FillServiceNames(IDb db, List<Appointment> rows)
+        {
+            var allIds = rows.SelectMany(ServiceIdsOf).Distinct().ToList();
+            if (allIds.Count == 0) return;
+            var inList = string.Join(",", allIds);
+            var cmd = db.GetCommand($@"SELECT id, name FROM services WHERE id IN ({inList})");
+            var names = new Dictionary<long, string>();
+            using (var reader = await db.Execute(cmd))
+            {
+                while (await reader.ReadAsync())
+                {
+                    var id = Convert.ToInt64(reader["id"]);
+                    names[id] = reader["name"]?.ToString() ?? "";
+                }
+            }
+            foreach (var appt in rows)
+            {
+                var labels = ServiceIdsOf(appt)
+                    .Select(id => names.TryGetValue(id, out var n) ? n : "")
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .ToList();
+                if (labels.Count == 0) continue;
+                var joined = string.Join(", ", labels);
+                appt.service = joined;
+                appt.serviceName = joined;
+            }
         }
 
         private async Task EnsureBookable(IDb db, Appointment entity, long excludeId)
@@ -304,6 +356,19 @@ namespace Krios.Services.Krios
             if (value > int.MaxValue) return int.MaxValue;
             if (value < int.MinValue) return int.MinValue;
             return (int)value;
+        }
+
+        private static string ReadString(DbDataReader reader, string column)
+        {
+            try
+            {
+                var value = reader[column];
+                return value == DBNull.Value ? "" : value?.ToString() ?? "";
+            }
+            catch
+            {
+                return "";
+            }
         }
 
         private static long ReadLong(DbDataReader reader, string column)

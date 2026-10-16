@@ -10,6 +10,7 @@ export class OrganizationRes {
   website: string = "";
   businessType: string = "";
   brandColor: string = "";
+  logo: string = "";
   pointsPerRupee: number = 0;
   rupeesPerPoint: number = 0;
   whatsappPhoneNumberId: string = "";
@@ -33,6 +34,8 @@ export class OrganizationRes {
   publicBookingShowPrizeWheel: string = "";
   publicBookingShowScratchCard: string = "";
   bookingRules: string = "";
+  referralRules: string = "";
+  growthClaimPool: string = "";
 }
 
 export class CreateOrganizationReq {
@@ -44,6 +47,7 @@ export class CreateOrganizationReq {
   website: string = "";
   businessType: string = "";
   brandColor: string = "";
+  logo: string = "";
   pointsPerRupee: number = 0;
   rupeesPerPoint: number = 0;
   whatsappPhoneNumberId: string = "";
@@ -63,6 +67,8 @@ export class CreateOrganizationReq {
   publicBookingShowPrizeWheel: string = "";
   publicBookingShowScratchCard: string = "";
   bookingRules: string = "";
+  referralRules: string = "";
+  growthClaimPool: string = "";
 }
 
 export class CreateOrganizationRes extends OrganizationRes {}
@@ -77,6 +83,7 @@ export class UpdateOrganizationReq {
   website: string = "";
   businessType: string = "";
   brandColor: string = "";
+  logo: string = "";
   pointsPerRupee: number = 0;
   rupeesPerPoint: number = 0;
   whatsappPhoneNumberId: string = "";
@@ -96,6 +103,8 @@ export class UpdateOrganizationReq {
   publicBookingShowPrizeWheel: string = "";
   publicBookingShowScratchCard: string = "";
   bookingRules: string = "";
+  referralRules: string = "";
+  growthClaimPool: string = "";
 }
 
 export class UpdateOrganizationRes extends OrganizationRes {}
@@ -140,6 +149,7 @@ export class OrganizationRegistrationReq {
   domain: string = "";
   website: string = "";
   brandColor: string = "";
+  logo: string = "";
   adminName: string = "";
   adminEmail: string = "";
   adminPassword: string = "";

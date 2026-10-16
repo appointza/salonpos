@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OrgSlugRouteImport } from './routes/$orgSlug'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as BookRouteImport } from './routes/book'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NearbyRouteImport } from './routes/nearby'
 import { Route as PlatformRouteImport } from './routes/platform'
@@ -34,6 +35,7 @@ import { Route as AppFranchisesRouteImport } from './routes/_app/franchises'
 import { Route as AppFrontDeskRouteImport } from './routes/_app/front-desk'
 import { Route as AppGrowthRouteImport } from './routes/_app/growth'
 import { Route as AppInventoryRouteImport } from './routes/_app/inventory'
+import { Route as AppInvoicesRouteImport } from './routes/_app/invoices'
 import { Route as AppLeavesRouteImport } from './routes/_app/leaves'
 import { Route as AppLoyaltyRouteImport } from './routes/_app/loyalty'
 import { Route as AppMembershipsRouteImport } from './routes/_app/memberships'
@@ -55,10 +57,12 @@ import { Route as AppVendorsRouteImport } from './routes/_app/vendors'
 import { Route as NearbyIndexRouteImport } from './routes/nearby/index'
 import { Route as NearbyBookingRouteImport } from './routes/nearby/booking'
 import { Route as NearbyMyBookingsRouteImport } from './routes/nearby/my-bookings'
-import { Route as NearbyMyShopsRouteImport } from './routes/nearby/my-shops'
+import { Route as NearbyOffersRouteImport } from './routes/nearby/offers'
 import { Route as QrLocationIdRouteImport } from './routes/qr/$locationId'
 import { Route as AppCouponsCouponIdRouteImport } from './routes/_app/coupons/$couponId'
 import { Route as AppCustomersCustomerIdRouteImport } from './routes/_app/customers/$customerId'
+import { Route as AppGrowthIndexRouteImport } from './routes/_app/growth.index'
+import { Route as AppGrowthClaimRouteImport } from './routes/_app/growth.claim'
 import { Route as AppLoyaltyIndexRouteImport } from './routes/_app/loyalty/index'
 import { Route as AppLoyaltyCatalogRouteImport } from './routes/_app/loyalty/catalog'
 import { Route as AppLoyaltyCheckinsRouteImport } from './routes/_app/loyalty/checkins'
@@ -93,6 +97,11 @@ const AppRoute = AppRouteImport.update({
 const BookRoute = BookRouteImport.update({
   id: '/book',
   path: '/book',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -200,6 +209,11 @@ const AppInventoryRoute = AppInventoryRouteImport.update({
   path: '/inventory',
   getParentRoute: () => AppRoute,
 } as any)
+const AppInvoicesRoute = AppInvoicesRouteImport.update({
+  id: '/invoices',
+  path: '/invoices',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppLeavesRoute = AppLeavesRouteImport.update({
   id: '/leaves',
   path: '/leaves',
@@ -305,9 +319,9 @@ const NearbyMyBookingsRoute = NearbyMyBookingsRouteImport.update({
   path: '/my-bookings',
   getParentRoute: () => NearbyRoute,
 } as any)
-const NearbyMyShopsRoute = NearbyMyShopsRouteImport.update({
-  id: '/my-shops',
-  path: '/my-shops',
+const NearbyOffersRoute = NearbyOffersRouteImport.update({
+  id: '/offers',
+  path: '/offers',
   getParentRoute: () => NearbyRoute,
 } as any)
 const QrLocationIdRoute = QrLocationIdRouteImport.update({
@@ -324,6 +338,16 @@ const AppCustomersCustomerIdRoute = AppCustomersCustomerIdRouteImport.update({
   id: '/$customerId',
   path: '/$customerId',
   getParentRoute: () => AppCustomersRoute,
+} as any)
+const AppGrowthIndexRoute = AppGrowthIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppGrowthRoute,
+} as any)
+const AppGrowthClaimRoute = AppGrowthClaimRouteImport.update({
+  id: '/claim',
+  path: '/claim',
+  getParentRoute: () => AppGrowthRoute,
 } as any)
 const AppLoyaltyIndexRoute = AppLoyaltyIndexRouteImport.update({
   id: '/',
@@ -410,6 +434,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$orgSlug': typeof OrgSlugRouteWithChildren
   '/book': typeof BookRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/nearby': typeof NearbyRouteWithChildren
   '/platform': typeof PlatformRoute
@@ -428,8 +453,9 @@ export interface FileRoutesByFullPath {
   '/feedback': typeof AppFeedbackRoute
   '/franchises': typeof AppFranchisesRoute
   '/front-desk': typeof AppFrontDeskRoute
-  '/growth': typeof AppGrowthRoute
+  '/growth': typeof AppGrowthRouteWithChildren
   '/inventory': typeof AppInventoryRoute
+  '/invoices': typeof AppInvoicesRoute
   '/leaves': typeof AppLeavesRoute
   '/loyalty': typeof AppLoyaltyRouteWithChildren
   '/memberships': typeof AppMembershipsRoute
@@ -450,12 +476,13 @@ export interface FileRoutesByFullPath {
   '/vendors': typeof AppVendorsRoute
   '/nearby/booking': typeof NearbyBookingRoute
   '/nearby/my-bookings': typeof NearbyMyBookingsRoute
-  '/nearby/my-shops': typeof NearbyMyShopsRoute
+  '/nearby/offers': typeof NearbyOffersRoute
   '/qr/$locationId': typeof QrLocationIdRoute
   '/$orgSlug/': typeof OrgSlugIndexRoute
   '/nearby/': typeof NearbyIndexRoute
   '/coupons/$couponId': typeof AppCouponsCouponIdRouteWithChildren
   '/customers/$customerId': typeof AppCustomersCustomerIdRoute
+  '/growth/claim': typeof AppGrowthClaimRoute
   '/loyalty/catalog': typeof AppLoyaltyCatalogRoute
   '/loyalty/checkins': typeof AppLoyaltyCheckinsRoute
   '/loyalty/coupons': typeof AppLoyaltyCouponsRoute
@@ -470,12 +497,14 @@ export interface FileRoutesByFullPath {
   '/loyalty/rewards': typeof AppLoyaltyRewardsRoute
   '/loyalty/scratch': typeof AppLoyaltyScratchRoute
   '/loyalty/wheel': typeof AppLoyaltyWheelRoute
+  '/growth/': typeof AppGrowthIndexRoute
   '/loyalty/': typeof AppLoyaltyIndexRoute
   '/coupons/$couponId/codes': typeof AppCouponsCouponIdCodesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/book': typeof BookRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/platform': typeof PlatformRoute
   '/register': typeof RegisterRoute
@@ -493,8 +522,8 @@ export interface FileRoutesByTo {
   '/feedback': typeof AppFeedbackRoute
   '/franchises': typeof AppFranchisesRoute
   '/front-desk': typeof AppFrontDeskRoute
-  '/growth': typeof AppGrowthRoute
   '/inventory': typeof AppInventoryRoute
+  '/invoices': typeof AppInvoicesRoute
   '/leaves': typeof AppLeavesRoute
   '/memberships': typeof AppMembershipsRoute
   '/offers': typeof AppOffersRoute
@@ -514,12 +543,13 @@ export interface FileRoutesByTo {
   '/vendors': typeof AppVendorsRoute
   '/nearby/booking': typeof NearbyBookingRoute
   '/nearby/my-bookings': typeof NearbyMyBookingsRoute
-  '/nearby/my-shops': typeof NearbyMyShopsRoute
+  '/nearby/offers': typeof NearbyOffersRoute
   '/qr/$locationId': typeof QrLocationIdRoute
   '/$orgSlug': typeof OrgSlugIndexRoute
   '/nearby': typeof NearbyIndexRoute
   '/coupons/$couponId': typeof AppCouponsCouponIdRouteWithChildren
   '/customers/$customerId': typeof AppCustomersCustomerIdRoute
+  '/growth/claim': typeof AppGrowthClaimRoute
   '/loyalty/catalog': typeof AppLoyaltyCatalogRoute
   '/loyalty/checkins': typeof AppLoyaltyCheckinsRoute
   '/loyalty/coupons': typeof AppLoyaltyCouponsRoute
@@ -534,6 +564,7 @@ export interface FileRoutesByTo {
   '/loyalty/rewards': typeof AppLoyaltyRewardsRoute
   '/loyalty/scratch': typeof AppLoyaltyScratchRoute
   '/loyalty/wheel': typeof AppLoyaltyWheelRoute
+  '/growth': typeof AppGrowthIndexRoute
   '/loyalty': typeof AppLoyaltyIndexRoute
   '/coupons/$couponId/codes': typeof AppCouponsCouponIdCodesRoute
 }
@@ -543,6 +574,7 @@ export interface FileRoutesById {
   '/$orgSlug': typeof OrgSlugRouteWithChildren
   '/_app': typeof AppRouteWithChildren
   '/book': typeof BookRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/nearby': typeof NearbyRouteWithChildren
   '/platform': typeof PlatformRoute
@@ -561,8 +593,9 @@ export interface FileRoutesById {
   '/_app/feedback': typeof AppFeedbackRoute
   '/_app/franchises': typeof AppFranchisesRoute
   '/_app/front-desk': typeof AppFrontDeskRoute
-  '/_app/growth': typeof AppGrowthRoute
+  '/_app/growth': typeof AppGrowthRouteWithChildren
   '/_app/inventory': typeof AppInventoryRoute
+  '/_app/invoices': typeof AppInvoicesRoute
   '/_app/leaves': typeof AppLeavesRoute
   '/_app/loyalty': typeof AppLoyaltyRouteWithChildren
   '/_app/memberships': typeof AppMembershipsRoute
@@ -583,12 +616,13 @@ export interface FileRoutesById {
   '/_app/vendors': typeof AppVendorsRoute
   '/nearby/booking': typeof NearbyBookingRoute
   '/nearby/my-bookings': typeof NearbyMyBookingsRoute
-  '/nearby/my-shops': typeof NearbyMyShopsRoute
+  '/nearby/offers': typeof NearbyOffersRoute
   '/qr/$locationId': typeof QrLocationIdRoute
   '/$orgSlug/': typeof OrgSlugIndexRoute
   '/nearby/': typeof NearbyIndexRoute
   '/_app/coupons/$couponId': typeof AppCouponsCouponIdRouteWithChildren
   '/_app/customers/$customerId': typeof AppCustomersCustomerIdRoute
+  '/_app/growth/claim': typeof AppGrowthClaimRoute
   '/_app/loyalty/catalog': typeof AppLoyaltyCatalogRoute
   '/_app/loyalty/checkins': typeof AppLoyaltyCheckinsRoute
   '/_app/loyalty/coupons': typeof AppLoyaltyCouponsRoute
@@ -603,6 +637,7 @@ export interface FileRoutesById {
   '/_app/loyalty/rewards': typeof AppLoyaltyRewardsRoute
   '/_app/loyalty/scratch': typeof AppLoyaltyScratchRoute
   '/_app/loyalty/wheel': typeof AppLoyaltyWheelRoute
+  '/_app/growth/': typeof AppGrowthIndexRoute
   '/_app/loyalty/': typeof AppLoyaltyIndexRoute
   '/_app/coupons/$couponId/codes': typeof AppCouponsCouponIdCodesRoute
 }
@@ -612,6 +647,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$orgSlug'
     | '/book'
+    | '/forgot-password'
     | '/login'
     | '/nearby'
     | '/platform'
@@ -632,6 +668,7 @@ export interface FileRouteTypes {
     | '/front-desk'
     | '/growth'
     | '/inventory'
+    | '/invoices'
     | '/leaves'
     | '/loyalty'
     | '/memberships'
@@ -652,12 +689,13 @@ export interface FileRouteTypes {
     | '/vendors'
     | '/nearby/booking'
     | '/nearby/my-bookings'
-    | '/nearby/my-shops'
+    | '/nearby/offers'
     | '/qr/$locationId'
     | '/$orgSlug/'
     | '/nearby/'
     | '/coupons/$couponId'
     | '/customers/$customerId'
+    | '/growth/claim'
     | '/loyalty/catalog'
     | '/loyalty/checkins'
     | '/loyalty/coupons'
@@ -672,12 +710,14 @@ export interface FileRouteTypes {
     | '/loyalty/rewards'
     | '/loyalty/scratch'
     | '/loyalty/wheel'
+    | '/growth/'
     | '/loyalty/'
     | '/coupons/$couponId/codes'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/book'
+    | '/forgot-password'
     | '/login'
     | '/platform'
     | '/register'
@@ -695,8 +735,8 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/franchises'
     | '/front-desk'
-    | '/growth'
     | '/inventory'
+    | '/invoices'
     | '/leaves'
     | '/memberships'
     | '/offers'
@@ -716,12 +756,13 @@ export interface FileRouteTypes {
     | '/vendors'
     | '/nearby/booking'
     | '/nearby/my-bookings'
-    | '/nearby/my-shops'
+    | '/nearby/offers'
     | '/qr/$locationId'
     | '/$orgSlug'
     | '/nearby'
     | '/coupons/$couponId'
     | '/customers/$customerId'
+    | '/growth/claim'
     | '/loyalty/catalog'
     | '/loyalty/checkins'
     | '/loyalty/coupons'
@@ -736,6 +777,7 @@ export interface FileRouteTypes {
     | '/loyalty/rewards'
     | '/loyalty/scratch'
     | '/loyalty/wheel'
+    | '/growth'
     | '/loyalty'
     | '/coupons/$couponId/codes'
   id:
@@ -744,6 +786,7 @@ export interface FileRouteTypes {
     | '/$orgSlug'
     | '/_app'
     | '/book'
+    | '/forgot-password'
     | '/login'
     | '/nearby'
     | '/platform'
@@ -764,6 +807,7 @@ export interface FileRouteTypes {
     | '/_app/front-desk'
     | '/_app/growth'
     | '/_app/inventory'
+    | '/_app/invoices'
     | '/_app/leaves'
     | '/_app/loyalty'
     | '/_app/memberships'
@@ -784,12 +828,13 @@ export interface FileRouteTypes {
     | '/_app/vendors'
     | '/nearby/booking'
     | '/nearby/my-bookings'
-    | '/nearby/my-shops'
+    | '/nearby/offers'
     | '/qr/$locationId'
     | '/$orgSlug/'
     | '/nearby/'
     | '/_app/coupons/$couponId'
     | '/_app/customers/$customerId'
+    | '/_app/growth/claim'
     | '/_app/loyalty/catalog'
     | '/_app/loyalty/checkins'
     | '/_app/loyalty/coupons'
@@ -804,6 +849,7 @@ export interface FileRouteTypes {
     | '/_app/loyalty/rewards'
     | '/_app/loyalty/scratch'
     | '/_app/loyalty/wheel'
+    | '/_app/growth/'
     | '/_app/loyalty/'
     | '/_app/coupons/$couponId/codes'
   fileRoutesById: FileRoutesById
@@ -813,6 +859,7 @@ export interface RootRouteChildren {
   OrgSlugRoute: typeof OrgSlugRouteWithChildren
   AppRoute: typeof AppRouteWithChildren
   BookRoute: typeof BookRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   NearbyRoute: typeof NearbyRouteWithChildren
   PlatformRoute: typeof PlatformRoute
@@ -849,6 +896,13 @@ declare module '@tanstack/react-router' {
       path: '/book'
       fullPath: '/book'
       preLoaderRoute: typeof BookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -998,6 +1052,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppInventoryRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/invoices': {
+      id: '/_app/invoices'
+      path: '/invoices'
+      fullPath: '/invoices'
+      preLoaderRoute: typeof AppInvoicesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/leaves': {
       id: '/_app/leaves'
       path: '/leaves'
@@ -1145,11 +1206,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NearbyMyBookingsRouteImport
       parentRoute: typeof NearbyRoute
     }
-    '/nearby/my-shops': {
-      id: '/nearby/my-shops'
-      path: '/my-shops'
-      fullPath: '/nearby/my-shops'
-      preLoaderRoute: typeof NearbyMyShopsRouteImport
+    '/nearby/offers': {
+      id: '/nearby/offers'
+      path: '/offers'
+      fullPath: '/nearby/offers'
+      preLoaderRoute: typeof NearbyOffersRouteImport
       parentRoute: typeof NearbyRoute
     }
     '/qr/$locationId': {
@@ -1172,6 +1233,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/customers/$customerId'
       preLoaderRoute: typeof AppCustomersCustomerIdRouteImport
       parentRoute: typeof AppCustomersRoute
+    }
+    '/_app/growth/': {
+      id: '/_app/growth/'
+      path: '/'
+      fullPath: '/growth/'
+      preLoaderRoute: typeof AppGrowthIndexRouteImport
+      parentRoute: typeof AppGrowthRoute
+    }
+    '/_app/growth/claim': {
+      id: '/_app/growth/claim'
+      path: '/claim'
+      fullPath: '/growth/claim'
+      preLoaderRoute: typeof AppGrowthClaimRouteImport
+      parentRoute: typeof AppGrowthRoute
     }
     '/_app/loyalty/': {
       id: '/_app/loyalty/'
@@ -1336,6 +1411,20 @@ const AppCustomersRouteWithChildren = AppCustomersRoute._addFileChildren(
   AppCustomersRouteChildren,
 )
 
+interface AppGrowthRouteChildren {
+  AppGrowthClaimRoute: typeof AppGrowthClaimRoute
+  AppGrowthIndexRoute: typeof AppGrowthIndexRoute
+}
+
+const AppGrowthRouteChildren: AppGrowthRouteChildren = {
+  AppGrowthClaimRoute: AppGrowthClaimRoute,
+  AppGrowthIndexRoute: AppGrowthIndexRoute,
+}
+
+const AppGrowthRouteWithChildren = AppGrowthRoute._addFileChildren(
+  AppGrowthRouteChildren,
+)
+
 interface AppLoyaltyRouteChildren {
   AppLoyaltyCatalogRoute: typeof AppLoyaltyCatalogRoute
   AppLoyaltyCheckinsRoute: typeof AppLoyaltyCheckinsRoute
@@ -1389,8 +1478,9 @@ interface AppRouteChildren {
   AppFeedbackRoute: typeof AppFeedbackRoute
   AppFranchisesRoute: typeof AppFranchisesRoute
   AppFrontDeskRoute: typeof AppFrontDeskRoute
-  AppGrowthRoute: typeof AppGrowthRoute
+  AppGrowthRoute: typeof AppGrowthRouteWithChildren
   AppInventoryRoute: typeof AppInventoryRoute
+  AppInvoicesRoute: typeof AppInvoicesRoute
   AppLeavesRoute: typeof AppLeavesRoute
   AppLoyaltyRoute: typeof AppLoyaltyRouteWithChildren
   AppMembershipsRoute: typeof AppMembershipsRoute
@@ -1424,8 +1514,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppFeedbackRoute: AppFeedbackRoute,
   AppFranchisesRoute: AppFranchisesRoute,
   AppFrontDeskRoute: AppFrontDeskRoute,
-  AppGrowthRoute: AppGrowthRoute,
+  AppGrowthRoute: AppGrowthRouteWithChildren,
   AppInventoryRoute: AppInventoryRoute,
+  AppInvoicesRoute: AppInvoicesRoute,
   AppLeavesRoute: AppLeavesRoute,
   AppLoyaltyRoute: AppLoyaltyRouteWithChildren,
   AppMembershipsRoute: AppMembershipsRoute,
@@ -1451,14 +1542,14 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 interface NearbyRouteChildren {
   NearbyBookingRoute: typeof NearbyBookingRoute
   NearbyMyBookingsRoute: typeof NearbyMyBookingsRoute
-  NearbyMyShopsRoute: typeof NearbyMyShopsRoute
+  NearbyOffersRoute: typeof NearbyOffersRoute
   NearbyIndexRoute: typeof NearbyIndexRoute
 }
 
 const NearbyRouteChildren: NearbyRouteChildren = {
   NearbyBookingRoute: NearbyBookingRoute,
   NearbyMyBookingsRoute: NearbyMyBookingsRoute,
-  NearbyMyShopsRoute: NearbyMyShopsRoute,
+  NearbyOffersRoute: NearbyOffersRoute,
   NearbyIndexRoute: NearbyIndexRoute,
 }
 
@@ -1470,6 +1561,7 @@ const rootRouteChildren: RootRouteChildren = {
   OrgSlugRoute: OrgSlugRouteWithChildren,
   AppRoute: AppRouteWithChildren,
   BookRoute: BookRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   NearbyRoute: NearbyRouteWithChildren,
   PlatformRoute: PlatformRoute,

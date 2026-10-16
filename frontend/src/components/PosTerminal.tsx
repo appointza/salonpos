@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Search, UserCheck, Plus, Minus, Trash2, Receipt, Send, X, CalendarCheck, CreditCard } from "lucide-react";
 import { toast } from "sonner";
+import { ServiceThumb } from "@/components/ServiceThumb";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -23,12 +25,12 @@ import { isValidPhone } from "@/pages/Customers/customer-store";
 import { rowToEntity, toRow } from "@/entity-row";
 import type { CustomerPosLookupRes, CustomerRes } from "@/model/customers";
 import { customerService, mergePosLookup } from "@/services/customer.service";
-import { getCustomerLoyaltyBalance } from "@/pages/Loyalty/loyalty-service";
+import { getOrgLoyaltyBalance } from "@/pages/Loyalty/loyalty-service";
 import { useWhatsAppSender } from "@/pages/Campaigns/whatsapp";
 import { usePostSale, useSaleQuote, type BillLine } from "@/pages/Pos/sale";
 import type { RewardRefs } from "@/pages/Loyalty/rewards/reward-quote";
 import { getCustomerRewardOptions, rewardCustomerIds } from "@/pages/Loyalty/rewards/reward-quote";
-import { resolveCustomerRow, resolveServiceRow } from "@/pages/Appointments/appointment-resolve";
+import { resolveCustomerRow, resolveAppointmentServiceRows } from "@/pages/Appointments/appointment-resolve";
 import { includedVisitProgress } from "@/pages/Memberships/membership";
 import { useStockService } from "@/pages/Inventory/stock";
 import { recipesForService } from "@/pages/Services/service-recipe";
@@ -36,8 +38,26 @@ import { staffIdFromName } from "@/pages/Attendance/hr";
 import { PosCouponInput } from "@/components/PosCouponInput";
 import { hydrateScratchPrize, hydrateWheelPrize, resolvePrizeService, type PrizeClaim } from "@/pages/PrizeWheel/prize-discount";
 import { formatPrizeValue, prizeTypeLabel } from "@/pages/PrizeWheel/prize-help";
+import { useT } from "@/i18n/LanguageContext";
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+
+function billLinesFromAppointment(prefill: Row, catalog: Row[], staffRows: Row[]): BillLine[] {
+  const lines = resolveAppointmentServiceRows(prefill, catalog);
+  const staffName = String(prefill["staff"] ?? "");
+  const staffId = String(prefill["staffId"] || staffIdFromName(staffRows, staffName) || "");
+  return lines.map((s) => ({
+    id: String(s.id),
+    kind: "service" as const,
+    name: String(s["name"]),
+    price: Number(s["price"] ?? 0),
+    gstRate: Number(s["gstRate"] ?? 18),
+    qty: 1,
+    commission: Number(s["commission"] ?? 10),
+    staff: staffName,
+    staffId,
+  }));
+}
 
 function phoneFromAppointment(prefill: Row | null, customers: Row[]) {
   if (!prefill) return "";
@@ -62,10 +82,12 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const postSale = usePostSale();
   const stock = useStockService();
   const { send, isConfigured } = useWhatsAppSender();
+  const t = useT();
 
   const [phone, setPhone] = useState("");
   const [lookupStatus, setLookupStatus] = useState<"idle" | "loading" | "found" | "missing">("idle");
   const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerWhatsapp, setNewCustomerWhatsapp] = useState(false);
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [pointsSummary, setPointsSummary] = useState<{
     before: number;
@@ -74,6 +96,8 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
     after: number;
   } | null>(null);
   const orgCustomers = (allRows["customers"] ?? []).filter((c) => String(c["orgId"]) === String(org.orgId));
+  const orgServices = (allRows["services"] ?? []).filter((s) => String(s["orgId"]) === String(org.orgId));
+  const catalog = orgServices.length ? orgServices : services;
   const prefillCustomer = prefill ? resolveCustomerRow(prefill, orgCustomers.length ? orgCustomers : customers) : null;
   const prefillStaffId = prefill
     ? String(prefill["staffId"] || staffIdFromName(staff, String(prefill["staff"] ?? "")) || "")
@@ -82,24 +106,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const [stylist, setStylist] = useState(prefillStaffId);
   const [serviceQuery, setServiceQuery] = useState("");
   const [tab, setTab] = useState<"services" | "products">("services");
-  const [cart, setCart] = useState<BillLine[]>(() => {
-    if (!prefill) return [];
-    const s = resolveServiceRow(prefill, services);
-    if (!s) return [];
-    return [
-      {
-        id: String(s.id),
-        kind: "service",
-        name: String(s["name"]),
-        price: Number(s["price"] ?? 0),
-        gstRate: Number(s["gstRate"] ?? 18),
-        qty: 1,
-        commission: Number(s["commission"] ?? 10),
-        staff: String(prefill["staff"] ?? ""),
-        staffId: String(prefill["staffId"] || staffIdFromName(staff, String(prefill["staff"] ?? "")) || ""),
-      },
-    ];
-  });
+  const [cart, setCart] = useState<BillLine[]>(() => (prefill ? billLinesFromAppointment(prefill, catalog, staff) : []));
   const [discount, setDiscount] = useState(0);
   const [redeem, setRedeem] = useState(0);
   const [rewards, setRewards] = useState<RewardRefs>({});
@@ -168,22 +175,10 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
 
   useEffect(() => {
     if (!prefill || cart.length > 0) return;
-    const s = resolveServiceRow(prefill, services);
-    if (!s) return;
-    setCart([
-      {
-        id: String(s.id),
-        kind: "service",
-        name: String(s["name"]),
-        price: Number(s["price"] ?? 0),
-        gstRate: Number(s["gstRate"] ?? 18),
-        qty: 1,
-        commission: Number(s["commission"] ?? 10),
-        staff: String(prefill["staff"] ?? ""),
-        staffId: String(prefill["staffId"] || staffIdFromName(staff, String(prefill["staff"] ?? "")) || ""),
-      },
-    ]);
-  }, [prefill, services, staff, cart.length]);
+    const next = billLinesFromAppointment(prefill, catalog, staff);
+    if (!next.length) return;
+    setCart(next);
+  }, [prefill, catalog, staff, cart.length]);
 
   useEffect(() => {
     if (prefill) return;
@@ -203,15 +198,24 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         locationId: locationId === "all" ? 0 : Number(locationId) || 0,
         phone: digits,
       })
-      .then((res) => {
+      .then(async (res) => {
         if (cancelled) return;
-        if (res.errorMessage || !res.customer) {
+        let hit = res;
+        if (hit.errorMessage || !hit.customer) {
+          hit = await customerService.lookupAtPos({
+            orgId: oid,
+            locationId: 0,
+            phone: digits,
+          });
+        }
+        if (cancelled) return;
+        if (hit.errorMessage || !hit.customer) {
           setLookupStatus("missing");
           return;
         }
-        applyCache((prev) => mergePosLookup(prev, res));
-        setCustomer(toRow(res.customer as unknown as Record<string, unknown>));
-        setPhone(String(res.customer.phone ?? digits));
+        applyCache((prev) => mergePosLookup(prev, hit));
+        setCustomer(toRow(hit.customer as unknown as Record<string, unknown>));
+        setPhone(String(hit.customer.phone ?? digits));
         setLookupStatus("found");
       })
       .catch(() => {
@@ -344,19 +348,25 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       toast.message(`Partner gift: ${prize.label}. This does not change the salon bill.`);
       return;
     }
-    if (prize.prizeType !== "Free service" && prize.prizeType !== "Free item") return;
     const service = resolvePrizeService(prize, services);
-    if (!service) {
-      toast.message("This prize has no service id. Open Prize wheel, pick the service, and save again.");
+    if (prize.prizeType === "Free service" || prize.prizeType === "Free item") {
+      if (!service) {
+        toast.message("This prize has no service id. Open Prize wheel, pick the service, and save again.");
+        return;
+      }
+      if (cart.some((l) => l.id === String(service.id))) return;
+      addLine(service, "service");
       return;
     }
-    if (cart.some((l) => l.id === String(service.id))) return;
-    addLine(service, "service");
+    if ((prize.prizeType === "Percentage discount" || prize.prizeType === "Flat discount") && service) {
+      if (!cart.some((l) => l.id === String(service.id))) addLine(service, "service");
+    }
   }
 
   const effLocationId = locationId === "all" ? "" : String(locationId);
-  const ledgerPts = customer ? getCustomerLoyaltyBalance(allRows, String(customer.id)) : 0;
-  const availablePts = Math.max(Number(customer?.["points"] ?? 0), ledgerPts);
+  const availablePts = customer
+    ? getOrgLoyaltyBalance(allRows, org.orgId, String(customer["phone"] ?? phone))
+    : 0;
   const pointsRedeemed = Math.max(
     0,
     Math.min(
@@ -386,7 +396,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
           ),
         )
       : 0;
-  const t = {
+  const totals = {
     subtotal: quote.subtotal,
     tax: quote.tax,
     total: quote.total,
@@ -400,14 +410,14 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       "",
       lines,
       "",
-      `Subtotal: ${money(t.subtotal)}`,
+      `Subtotal: ${money(totals.subtotal)}`,
       discount ? `Discount: -${money(discount)}` : "",
       membershipDiscount ? `Membership benefit: -${money(membershipDiscount)}` : "",
       ...quote.couponLines.map((l) => `Coupon ${l.code}: -${money(l.amount)}`),
       ...quote.rewardLines.map((l) => `${l.label}: -${money(l.amount)}`),
       pointsRedeemed ? `Points redeemed: ${pointsRedeemed} pts (−${money(pointsValue)})` : "",
-      `GST: ${money(t.tax)}`,
-      `*Total: ${money(t.total)}*`,
+      `GST: ${money(totals.tax)}`,
+      `*Total: ${money(totals.total)}*`,
       `Paid via ${payment}`,
       "",
       `Thank you, ${String(customer?.["name"] ?? "guest")}! ${org.website}`,
@@ -438,6 +448,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         locationId: effLocationId,
         name,
         phone: normalizePhone(phone),
+        isWhatsapp: newCustomerWhatsapp ? "Yes" : "No",
         tier: "Bronze",
         points: 0,
         walletBalance: 0,
@@ -453,6 +464,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       setCustomer(row);
       setPhone(String(row["phone"] ?? phone));
       setNewCustomerName("");
+      setNewCustomerWhatsapp(false);
       toast.success("Customer created", { description: `${name} · ${row.id}` });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not create customer");
@@ -488,7 +500,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       onBilled?.();
       newSale();
       toast.success("Bill generated", {
-        description: `${String(invoice.id)} · ${money(t.total)} · +${earned} loyalty pts. Screen cleared for the next bill.`,
+        description: `${String(invoice.id)} · ${money(totals.total)} · +${earned} loyalty pts. Screen cleared for the next bill.`,
       });
     } finally {
       postingRef.current = false;
@@ -526,10 +538,10 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-      <div className="space-y-6">
+    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="min-w-0 space-y-6">
         <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <Label className="mb-2 block text-xs tracking-wide uppercase">1 · Find customer by phone</Label>
+          <Label className="mb-2 block text-xs tracking-wide uppercase">{t("1 · Find customer by phone")}</Label>
           {prefill && lookupStatus === "loading" && !customer ? (
             <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
               Loading customer, membership and offers for this appointment…
@@ -549,9 +561,51 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
                   </p>
                   <div className="mt-2 grid gap-1 rounded-md border border-border/60 bg-background/80 p-2 text-xs">
                     <div className="flex justify-between gap-2">
-                      <span className="text-muted-foreground">Previous points</span>
+                      <span className="text-muted-foreground">Points</span>
                       <span className="font-medium tabular-nums">{availablePts.toLocaleString("en-IN")} pts</span>
                     </div>
+                    {availablePts > 0 ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        Worth {money(availablePts * (loyalty.rupeesPerPoint || 0))} at 1 pt = ₹{loyalty.rupeesPerPoint || 0}.
+                        Same organisation wallet as Claim points.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground">No points to claim for this guest.</p>
+                    )}
+                    {availablePts > 0 ? (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={maxRedeem <= 0}
+                          onClick={() => {
+                            if (cart.length === 0) {
+                              toast.error("Add a service or product first, then claim previous points");
+                              return;
+                            }
+                            if (maxRedeem <= 0) {
+                              toast.error(
+                                loyalty.rupeesPerPoint <= 0
+                                  ? "Set ₹ value of 1 point in Settings → Loyalty points"
+                                  : "This bill total is already covered — nothing left for points",
+                              );
+                              return;
+                            }
+                            setRedeem(maxRedeem);
+                            toast.success(`Claiming ${maxRedeem.toLocaleString("en-IN")} points`, {
+                              description: `−${money(maxRedeem * loyalty.rupeesPerPoint)} off this bill`,
+                            });
+                          }}
+                        >
+                          Claim previous points
+                        </Button>
+                        {redeem > 0 ? (
+                          <Button type="button" size="sm" variant="ghost" onClick={() => setRedeem(0)}>
+                            Don&apos;t use points
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {pointsRedeemed > 0 ? (
                       <div className="flex justify-between gap-2 text-amber-700 dark:text-amber-400">
                         <span>Redeeming this bill</span>
@@ -634,7 +688,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
                 <p className="text-xs font-medium tracking-wide uppercase text-muted-foreground">Create customer</p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Label className="mb-1.5 text-xs">Mobile</Label>
+                    <Label className="mb-1.5 text-xs">{t("Mobile")}</Label>
                     <Input
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
@@ -643,7 +697,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
                     />
                   </div>
                   <div>
-                    <Label className="mb-1.5 text-xs">Name</Label>
+                    <Label className="mb-1.5 text-xs">{t("Name")}</Label>
                     <Input
                       value={newCustomerName}
                       onChange={(e) => setNewCustomerName(e.target.value)}
@@ -651,6 +705,13 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
                     />
                   </div>
                 </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={newCustomerWhatsapp}
+                    onCheckedChange={(checked) => setNewCustomerWhatsapp(checked === true)}
+                  />
+                  This is a WhatsApp number
+                </label>
                 <Button
                   type="button"
                   size="sm"
@@ -671,7 +732,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         </section>
 
         <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <Label className="mb-2 block text-xs tracking-wide uppercase">2 · Stylist</Label>
+          <Label className="mb-2 block text-xs tracking-wide uppercase">{t("2 · Stylist")}</Label>
           <Select value={stylist} onValueChange={setStylist}>
             <SelectTrigger className="w-full sm:max-w-xs">
               <SelectValue placeholder="Select stylist for commission" />
@@ -721,7 +782,8 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
                   onClick={() => addLine(s, tab === "services" ? "service" : "product")}
                   className="rounded-lg border border-border p-3 text-left transition-colors hover:border-primary hover:bg-accent"
                 >
-                  <p className="text-sm font-medium">
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    {tab === "services" ? <ServiceThumb imageId={s["imageId"]} name={String(s["name"])} size={36} /> : null}
                     {String(s["name"])}
                     {tab === "services" && String(s["type"]) === "Combo" ? (
                       <span className="ml-2 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
@@ -759,7 +821,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         </section>
       </div>
 
-      <aside className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm lg:sticky lg:top-4 lg:self-start">
+      <aside className="min-w-0 space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm lg:sticky lg:top-4 lg:self-start">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg">Current bill</h2>
           <Badge variant="secondary" className="font-normal">
@@ -778,7 +840,14 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
           <ul className="space-y-2">
             {cart.map((l) => (
               <li key={l.id} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2">
-                <div className="min-w-0">
+                {l.kind === "service" ? (
+                  <ServiceThumb
+                    imageId={services.find((s) => String(s.id) === l.id)?.["imageId"]}
+                    name={l.name}
+                    size={32}
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{l.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {money(l.price)} · GST {l.gstRate}% · {l.kind}
@@ -983,7 +1052,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <Label htmlFor="pos-discount" className="mb-1.5">
               Discount
@@ -997,13 +1066,21 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
           </div>
           <div>
             <Label htmlFor="pos-redeem" className="mb-1.5">
-              Redeem points (max {maxRedeem}
+              Claim previous points (max {maxRedeem}
               {loyalty.rupeesPerPoint ? ` · 1 pt = ₹${loyalty.rupeesPerPoint}` : ""})
             </Label>
-            <Input id="pos-redeem" type="number" value={redeem} onChange={(e) => setRedeem(Number(e.target.value))} />
+            <Input
+              id="pos-redeem"
+              type="number"
+              min={0}
+              max={maxRedeem}
+              value={redeem}
+              disabled={!customer || availablePts <= 0}
+              onChange={(e) => setRedeem(Number(e.target.value))}
+            />
           </div>
-          <div className="col-span-2">
-            <Label className="mb-1.5">Payment</Label>
+          <div className="sm:col-span-2">
+            <Label className="mb-1.5">{t("Payment")}</Label>
             <Select value={payment} onValueChange={setPayment}>
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -1023,7 +1100,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         <dl className="space-y-1 text-sm">
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Subtotal</dt>
-            <dd>{money(t.subtotal)}</dd>
+            <dd>{money(totals.subtotal)}</dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Discount</dt>
@@ -1051,11 +1128,11 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
           </div>
           <div className="flex justify-between">
             <dt className="text-muted-foreground">GST</dt>
-            <dd>{money(t.tax)}</dd>
+            <dd>{money(totals.tax)}</dd>
           </div>
           <div className="flex justify-between pt-1 text-base font-semibold">
             <dt>Total</dt>
-            <dd>{money(t.total)}</dd>
+            <dd>{money(totals.total)}</dd>
           </div>
           <p className="pt-1 text-[11px] text-muted-foreground">
             {loyalty.name}: 1 pt / ₹{loyalty.earnUnitRupees}
@@ -1064,7 +1141,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         </dl>
 
         {bill ? (
-          <div className="space-y-2">
+          <div className="sticky bottom-0 z-10 -mx-4 mt-2 space-y-2 border-t border-border bg-card px-4 py-3 lg:static lg:mx-0 lg:mt-0 lg:border-0 lg:p-0">
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
               Bill <span className="font-mono">{String(bill.id)}</span> generated.
             </div>
@@ -1101,9 +1178,11 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
             </Button>
           </div>
         ) : (
+          <div className="sticky bottom-0 z-10 -mx-4 mt-2 border-t border-border bg-card px-4 py-3 lg:static lg:mx-0 lg:mt-0 lg:border-0 lg:p-0">
           <Button className="w-full" type="button" disabled={posting} onClick={() => void generateBill()}>
             <Receipt /> {posting ? "Saving bill…" : "Generate bill"}
           </Button>
+          </div>
         )}
       </aside>
 

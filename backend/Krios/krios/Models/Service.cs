@@ -20,6 +20,7 @@ namespace Krios.Models.Krios
         public string type { get; set; } = "";
         public string comboItems { get; set; } = "";
         public string productNeeds { get; set; } = "";
+        public string imageId { get; set; } = "";
     }
 
     public class ServiceSelectReq

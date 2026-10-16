@@ -12,9 +12,9 @@ export function PlatformPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
       <header className="border-b border-border">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-2">
             <span className="flex size-9 items-center justify-center rounded-lg bg-foreground text-background">
               <Sparkles className="size-4" />

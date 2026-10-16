@@ -94,7 +94,7 @@ export function Page() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl tracking-tight">Attendance</h1>
+          <h1 className="font-display text-2xl tracking-tight sm:text-3xl">Attendance</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Shifts set expected hours. Leave (approved) marks the day as Leave. Punches are compared to the roster —
             hours, late, early checkout, overtime and absent are calculated.

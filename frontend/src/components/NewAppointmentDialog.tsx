@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ServiceThumb } from "@/components/ServiceThumb";
 import { enrichAppointmentRow } from "@/pages/Appointments/appointment-resolve";
 import { useCollection, useData, type Row } from "@/store";
 import { useTenant } from "@/tenant";
@@ -80,7 +81,12 @@ export function NewAppointmentDialog({
               <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
               <SelectContent>
                 {services.map((s) => (
-                  <SelectItem key={String(s.id)} value={String(s["name"])}>{String(s["name"])}</SelectItem>
+                  <SelectItem key={String(s.id)} value={String(s["name"])}>
+                    <span className="flex items-center gap-2">
+                      <ServiceThumb imageId={s["imageId"]} name={String(s["name"])} size={20} />
+                      {String(s["name"])}
+                    </span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -25,10 +25,43 @@ namespace Krios
                 WebRootPath = hasWwwroot ? wwwroot : "wwwroot",
             });
 
-            var urls = KriosUrls.Load(contentRoot, hasWwwroot ? wwwroot : Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"));
-            urls.BindKestrel(builder);
+            var listenUrl = "";
+            foreach (var urlsFile in new[]
+            {
+                Path.Combine(contentRoot, "krios-urls.json"),
+                Path.Combine(wwwroot, "krios-urls.json"),
+            })
+            {
+                if (!File.Exists(urlsFile)) continue;
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(urlsFile));
+                    if (doc.RootElement.TryGetProperty("backendListen", out var listenProp))
+                    {
+                        var fromFile = listenProp.GetString()?.Trim();
+                        if (!string.IsNullOrWhiteSpace(fromFile))
+                        {
+                            listenUrl = fromFile;
+                            break;
+                        }
+                    }
+                }
+                catch
+                {
+                    /* next file */
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(listenUrl))
+                listenUrl = "http://0.0.0.0:5050";
+
+            // One listen only. Do not also set Kestrel:Endpoints or ListenAnyIP — that
+            // double-binds the port and crashes with "address already in use" on Linux.
+            if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
+                builder.WebHost.UseUrls(listenUrl);
 
             builder.Services.Configure<ApplicationEnvironment>(builder.Configuration.GetSection("ApplicationSettings"));
+            builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("Mail"));
             var appSettings = builder.Configuration.GetSection("ApplicationSettings").Get<ApplicationEnvironment>();
             var redisConnection = appSettings?.redis?.connection_string?.Trim() ?? "";
             var redisEnabled = !string.IsNullOrWhiteSpace(redisConnection);
@@ -111,12 +144,7 @@ namespace Krios
                 if (path.StartsWith("/api/") ||
                     path.StartsWith("/swagger") ||
                     path.StartsWith("/health") ||
-                    path.StartsWith("/assets/") ||
-                    path.EndsWith(".json") ||
-                    path.EndsWith(".js") ||
-                    path.EndsWith(".css") ||
-                    path.EndsWith(".png") ||
-                    path.EndsWith(".ico"))
+                    path.StartsWith("/assets/"))
                 {
                     context.Response.StatusCode = 404;
                     await context.Response.WriteAsync("Not found");
@@ -140,19 +168,24 @@ namespace Krios
                 }
             });
 
-            var uiUrl = $"http://localhost:{urls.Port}";
+            var uiUrl = $"http://localhost:{PortFromListenUrl(listenUrl)}";
             app.Lifetime.ApplicationStarted.Register(() =>
             {
-                app.Logger.LogInformation(
-                    "Krios listening on {Listen}. Open {Url} (http). UI API base: {Api}",
-                    urls.backendListen,
-                    uiUrl,
-                    string.IsNullOrEmpty(urls.frontendApiBaseUrl) ? "(same host as the page)" : urls.frontendApiBaseUrl);
+                app.Logger.LogInformation("Krios UI is a website. Open {Url} in a browser (http, not https).", uiUrl);
                 if (app.Configuration.GetValue("LaunchBrowser", false))
                     TryOpenBrowser(uiUrl);
             });
 
             return app;
+        }
+
+        private static int PortFromListenUrl(string? listenUrl)
+        {
+            var text = (listenUrl ?? "").Trim();
+            var colon = text.LastIndexOf(':');
+            if (colon >= 0 && int.TryParse(text[(colon + 1)..], out var port) && port > 0 && port < 65536)
+                return port;
+            return 5050;
         }
 
         private static void TryOpenBrowser(string url)

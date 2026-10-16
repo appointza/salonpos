@@ -11,6 +11,7 @@ namespace Krios.Models.Krios
         public string website { get; set; } = "";
         public string businessType { get; set; } = "";
         public string brandColor { get; set; } = "";
+        public string logo { get; set; } = "";
         public decimal pointsPerRupee { get; set; }
         public decimal rupeesPerPoint { get; set; }
         public string whatsappPhoneNumberId { get; set; } = "";
@@ -34,6 +35,8 @@ namespace Krios.Models.Krios
         public string publicBookingShowPrizeWheel { get; set; } = "";
         public string publicBookingShowScratchCard { get; set; } = "";
         public string bookingRules { get; set; } = "";
+        public string referralRules { get; set; } = "";
+        public string growthClaimPool { get; set; } = "";
     }
 
     public class OrganizationSelectReq

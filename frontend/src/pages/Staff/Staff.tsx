@@ -1,4 +1,5 @@
 import { CrudPage, type ModuleDef } from "@/components/CrudPage";
+import type { Row } from "@/store";
 
 const title = "Staff — Luxe Salon CRM";
 const description = "Maintain staff records with salary, commission rates and monthly targets.";
@@ -20,6 +21,7 @@ const module: ModuleDef = {
     { name: "outlet", label: "Outlet", type: "select", options: ["All"], table: true },
     { name: "phone", label: "Phone", table: true },
     { name: "email", label: "Email" },
+    { name: "password", label: "Password", type: "password" },
     { name: "joinDate", label: "Joining date", type: "date" },
     { name: "baseSalary", label: "Base salary", type: "number", money: true, table: true },
     { name: "commissionRate", label: "Commission %", type: "number" },
@@ -37,5 +39,20 @@ const module: ModuleDef = {
 };
 
 export function Page() {
-  return <CrudPage module={module} />;
+  return (
+    <CrudPage
+      module={module}
+      prepareEdit={(row) => ({ ...row, password: "" })}
+      prepareNew={(row) => ({ ...row, password: "" })}
+      validate={(row: Row, isNew) => {
+        const phone = String(row["phone"] ?? "").trim();
+        const email = String(row["email"] ?? "").trim();
+        const password = String(row["password"] ?? "");
+        if (!phone && !email) return "Enter a phone or email so this person can sign in";
+        if (isNew && password.length < 6) return "Set a password of at least 6 characters";
+        if (!isNew && password && password.length < 6) return "Password must be at least 6 characters";
+        return null;
+      }}
+    />
+  );
 }

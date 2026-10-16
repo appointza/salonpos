@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useListView } from "@/list-view";
 import type { Row } from "@/store";
 import { staffName } from "@/pages/Attendance/hr";
 
@@ -17,6 +18,7 @@ function weekDates(anchor = new Date()) {
 }
 
 export function RosterWeekGrid({ shifts, staff }: { shifts: Row[]; staff: Row[] }) {
+  const { view } = useListView();
   const days = useMemo(() => weekDates(), []);
   const staffIds = useMemo(() => {
     const ids = new Set<string>();
@@ -30,6 +32,40 @@ export function RosterWeekGrid({ shifts, staff }: { shifts: Row[]; staff: Row[] 
     for (const s of shifts) map.set(`${s["staffId"]}|${String(s["date"]).slice(0, 10)}`, s);
     return map;
   }, [shifts]);
+
+  if (view === "card") {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {staffIds.map((id) => (
+          <div key={id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <p className="font-medium">{staffName(staff, id)}</p>
+            <ul className="mt-3 space-y-2 text-sm">
+              {days.map((d) => {
+                const shift = byKey.get(`${id}|${d}`);
+                const label = new Date(d + "T12:00:00").toLocaleDateString("en-IN", {
+                  weekday: "short",
+                  day: "numeric",
+                });
+                return (
+                  <li key={d} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                    {shift ? (
+                      <span className="text-right text-xs">
+                        {String(shift["startTime"])}–{String(shift["endTime"])}{" "}
+                        <Badge variant="secondary" className="text-[10px]">{String(shift["status"])}</Badge>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">

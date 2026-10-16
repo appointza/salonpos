@@ -4,6 +4,7 @@ import { getCustomerById } from "@/pages/Customers/customer-lookup";
 import { getCustomerLoyaltyBalance } from "@/pages/Loyalty/loyalty-service";
 import { programOfType } from "@/pages/LoyaltyQr/qr-loyalty";
 import { canCustomerSpin, getTodayWheelSpin } from "@/pages/PrizeWheel/wheel-service";
+import { issuedAtOf, isRewardWithinValidity, offerExpiryDate, offerValidityDaysFromDb } from "@/pages/PrizeWheel/reward-distribution";
 import { CUSTOMER_REWARDS } from "@/pages/Loyalty/rewards/customer-reward-service";
 
 export type WalletReward = {
@@ -54,32 +55,41 @@ function rewardValueLabel(type: string, value: number, title: string) {
   return title || "Reward";
 }
 
-function mapWheelReward(spin: Row): WalletReward {
+function mapWheelReward(db: Db, spin: Row): WalletReward {
   const type = String(spin["rewardType"] ?? "");
   const value = Number(spin["rewardValue"] ?? 0);
   const label = String(spin["label"] ?? "Wheel prize");
+  const expiresAt =
+    String(spin["expiresAt"] ?? "").slice(0, 10) ||
+    offerExpiryDate(issuedAtOf(spin), offerValidityDaysFromDb(db, spin["orgId"]));
+  const expired = expiresAt && expiresAt < today() && String(spin["status"]) !== "Redeemed";
   return {
     id: String(spin.id),
     title: label,
     description: "Prize wheel",
     valueLabel: rewardValueLabel(type, value, label),
     source: "wheel",
-    status: String(spin["status"]) === "Redeemed" ? "Redeemed" : "Available",
-    expiresAt: String(spin["expiresAt"] ?? ""),
+    status: String(spin["status"]) === "Redeemed" ? "Redeemed" : expired ? "Expired" : "Available",
+    expiresAt,
     refCollection: "wheelSpins",
     refId: String(spin.id),
   };
 }
 
-function mapOfferReward(row: Row): WalletReward {
+function mapOfferReward(db: Db, row: Row): WalletReward {
+  const expiresAt =
+    String(row["expiresAt"] ?? "").slice(0, 10) ||
+    offerExpiryDate(issuedAtOf(row), offerValidityDaysFromDb(db, row["orgId"]));
+  const expired =
+    String(row["status"]) !== "Redeemed" && (!isRewardWithinValidity(db, row) || (expiresAt && expiresAt < today()));
   return {
     id: String(row.id),
     title: String(row["offerTitle"] ?? row["offerId"] ?? "Offer"),
     description: String(row["offerType"] ?? "Promotion"),
     valueLabel: String(row["offerType"] ?? "Discount"),
     source: "offer",
-    status: String(row["status"]) === "Redeemed" ? "Redeemed" : "Available",
-    expiresAt: String(row["expiresAt"] ?? ""),
+    status: String(row["status"]) === "Redeemed" ? "Redeemed" : expired ? "Expired" : "Available",
+    expiresAt,
     refCollection: "qrOfferRedemptions",
     refId: String(row.id),
   };
@@ -143,8 +153,8 @@ export function buildCustomerWallet(
   const checkins = (db["qrCheckins"] ?? []).filter((c) => String(c["customerId"]) === customerId);
 
   const allRewards: WalletReward[] = [
-    ...wheelSpins.map(mapWheelReward),
-    ...offers.map(mapOfferReward),
+    ...wheelSpins.map((s) => mapWheelReward(db, s)),
+    ...offers.map((r) => mapOfferReward(db, r)),
     ...stamps.map(mapStampReward),
     ...partners.map(mapPartnerReward),
   ];

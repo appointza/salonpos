@@ -7,7 +7,9 @@ export class AppointmentRes {
   customerId: number = 0;
   customer: string = "";
   serviceId: number = 0;
+  serviceIds: string = "";
   service: string = "";
+  serviceName: string = "";
   staffId: number = 0;
   staff: string = "";
   outlet: string = "";
@@ -29,7 +31,9 @@ export class CreateAppointmentReq {
   customerId: number = 0;
   customer: string = "";
   serviceId: number = 0;
+  serviceIds: string = "";
   service: string = "";
+  serviceName: string = "";
   staffId: number = 0;
   staff: string = "";
   outlet: string = "";
@@ -50,7 +54,9 @@ export class UpdateAppointmentReq {
   customerId: number = 0;
   customer: string = "";
   serviceId: number = 0;
+  serviceIds: string = "";
   service: string = "";
+  serviceName: string = "";
   staffId: number = 0;
   staff: string = "";
   outlet: string = "";

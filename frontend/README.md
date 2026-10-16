@@ -43,6 +43,22 @@ location / {
 
 No Node.js server is required.
 
+## Android & iOS (Capacitor)
+
+The same Vite app is wrapped with Capacitor. Native builds load the **production** site **https://kriosapp.com** (app id `com.krios`).
+
+```sh
+cd frontend
+npm run cap:android   # Android Studio
+npm run cap:ios       # Xcode — requires a Mac
+```
+
+- Android can be built on this Windows machine with Android Studio + JDK 17.
+- iOS project files are generated here; compiling and App Store upload must be done on a Mac.
+- After web changes, run `npm run cap:sync` again so `android/` and `ios/` pick up `dist/`.
+
+App id: `com.krios`.
+
 ## Stack
 
 - React 19

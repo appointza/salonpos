@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Clock, Loader2, MapPin, Scissors, CalendarCheck } from "lucide-react";
+import { Clock, Loader2, MapPin, Scissors, CalendarCheck, Gift, Star, TicketPercent } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,16 +12,30 @@ import { isBookableStaff, isPublishedService, isSlotFree, openingWindow, rowsAtL
 import { useCustomerSession } from "@/pages/Login/customer-session";
 import { upsertCustomerByPhone } from "@/pages/Customers/customer-store";
 import { buildAppointmentRow } from "@/pages/Appointments/appointment-resolve";
-import { findCustomerByPhone } from "@/pages/Customers/customer-lookup";
+import { findCustomerByPhone, findCustomerByPhoneInOrg, normalizePhone } from "@/pages/Customers/customer-lookup";
 import { formatDistance, readBookingPick } from "@/pages/Nearby/nearby-utils";
 import { bookingDateMax, isBookableDate, localToday, readBookingRules } from "@/pages/Book/booking-rules";
 import { readServiceDisplaySettings } from "@/pages/Services/service-display-settings";
 import { ServicePriceDisplay } from "@/components/ServicePriceDisplay";
+import { ServiceThumb } from "@/components/ServiceThumb";
 import { useNearbyStudios } from "@/pages/Nearby/use-nearby-studios";
 import { loadOrgCatalog, type NearbyStudio, type OrgCatalog } from "@/services/nearby.service";
+import { organizationService } from "@/services/organization.service";
+import { toRow } from "@/entity-row";
+import { ReferralShareCard } from "@/components/ReferralShareCard";
+import { ensureCustomerReferralCode } from "@/pages/Loyalty/referral-service";
+import { referrerEarnSummary } from "@/pages/Loyalty/referral-settings";
+import { referralCodeFor } from "@/pages/LoyaltyQr/qr-loyalty";
+import { orgPublicSlug } from "@/pages/Loyalty/referral-share-url";
+import { getCustomerShopVisits } from "@/pages/NearbyMyShops/customer-shops";
+import { listCustomerLocationOffers } from "@/pages/NearbyOffers/customer-offers";
+import { calendarDaysUntil } from "@/pages/Offers/offer-display";
+import { customerService } from "@/services/customer.service";
+import { couponService } from "@/services/coupon.service";
+import { qrOfferService } from "@/services/qrOffer.service";
 
 export function NearbyBookingPage() {
-  const { allRows, create, update } = useData();
+  const { allRows, create, update, applyCache } = useData();
   const { customer } = useCustomerSession();
   const { studios, loading: loadingStudios, error: loadError, refresh } = useNearbyStudios();
 
@@ -44,6 +58,20 @@ export function NearbyBookingPage() {
     () => (picked ? readServiceDisplaySettings(orgRow, picked.org.orgId) : readServiceDisplaySettings(null)),
     [orgRow, picked],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void organizationService.selectPublic({ status: "Active" }).then((rows) => {
+      if (cancelled) return;
+      applyCache((prev) => ({
+        ...prev,
+        organizations: rows.map((item) => toRow(item as unknown as Record<string, unknown>)),
+      }));
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [applyCache]);
 
   useEffect(() => {
     if (studios.length === 0 || picked) return;
@@ -156,21 +184,142 @@ export function NearbyBookingPage() {
     setCatalog(await loadOrgCatalog(picked.org.orgId));
   }
 
-  return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">Choose a salon, service, stylist and time slot.</p>
+  function shareProps(studio: NearbyStudio) {
+    const org = (allRows["organizations"] ?? []).find((o) => String(o["orgId"]) === String(studio.org.orgId));
+    const profile = customer
+      ? findCustomerByPhoneInOrg(allRows["customers"] ?? [], customer.phone, studio.org.orgId, studio.loc.locationId)
+      : null;
+    const code = profile
+      ? ensureCustomerReferralCode(profile)
+      : customer
+        ? referralCodeFor(customer.name, customer.phone)
+        : "";
+    const svc = (
+      catalog && String(picked?.org.orgId) === String(studio.org.orgId) ? catalog.services : allRows["services"] ?? []
+    ).filter((s) => !s["orgId"] || String(s["orgId"]) === String(studio.org.orgId));
+    return {
+      code,
+      earnLabel: referrerEarnSummary(org, svc),
+      orgSlug: studio.org.slug || orgPublicSlug(org),
+    };
+  }
 
-      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+  const shopVisit = useMemo(() => {
+    if (!customer || !picked) return null;
+    return (
+      getCustomerShopVisits(allRows, customer.phone).find(
+        (v) =>
+          String(v.orgId) === String(picked.org.orgId) && String(v.locationId) === String(picked.loc.locationId),
+      ) ?? null
+    );
+  }, [allRows, customer, picked]);
+
+  const shopOffers = useMemo(() => {
+    if (!customer || !picked) return null;
+    return (
+      listCustomerLocationOffers(allRows, customer.phone, [
+        {
+          orgId: picked.org.orgId,
+          locationId: picked.loc.locationId,
+          orgName: picked.org.name,
+          locationName: picked.loc.name,
+          city: picked.loc.city,
+          address: picked.loc.address,
+          orgSlug: picked.org.slug,
+        },
+      ])[0] ?? null
+    );
+  }, [allRows, customer, picked]);
+
+  useEffect(() => {
+    if (!picked) return;
+    const orgId = Number(picked.org.orgId) || 0;
+    const locationId = Number(picked.loc.locationId) || 0;
+    if (!orgId) return;
+    const digits = customer ? normalizePhone(customer.phone) : "";
+    let cancelled = false;
+    void Promise.all([
+      digits.length >= 10
+        ? customerService.lookupAtPos({ orgId, locationId, phone: digits }, true).catch(() => null)
+        : Promise.resolve(null),
+      couponService.selectPublic({ orgId }).catch(() => []),
+      qrOfferService.selectPublic({ orgId }).catch(() => []),
+    ]).then(([lookup, coupons, offers]) => {
+      if (cancelled) return;
+      applyCache((prev) => {
+        const oid = String(orgId);
+        let customers = prev["customers"] ?? [];
+        let loyalty = prev["loyalty"] ?? [];
+        let vouchers = prev["vouchers"] ?? [];
+        let qrOfferRedemptions = prev["qrOfferRedemptions"] ?? [];
+        let partnerCoupons = prev["partnerCoupons"] ?? [];
+        let wheelSpins = prev["wheelSpins"] ?? [];
+        if (lookup?.customer) {
+          const row = toRow(lookup.customer as unknown as Record<string, unknown>);
+          customers = [row, ...customers.filter((c) => String(c.id) !== String(row.id))];
+          loyalty = [
+            ...loyalty.filter((r) => String(r["orgId"]) !== oid),
+            ...(lookup.loyalty ?? []).map((item) => toRow(item as unknown as Record<string, unknown>)),
+          ];
+          vouchers = [
+            ...vouchers.filter((r) => String(r["orgId"]) !== oid),
+            ...(lookup.vouchers ?? []).map((item) => toRow(item as unknown as Record<string, unknown>)),
+          ];
+          qrOfferRedemptions = [
+            ...qrOfferRedemptions.filter((r) => String(r["orgId"]) !== oid),
+            ...(lookup.qrOfferRedemptions ?? []).map((item) => toRow(item as unknown as Record<string, unknown>)),
+          ];
+          partnerCoupons = [
+            ...partnerCoupons.filter((r) => String(r["orgId"]) !== oid),
+            ...(lookup.partnerCoupons ?? []).map((item) => toRow(item as unknown as Record<string, unknown>)),
+          ];
+          wheelSpins = [
+            ...wheelSpins.filter((r) => String(r["orgId"]) !== oid),
+            ...(lookup.wheelSpins ?? []).map((item) => toRow(item as unknown as Record<string, unknown>)),
+          ];
+        }
+        return {
+          ...prev,
+          customers,
+          loyalty,
+          vouchers,
+          qrOfferRedemptions,
+          partnerCoupons,
+          wheelSpins,
+          coupons: [
+            ...(prev["coupons"] ?? []).filter((r) => String(r["orgId"]) !== oid),
+            ...coupons.map((item) => toRow(item as unknown as Record<string, unknown>)),
+          ],
+          qrOffers: [
+            ...(prev["qrOffers"] ?? []).filter((r) => String(r["orgId"]) !== oid),
+            ...offers.map((item) => toRow(item as unknown as Record<string, unknown>)),
+          ],
+        };
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [picked, customer, applyCache]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <p className="shrink-0 text-sm text-muted-foreground">Choose a salon, service, stylist and time slot.</p>
+
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
           <h2 className="font-display text-lg font-semibold">Book appointment</h2>
           <Button variant="ghost" size="sm" onClick={() => void refresh()} disabled={loadingStudios}>
             Refresh
           </Button>
         </div>
 
-        <div className="flex flex-col lg:flex-row">
-          <div className="w-full shrink-0 border-b border-border lg:w-72 xl:w-80 lg:border-b-0 lg:border-r">
-            <div className="max-h-[16rem] overflow-y-auto p-3 lg:max-h-none lg:min-h-[24rem]">
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(10rem,38%)_minmax(0,1fr)] lg:grid-cols-[18rem_minmax(0,1fr)] lg:grid-rows-1 xl:grid-cols-[20rem_minmax(0,1fr)]">
+          <div className="flex min-h-0 flex-col overflow-hidden border-b border-border lg:border-b-0 lg:border-r">
+            <p className="shrink-0 border-b border-border px-3 py-2 text-[11px] tracking-wide text-muted-foreground uppercase">
+              Organisations
+            </p>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
               {loadingStudios ? (
                 <div className="flex items-center gap-2 px-2 py-6 text-sm text-muted-foreground">
                   <Loader2 className="size-4 animate-spin" />
@@ -215,7 +364,11 @@ export function NearbyBookingPage() {
             </div>
           </div>
 
-          <div className="min-w-0 flex-1 bg-muted/10 p-3 sm:p-4">
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted/10">
+            <p className="shrink-0 border-b border-border px-3 py-2 text-[11px] tracking-wide text-muted-foreground uppercase">
+              Booking
+            </p>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
             {!picked ? (
               <div className="flex min-h-[14rem] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-background/60 px-4 py-8 text-center">
                 <CalendarCheck className="size-10 text-muted-foreground/60" />
@@ -233,6 +386,87 @@ export function NearbyBookingPage() {
                   <h3 className="font-display text-xl font-semibold">{picked.loc.name}</h3>
                   <p className="text-sm text-muted-foreground">{picked.org.name}</p>
                 </div>
+
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <h4 className="font-medium">Your rewards at this salon</h4>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="rounded-lg border border-border/80 bg-background px-3 py-2 text-center">
+                      <p className="flex items-center justify-center gap-1 text-[10px] tracking-wide text-muted-foreground uppercase">
+                        <Star className="size-3" /> Points
+                      </p>
+                      <p className="mt-0.5 text-sm font-semibold">{(shopVisit?.points ?? 0).toLocaleString("en-IN")}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/80 bg-background px-3 py-2 text-center">
+                      <p className="text-[10px] tracking-wide text-muted-foreground uppercase">Stamps</p>
+                      <p className="mt-0.5 text-sm font-semibold">
+                        {shopVisit ? `${shopVisit.stampsCurrent}/${shopVisit.stampsRequired}` : "0"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border/80 bg-background px-3 py-2 text-center">
+                      <p className="flex items-center justify-center gap-1 text-[10px] tracking-wide text-muted-foreground uppercase">
+                        <TicketPercent className="size-3" /> Coupons
+                      </p>
+                      <p className="mt-0.5 text-sm font-semibold">{shopVisit?.couponCount ?? 0}</p>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    These points can only be claimed at this salon.
+                  </p>
+                  {(shopVisit?.coupons.length ?? 0) > 0 ? (
+                    <ul className="mt-3 space-y-1.5">
+                      {shopVisit!.coupons.map((c) => (
+                        <li key={c.id} className="rounded-md border border-border bg-muted/20 px-2.5 py-2 text-sm">
+                          <p className="flex items-center gap-1.5 font-medium">
+                            <Gift className="size-3.5 text-primary" />
+                            {c.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {c.valueLabel}
+                            {c.expiresAt
+                              ? ` · ${(() => {
+                                  const left = calendarDaysUntil(c.expiresAt);
+                                  if (left === 0) return "Expires today";
+                                  if (left == null) return c.expiresAt;
+                                  return `${left} day${left === 1 ? "" : "s"} left`;
+                                })()}`
+                              : ""}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {(shopOffers?.live.length ?? 0) > 0 ? (
+                    <div className="mt-3">
+                      <p className="text-xs font-medium text-muted-foreground">Live at this salon</p>
+                      <ul className="mt-1.5 space-y-1.5">
+                        {shopOffers!.live.map((item) => (
+                          <li key={item.id} className="rounded-md border border-border bg-muted/20 px-2.5 py-2 text-sm">
+                            <p className="font-medium">{item.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.code ? `${item.code} · ` : ""}
+                              {item.validityLabel}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : shopVisit?.coupons.length ? null : (
+                    <p className="mt-2 text-xs text-muted-foreground">No coupons at this salon yet.</p>
+                  )}
+                </div>
+
+                {(() => {
+                  const share = shareProps(picked);
+                  return (
+                    <ReferralShareCard
+                      code={share.code}
+                      salonName={picked.org.name}
+                      orgSlug={share.orgSlug}
+                      locationId={picked.loc.locationId}
+                      earnLabel={share.earnLabel}
+                    />
+                  );
+                })()}
 
                 <div className="rounded-xl border border-border bg-card p-4">
                   <h4 className="font-medium">Services</h4>
@@ -255,7 +489,8 @@ export function NearbyBookingPage() {
                           }`}
                         >
                           <p className="flex items-center gap-2 text-sm font-medium">
-                            <Scissors className="size-4 text-primary" /> {String(s["name"])}
+                            <ServiceThumb imageId={s["imageId"]} name={String(s["name"])} size={36} />
+                            {String(s["name"])}
                           </p>
                           <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <span>{Number(s["duration"] ?? 0)} min ·</span>
@@ -333,6 +568,7 @@ export function NearbyBookingPage() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       </section>

@@ -10,6 +10,7 @@ namespace Krios.Models.Krios
         public string rewardTier { get; set; } = "";
         public string prizeType { get; set; } = "";
         public long prizeValue { get; set; }
+        public long serviceId { get; set; }
         public decimal winWeight { get; set; }
         public string colorHex { get; set; } = "";
         public string active { get; set; } = "";

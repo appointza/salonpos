@@ -2,13 +2,18 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { CalendarCheck, LocateFixed, Loader2, MapPin, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ReferralShareCard } from "@/components/ReferralShareCard";
 import { formatDistance, saveBookingPick } from "@/pages/Nearby/nearby-utils";
 import { useNearbyStudios } from "@/pages/Nearby/use-nearby-studios";
 import type { NearbyStudio } from "@/services/nearby.service";
+import { useCustomerSession } from "@/pages/Login/customer-session";
+import { referralCodeFor } from "@/pages/LoyaltyQr/qr-loyalty";
 
 export function NearbyPage() {
   const navigate = useNavigate();
   const { located, locating, studios, loading, error, locateMe, refresh } = useNearbyStudios();
+  const { customer } = useCustomerSession();
+  const referralCode = customer ? referralCodeFor(customer.name, customer.phone) : "";
 
   function bookHere(studio: NearbyStudio) {
     saveBookingPick({ orgId: studio.org.orgId, locationId: studio.loc.locationId });
@@ -17,6 +22,7 @@ export function NearbyPage() {
 
   return (
     <div className="space-y-6">
+      {referralCode ? <ReferralShareCard code={referralCode} /> : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {located
@@ -86,6 +92,11 @@ export function NearbyPage() {
       </section>
 
       <p className="text-center text-sm text-muted-foreground">
+        See deals by salon on{" "}
+        <Link to="/nearby/offers" className="text-primary hover:underline">
+          Offers
+        </Link>
+        {" · "}
         Already booked?{" "}
         <Link to="/nearby/my-bookings" className="text-primary hover:underline">
           View my bookings
