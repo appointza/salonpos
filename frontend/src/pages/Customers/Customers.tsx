@@ -478,7 +478,7 @@ function CustomersListPage() {
               );
             }}
           >
-            <Plus /> New customer
+            <Plus /> Create customer
           </Button>
         ) : null}
       </header>
@@ -552,7 +552,7 @@ function CustomersListPage() {
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{isNew ? "New customer" : "Edit customer"}</DialogTitle>
+            <DialogTitle>{isNew ? "Create customer" : "Edit customer"}</DialogTitle>
             <DialogDescription>Record ID {editing ? String(editing.id) : ""}</DialogDescription>
           </DialogHeader>
           {editing ? (

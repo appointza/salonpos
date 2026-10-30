@@ -44,6 +44,18 @@ namespace Krios.Models.Krios
         public string language { get; set; } = "en";
     }
 
+    public class AuthDeleteAccountReq
+    {
+        public long userId { get; set; }
+        public string phone { get; set; } = "";
+        public string confirmation { get; set; } = "";
+    }
+
+    public class AuthDeleteAccountRes
+    {
+        public bool deleted { get; set; }
+    }
+
     public class AuthSetupCustomerPasswordReq
     {
         public string phone { get; set; } = "";

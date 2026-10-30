@@ -65,6 +65,7 @@ const CRUD_NOUN: Record<string, string> = {
   users: "User",
   roles: "Role",
   inventory: "Product",
+  stockMovements: "Stock movement",
   expenses: "Expense",
   leaves: "Leave request",
   shifts: "Shift",
@@ -80,9 +81,12 @@ const CRUD_NOUN: Record<string, string> = {
   wheelSegments: "Prize",
   scratchPrizes: "Scratch prize",
   qrOffers: "Offer",
+  invoices: "Invoice",
+  customers: "Customer",
   feedback: "Feedback",
   partnerships: "Partner",
   coupons: "Coupon",
+  googleReviews: "Google review",
 };
 
 function recordNoun(module: ModuleDef) {
@@ -419,7 +423,7 @@ export function CrudPage({
           </Button>
           {canCreateHere && !readOnly && (
             <Button size="sm" onClick={() => openNew()}>
-              <Plus /> {newButtonLabel ? t(newButtonLabel) : t("New {name}", { name: t(noun) })}
+              <Plus /> {newButtonLabel ? t(newButtonLabel) : t("Create {name}", { name: t(noun) })}
             </Button>
           )}
           {!readOnly && allowMutate && extraToolbar?.({ openNew })}
@@ -595,7 +599,9 @@ export function CrudPage({
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {isNew ? t("New") : readOnly ? t("View") : t("Edit")} {t(module.title.replace(/s$/, ""))}
+              {isNew
+                ? t("Create {name}", { name: t(noun) })
+                : `${readOnly ? t("View") : t("Edit")} ${t(noun)}`}
             </DialogTitle>
             <DialogDescription>{t("Record ID {id}", { id: editing ? String(editing.id) : "" })}</DialogDescription>
           </DialogHeader>

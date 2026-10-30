@@ -240,7 +240,7 @@ function CouponsPage() {
         </div>
         {allowMutate && tab === "manage" ? (
           <Button size="sm" onClick={openNew}>
-            <Plus /> New coupon scheme
+            <Plus /> Create coupon scheme
           </Button>
         ) : null}
       </header>
@@ -530,7 +530,7 @@ function CouponsPage() {
         <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}>
           <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{isNew ? "New coupon" : "Edit coupon"}</DialogTitle>
+              <DialogTitle>{isNew ? "Create coupon" : "Edit coupon"}</DialogTitle>
               <DialogDescription>
                 Example: <strong>WELCOME20</strong> — 20% off services, min bill ₹500, new customers only, 1 per customer.
               </DialogDescription>

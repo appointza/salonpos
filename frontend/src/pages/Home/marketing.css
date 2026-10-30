@@ -1,0 +1,1228 @@
+.krios-mkt {
+  --plum-900: #1e0e26;
+  --plum-800: #2a1433;
+  --plum-700: #3d1f4a;
+  --plum-500: #6b3a7d;
+  --rose: #e2725b;
+  --rose-600: #c95a44;
+  --rose-100: #fbe6df;
+  --gold: #e8b86b;
+  --mint: #3fa98a;
+  --cream: #fbf7f2;
+  --sand: #f3ece3;
+  --white: #fff;
+  --ink: #24172b;
+  --ink-2: #5b4d62;
+  --line: #e8ddd3;
+  --radius: 18px;
+  --shadow: 0 18px 50px -20px rgba(42, 20, 51, 0.35);
+  --display: "Fraunces", Georgia, serif;
+  --sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--cream);
+  line-height: 1.6;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+.krios-mkt *,
+.krios-mkt *::before,
+.krios-mkt *::after {
+  box-sizing: border-box;
+}
+
+.krios-mkt img,
+.krios-mkt svg {
+  display: block;
+  max-width: 100%;
+}
+
+.krios-mkt a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.krios-mkt ul,
+.krios-mkt ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.krios-mkt p {
+  margin: 0;
+}
+
+.krios-mkt .wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.krios-mkt .skip {
+  position: absolute;
+  left: -999px;
+}
+.krios-mkt .skip:focus {
+  left: 16px;
+  top: 16px;
+  background: #fff;
+  padding: 8px 12px;
+  z-index: 99;
+  border-radius: 8px;
+}
+
+.krios-mkt h1,
+.krios-mkt h2,
+.krios-mkt h3 {
+  font-family: var(--display);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.krios-mkt h2 {
+  font-size: clamp(1.9rem, 3.6vw, 2.9rem);
+}
+.krios-mkt h3 {
+  font-size: 1.3rem;
+}
+
+.krios-mkt .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rose-600);
+}
+.krios-mkt .eyebrow::before {
+  content: "";
+  width: 22px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+}
+
+.krios-mkt .lead {
+  font-size: 1.1rem;
+  color: var(--ink-2);
+  max-width: 640px;
+}
+
+.krios-mkt .section {
+  padding: 96px 0;
+}
+.krios-mkt .section-head {
+  max-width: 720px;
+  margin-bottom: 48px;
+}
+.krios-mkt .section-head h2 {
+  margin: 14px 0 14px;
+}
+.krios-mkt .center {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+.krios-mkt .center .lead {
+  margin: 0 auto;
+}
+
+.krios-mkt .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.98rem;
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+}
+.krios-mkt .btn:hover {
+  transform: translateY(-2px);
+}
+.krios-mkt .btn-primary {
+  background: var(--rose);
+  color: #fff;
+  box-shadow: 0 10px 24px -10px rgba(226, 114, 91, 0.8);
+}
+.krios-mkt .btn-primary:hover {
+  background: var(--rose-600);
+}
+.krios-mkt .btn-ghost {
+  border-color: var(--line);
+  background: var(--white);
+}
+.krios-mkt .btn-ghost:hover {
+  border-color: var(--ink);
+}
+.krios-mkt .btn-light {
+  background: #fff;
+  color: var(--plum-800);
+}
+.krios-mkt .btn-outline-light {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+.krios-mkt .btn-outline-light:hover {
+  border-color: #fff;
+}
+
+.krios-mkt .header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(251, 247, 242, 0.86);
+  backdrop-filter: saturate(1.4) blur(12px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+.krios-mkt .header.scrolled {
+  border-color: var(--line);
+}
+.krios-mkt .nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+}
+.krios-mkt .logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--display);
+  font-size: 1.45rem;
+  font-weight: 600;
+  color: var(--plum-800);
+}
+.krios-mkt .logo-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--rose), var(--plum-500));
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 1.1rem;
+}
+.krios-mkt .logo-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.krios-mkt .logo small {
+  display: block;
+  font-family: var(--sans);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  color: var(--ink-2);
+  font-weight: 600;
+  margin-top: -4px;
+}
+.krios-mkt .menu {
+  display: flex;
+  gap: 30px;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+.krios-mkt .menu a {
+  color: var(--ink-2);
+}
+.krios-mkt .menu a:hover {
+  color: var(--ink);
+}
+.krios-mkt .nav-cta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.krios-mkt .nav-cta .login {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.krios-mkt .nav-cta .btn {
+  padding: 10px 20px;
+}
+.krios-mkt .burger {
+  display: none;
+  background: none;
+  border: 0;
+  padding: 8px;
+  cursor: pointer;
+}
+.krios-mkt .burger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--ink);
+  margin: 5px 0;
+  border-radius: 2px;
+}
+
+.krios-mkt .hero {
+  position: relative;
+  padding: 72px 0 96px;
+  overflow: hidden;
+}
+.krios-mkt .hero::before {
+  content: "";
+  position: absolute;
+  width: 720px;
+  height: 720px;
+  right: -220px;
+  top: -260px;
+  background: radial-gradient(circle, rgba(226, 114, 91, 0.22), transparent 65%);
+  pointer-events: none;
+}
+.krios-mkt .hero::after {
+  content: "";
+  position: absolute;
+  width: 560px;
+  height: 560px;
+  left: -260px;
+  bottom: -280px;
+  background: radial-gradient(circle, rgba(107, 58, 125, 0.16), transparent 65%);
+  pointer-events: none;
+}
+.krios-mkt .hero-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 56px;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+.krios-mkt .hero h1 {
+  font-size: clamp(2.4rem, 5.2vw, 4.1rem);
+  margin: 18px 0 22px;
+  color: var(--plum-900);
+}
+.krios-mkt .hero h1 em {
+  font-style: italic;
+  color: var(--rose-600);
+}
+.krios-mkt .hero .lead {
+  margin-bottom: 32px;
+}
+.krios-mkt .hero-ctas {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.krios-mkt .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin-top: 34px;
+  font-size: 0.9rem;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.krios-mkt .chips li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.krios-mkt .chips svg {
+  width: 18px;
+  height: 18px;
+  color: var(--mint);
+}
+
+.krios-mkt .mock {
+  position: relative;
+  min-height: 460px;
+}
+.krios-mkt .screen {
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+  padding: 22px;
+  position: relative;
+  z-index: 1;
+}
+.krios-mkt .screen-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.krios-mkt .screen-top b {
+  font-size: 1rem;
+}
+.krios-mkt .dots {
+  display: flex;
+  gap: 6px;
+}
+.krios-mkt .dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--line);
+  display: block;
+}
+.krios-mkt .kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.krios-mkt .kpi {
+  background: var(--sand);
+  border-radius: 12px;
+  padding: 12px;
+}
+.krios-mkt .kpi span {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--ink-2);
+}
+.krios-mkt .kpi strong {
+  font-size: 1.15rem;
+  font-family: var(--display);
+}
+.krios-mkt .appt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+.krios-mkt .appt .av {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #fff;
+  flex: none;
+}
+.krios-mkt .appt .t {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-size: 0.8rem;
+}
+.krios-mkt .tag {
+  font-size: 0.7rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.krios-mkt .float {
+  position: absolute;
+  z-index: 2;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+  padding: 14px 16px;
+  font-size: 0.85rem;
+  animation: krios-bob 6s ease-in-out infinite;
+}
+.krios-mkt .float-points {
+  right: -18px;
+  top: -26px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.krios-mkt .float-points .ic {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--rose-100);
+  display: grid;
+  place-items: center;
+  color: var(--rose-600);
+}
+.krios-mkt .float-wheel {
+  left: -34px;
+  bottom: -30px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  animation-delay: -3s;
+}
+.krios-mkt .mini-wheel {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--rose) 0 60deg,
+    var(--gold) 0 120deg,
+    var(--plum-500) 0 180deg,
+    var(--mint) 0 240deg,
+    var(--rose-100) 0 300deg,
+    var(--plum-800) 0 360deg
+  );
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  animation: krios-spin 14s linear infinite;
+}
+.krios-mkt .float-wa {
+  right: 12px;
+  bottom: -40px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  animation-delay: -1.5s;
+}
+.krios-mkt .float-wa .ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #25d366;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.krios-mkt .products {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.krios-mkt .product {
+  border-radius: 26px;
+  padding: 40px;
+  position: relative;
+  overflow: hidden;
+}
+.krios-mkt .product h3 {
+  font-size: 1.9rem;
+  margin: 16px 0 10px;
+}
+.krios-mkt .product p {
+  color: inherit;
+  opacity: 0.85;
+  margin-bottom: 22px;
+}
+.krios-mkt .product ul {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin-bottom: 28px;
+  font-size: 0.95rem;
+}
+.krios-mkt .product li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.krios-mkt .product li::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 9px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.6;
+}
+.krios-mkt .product .link {
+  font-weight: 700;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.krios-mkt .product .link:hover {
+  gap: 12px;
+}
+.krios-mkt .p-desk {
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.krios-mkt .p-desk .badge {
+  background: var(--sand);
+  color: var(--plum-700);
+}
+.krios-mkt .p-points {
+  background: var(--plum-800);
+  color: #fff;
+}
+.krios-mkt .p-points .badge {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--gold);
+}
+.krios-mkt .badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.krios-mkt .p-points::after {
+  content: "";
+  position: absolute;
+  right: -80px;
+  bottom: -80px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--rose) 0 60deg,
+    var(--gold) 0 120deg,
+    var(--plum-500) 0 180deg,
+    var(--mint) 0 240deg,
+    var(--rose-100) 0 300deg,
+    var(--plum-700) 0 360deg
+  );
+  opacity: 0.25;
+}
+.krios-mkt .together {
+  margin-top: 28px;
+  text-align: center;
+  color: var(--ink-2);
+}
+
+.krios-mkt .bg-white {
+  background: #fff;
+}
+.krios-mkt .features {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+.krios-mkt .feature {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 26px;
+  transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
+}
+.krios-mkt .feature:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow);
+  border-color: transparent;
+  background: #fff;
+}
+.krios-mkt .icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: var(--rose-100);
+  color: var(--rose-600);
+  margin-bottom: 18px;
+}
+.krios-mkt .icon svg {
+  width: 22px;
+  height: 22px;
+}
+.krios-mkt .feature h3 {
+  font-family: var(--sans);
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.krios-mkt .feature p {
+  font-size: 0.92rem;
+  color: var(--ink-2);
+  margin-bottom: 12px;
+}
+.krios-mkt .feature ul {
+  font-size: 0.86rem;
+  color: var(--ink-2);
+  display: grid;
+  gap: 5px;
+}
+.krios-mkt .feature li {
+  padding-left: 18px;
+  position: relative;
+}
+.krios-mkt .feature li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: var(--mint);
+  font-weight: 700;
+}
+
+.krios-mkt .dark {
+  background: var(--plum-900);
+  color: #f5eef7;
+}
+.krios-mkt .dark .lead {
+  color: #cbb9d2;
+}
+.krios-mkt .dark .eyebrow {
+  color: var(--gold);
+}
+.krios-mkt .reward-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr;
+  gap: 20px;
+}
+.krios-mkt .reward {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 32px;
+}
+.krios-mkt .reward h3 {
+  font-size: 1.5rem;
+  margin: 18px 0 10px;
+  color: #fff;
+}
+.krios-mkt .reward p {
+  color: #cbb9d2;
+  font-size: 0.95rem;
+  margin-bottom: 18px;
+}
+.krios-mkt .reward .use {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.krios-mkt .pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.krios-mkt .pills li {
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #eadff0;
+}
+.krios-mkt .reward .icon {
+  background: rgba(232, 184, 107, 0.15);
+  color: var(--gold);
+}
+.krios-mkt .reward-hero {
+  background: linear-gradient(160deg, var(--plum-700), var(--plum-800));
+  display: flex;
+  flex-direction: column;
+}
+.krios-mkt .wheel-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 22px;
+  position: relative;
+}
+.krios-mkt .wheel {
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--rose) 0 45deg,
+    var(--gold) 0 90deg,
+    var(--plum-500) 0 135deg,
+    var(--mint) 0 180deg,
+    var(--rose) 0 225deg,
+    var(--gold) 0 270deg,
+    var(--plum-500) 0 315deg,
+    var(--mint) 0 360deg
+  );
+  border: 6px solid #fff;
+  box-shadow: 0 14px 40px -12px rgba(0, 0, 0, 0.6);
+  animation: krios-spin 18s linear infinite;
+}
+.krios-mkt .wheel-wrap::after {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 12px solid transparent;
+  border-top: 18px solid #fff;
+}
+.krios-mkt .wheel-wrap::before {
+  content: "";
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #fff;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+.krios-mkt .benefits {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  overflow: hidden;
+  margin-top: 56px;
+}
+.krios-mkt .benefit {
+  background: var(--plum-900);
+  padding: 28px;
+}
+.krios-mkt .benefit h3 {
+  font-family: var(--sans);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 6px;
+}
+.krios-mkt .benefit p {
+  font-size: 0.88rem;
+  color: #b9a6c1;
+}
+.krios-mkt .benefit .num {
+  font-family: var(--display);
+  color: var(--rose);
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.krios-mkt .combo {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+.krios-mkt .combo-card {
+  border-radius: 24px;
+  padding: 32px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+.krios-mkt .combo-card h3 {
+  font-family: var(--sans);
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 18px;
+}
+.krios-mkt .combo-card .pills li {
+  background: var(--sand);
+  color: var(--ink);
+}
+.krios-mkt .combo-plus {
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 2.4rem;
+  color: var(--rose);
+}
+
+.krios-mkt .journey {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 14px;
+  position: relative;
+}
+.krios-mkt .journey::before {
+  content: "";
+  position: absolute;
+  top: 24px;
+  left: 6%;
+  right: 6%;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--rose) 0 8px, transparent 8px 16px);
+  opacity: 0.5;
+}
+.krios-mkt .step {
+  text-align: center;
+  position: relative;
+}
+.krios-mkt .step .n {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 2px solid var(--rose);
+  color: var(--rose-600);
+  font-weight: 700;
+  font-family: var(--display);
+  font-size: 1.15rem;
+  position: relative;
+}
+.krios-mkt .step:last-child .n {
+  background: var(--rose);
+  color: #fff;
+}
+.krios-mkt .step h3 {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.krios-mkt .step p {
+  font-size: 0.82rem;
+  color: var(--ink-2);
+}
+.krios-mkt .step .who {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+.krios-mkt .who-d {
+  background: var(--sand);
+  color: var(--plum-700);
+}
+.krios-mkt .who-p {
+  background: var(--rose-100);
+  color: var(--rose-600);
+}
+
+.krios-mkt .why {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.krios-mkt .why-item {
+  display: flex;
+  gap: 16px;
+  padding: 26px;
+  border-radius: var(--radius);
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.krios-mkt .why-item .icon {
+  flex: none;
+  margin: 0;
+  background: var(--sand);
+  color: var(--plum-700);
+}
+.krios-mkt .why-item h3 {
+  font-family: var(--sans);
+  font-size: 1.02rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.krios-mkt .why-item p {
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+.krios-mkt .ideal {
+  margin-top: 56px;
+  padding: 36px;
+  border-radius: 24px;
+  background: var(--sand);
+  display: flex;
+  gap: 28px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.krios-mkt .ideal h3 {
+  font-size: 1.5rem;
+  min-width: 220px;
+}
+.krios-mkt .ideal ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1;
+}
+.krios-mkt .ideal li {
+  background: #fff;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid var(--line);
+}
+
+.krios-mkt .faq-grid {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 56px;
+  align-items: start;
+}
+.krios-mkt .faq details {
+  border-bottom: 1px solid var(--line);
+  padding: 20px 0;
+}
+.krios-mkt .faq summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+.krios-mkt .faq summary::-webkit-details-marker {
+  display: none;
+}
+.krios-mkt .faq summary::after {
+  content: "+";
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--rose-600);
+  transition: transform 0.2s;
+  flex: none;
+}
+.krios-mkt .faq details[open] summary::after {
+  transform: rotate(45deg);
+}
+.krios-mkt .faq details p {
+  margin-top: 12px;
+  color: var(--ink-2);
+  max-width: 640px;
+}
+
+.krios-mkt .cta {
+  padding: 0 0 96px;
+}
+.krios-mkt .cta-box {
+  border-radius: 32px;
+  padding: 72px 48px;
+  text-align: center;
+  color: #fff;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(226, 114, 91, 0.45), transparent 45%),
+    radial-gradient(circle at 90% 90%, rgba(232, 184, 107, 0.3), transparent 45%),
+    var(--plum-800);
+  position: relative;
+  overflow: hidden;
+}
+.krios-mkt .cta-box h2 {
+  font-size: clamp(2rem, 4.4vw, 3.2rem);
+  margin: 14px auto 16px;
+  max-width: 760px;
+}
+.krios-mkt .cta-box p {
+  color: #e2d4e8;
+  max-width: 620px;
+  margin: 0 auto 32px;
+}
+.krios-mkt .cta-box .eyebrow {
+  color: var(--gold);
+}
+.krios-mkt .cta-box .hero-ctas {
+  justify-content: center;
+}
+
+.krios-mkt .footer {
+  background: var(--plum-900);
+  color: #b9a6c1;
+  padding: 56px 0 28px;
+  font-size: 0.92rem;
+}
+.krios-mkt .foot-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 32px;
+  margin-bottom: 40px;
+}
+.krios-mkt .footer .logo {
+  color: #fff;
+}
+.krios-mkt .footer .logo small {
+  color: #b9a6c1;
+}
+.krios-mkt .footer h4 {
+  color: #fff;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0 0 14px;
+}
+.krios-mkt .footer li {
+  margin-bottom: 8px;
+}
+.krios-mkt .footer a:hover {
+  color: #fff;
+}
+.krios-mkt .foot-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 22px;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.krios-mkt .social {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+.krios-mkt .social a {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: grid;
+  place-items: center;
+  color: #eadff0;
+}
+.krios-mkt .social a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.krios-mkt .reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.krios-mkt .reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes krios-bob {
+  50% {
+    transform: translateY(-8px);
+  }
+}
+@keyframes krios-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .krios-mkt *,
+  .krios-mkt *::before,
+  .krios-mkt *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .krios-mkt .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .krios-mkt .features {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .krios-mkt .reward-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .krios-mkt .reward-hero {
+    grid-column: 1 / -1;
+  }
+  .krios-mkt .benefits {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .krios-mkt .journey {
+    grid-template-columns: repeat(4, 1fr);
+    row-gap: 36px;
+  }
+  .krios-mkt .journey::before {
+    display: none;
+  }
+  .krios-mkt .why {
+    grid-template-columns: 1fr 1fr;
+  }
+  .krios-mkt .foot-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .krios-mkt .menu,
+  .krios-mkt .nav-cta .login {
+    display: none;
+  }
+  .krios-mkt .burger {
+    display: block;
+  }
+  .krios-mkt .menu.open {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: absolute;
+    top: 72px;
+    left: 0;
+    right: 0;
+    background: var(--cream);
+    border-bottom: 1px solid var(--line);
+    padding: 8px 20px 16px;
+  }
+  .krios-mkt .menu.open a {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .krios-mkt .hero-grid,
+  .krios-mkt .products,
+  .krios-mkt .faq-grid {
+    grid-template-columns: 1fr;
+  }
+  .krios-mkt .hero {
+    padding: 48px 0 88px;
+  }
+  .krios-mkt .mock {
+    min-height: 0;
+    margin: 24px 12px 0;
+  }
+  .krios-mkt .combo {
+    grid-template-columns: 1fr;
+  }
+  .krios-mkt .combo-plus {
+    font-size: 2rem;
+  }
+  .krios-mkt .section {
+    padding: 72px 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .krios-mkt .features,
+  .krios-mkt .reward-grid,
+  .krios-mkt .benefits,
+  .krios-mkt .why,
+  .krios-mkt .foot-grid {
+    grid-template-columns: 1fr;
+  }
+  .krios-mkt .journey {
+    grid-template-columns: 1fr 1fr;
+  }
+  .krios-mkt .product {
+    padding: 28px;
+  }
+  .krios-mkt .product ul {
+    grid-template-columns: 1fr;
+  }
+  .krios-mkt .nav-cta .btn {
+    display: none;
+  }
+  .krios-mkt .appt .tag {
+    display: none;
+  }
+  .krios-mkt .float-points {
+    right: -8px;
+    top: -58px;
+  }
+  .krios-mkt .float-wheel {
+    left: -8px;
+  }
+  .krios-mkt .float-wa {
+    display: none;
+  }
+  .krios-mkt .cta-box {
+    padding: 52px 22px;
+  }
+  .krios-mkt .ideal {
+    padding: 26px;
+  }
+}

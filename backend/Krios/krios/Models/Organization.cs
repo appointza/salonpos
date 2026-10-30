@@ -37,6 +37,7 @@ namespace Krios.Models.Krios
         public string bookingRules { get; set; } = "";
         public string referralRules { get; set; } = "";
         public string growthClaimPool { get; set; } = "";
+        public string billSettings { get; set; } = "";
     }
 
     public class OrganizationSelectReq

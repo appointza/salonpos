@@ -6,14 +6,16 @@ namespace Krios.Utils
 {
     public class OtpMailer
     {
-        private readonly MailSettings settings;
+        private readonly IOptionsMonitor<MailSettings> options;
         private readonly ILogger<OtpMailer> logger;
 
-        public OtpMailer(IOptions<MailSettings> options, ILogger<OtpMailer> logger)
+        public OtpMailer(IOptionsMonitor<MailSettings> options, ILogger<OtpMailer> logger)
         {
-            settings = options.Value ?? new MailSettings();
+            this.options = options;
             this.logger = logger;
         }
+
+        private MailSettings settings => options.CurrentValue ?? new MailSettings();
 
         public bool IsConfigured => !string.IsNullOrWhiteSpace(settings.Host);
 
@@ -32,12 +34,12 @@ namespace Krios.Utils
                 Body = $"Your verification code is {otp}. It expires in 5 minutes. If you did not request this, ignore this email.",
             };
 
-            using var client = new SmtpClient(settings.Host, settings.Port)
+            using var client = new SmtpClient(settings.Host, settings.Port > 0 ? settings.Port : 587)
             {
                 EnableSsl = settings.EnableSsl,
             };
             if (!string.IsNullOrWhiteSpace(settings.User))
-                client.Credentials = new NetworkCredential(settings.User, settings.Password);
+                client.Credentials = new NetworkCredential(settings.User.Trim(), (settings.Password ?? "").Replace(" ", ""));
 
             await client.SendMailAsync(message);
             logger.LogInformation("Sent password-reset OTP email to {Email}", MaskEmail(toEmail));

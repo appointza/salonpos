@@ -17,12 +17,14 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NearbyRouteImport } from './routes/nearby'
 import { Route as PlatformRouteImport } from './routes/platform'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as WalkInRouteImport } from './routes/walk-in'
 import { Route as OrgSlugIndexRouteImport } from './routes/$orgSlug/index'
 import { Route as OrgSlugWalkInRouteImport } from './routes/$orgSlug/walk-in'
 import { Route as AppAppointmentsRouteImport } from './routes/_app/appointments'
 import { Route as AppAttendanceRouteImport } from './routes/_app/attendance'
+import { Route as AppBillRouteImport } from './routes/_app/bill'
 import { Route as AppBrandAppsRouteImport } from './routes/_app/brand-apps'
 import { Route as AppCampaignsRouteImport } from './routes/_app/campaigns'
 import { Route as AppCommissionsRouteImport } from './routes/_app/commissions'
@@ -119,6 +121,11 @@ const PlatformRoute = PlatformRouteImport.update({
   path: '/platform',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -147,6 +154,11 @@ const AppAppointmentsRoute = AppAppointmentsRouteImport.update({
 const AppAttendanceRoute = AppAttendanceRouteImport.update({
   id: '/attendance',
   path: '/attendance',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBillRoute = AppBillRouteImport.update({
+  id: '/bill',
+  path: '/bill',
   getParentRoute: () => AppRoute,
 } as any)
 const AppBrandAppsRoute = AppBrandAppsRouteImport.update({
@@ -438,11 +450,13 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/nearby': typeof NearbyRouteWithChildren
   '/platform': typeof PlatformRoute
+  '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
   '/walk-in': typeof WalkInRoute
   '/$orgSlug/walk-in': typeof OrgSlugWalkInRoute
   '/appointments': typeof AppAppointmentsRoute
   '/attendance': typeof AppAttendanceRoute
+  '/bill': typeof AppBillRoute
   '/brand-apps': typeof AppBrandAppsRoute
   '/campaigns': typeof AppCampaignsRoute
   '/commissions': typeof AppCommissionsRoute
@@ -507,11 +521,13 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/platform': typeof PlatformRoute
+  '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
   '/walk-in': typeof WalkInRoute
   '/$orgSlug/walk-in': typeof OrgSlugWalkInRoute
   '/appointments': typeof AppAppointmentsRoute
   '/attendance': typeof AppAttendanceRoute
+  '/bill': typeof AppBillRoute
   '/brand-apps': typeof AppBrandAppsRoute
   '/campaigns': typeof AppCampaignsRoute
   '/commissions': typeof AppCommissionsRoute
@@ -578,11 +594,13 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/nearby': typeof NearbyRouteWithChildren
   '/platform': typeof PlatformRoute
+  '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
   '/walk-in': typeof WalkInRoute
   '/$orgSlug/walk-in': typeof OrgSlugWalkInRoute
   '/_app/appointments': typeof AppAppointmentsRoute
   '/_app/attendance': typeof AppAttendanceRoute
+  '/_app/bill': typeof AppBillRoute
   '/_app/brand-apps': typeof AppBrandAppsRoute
   '/_app/campaigns': typeof AppCampaignsRoute
   '/_app/commissions': typeof AppCommissionsRoute
@@ -651,11 +669,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/nearby'
     | '/platform'
+    | '/privacy'
     | '/register'
     | '/walk-in'
     | '/$orgSlug/walk-in'
     | '/appointments'
     | '/attendance'
+    | '/bill'
     | '/brand-apps'
     | '/campaigns'
     | '/commissions'
@@ -720,11 +740,13 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/platform'
+    | '/privacy'
     | '/register'
     | '/walk-in'
     | '/$orgSlug/walk-in'
     | '/appointments'
     | '/attendance'
+    | '/bill'
     | '/brand-apps'
     | '/campaigns'
     | '/commissions'
@@ -790,11 +812,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/nearby'
     | '/platform'
+    | '/privacy'
     | '/register'
     | '/walk-in'
     | '/$orgSlug/walk-in'
     | '/_app/appointments'
     | '/_app/attendance'
+    | '/_app/bill'
     | '/_app/brand-apps'
     | '/_app/campaigns'
     | '/_app/commissions'
@@ -863,6 +887,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   NearbyRoute: typeof NearbyRouteWithChildren
   PlatformRoute: typeof PlatformRoute
+  PrivacyRoute: typeof PrivacyRoute
   RegisterRoute: typeof RegisterRoute
   WalkInRoute: typeof WalkInRoute
   QrLocationIdRoute: typeof QrLocationIdRoute
@@ -926,6 +951,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -966,6 +998,13 @@ declare module '@tanstack/react-router' {
       path: '/attendance'
       fullPath: '/attendance'
       preLoaderRoute: typeof AppAttendanceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/bill': {
+      id: '/_app/bill'
+      path: '/bill'
+      fullPath: '/bill'
+      preLoaderRoute: typeof AppBillRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/brand-apps': {
@@ -1468,6 +1507,7 @@ const AppLoyaltyRouteWithChildren = AppLoyaltyRoute._addFileChildren(
 interface AppRouteChildren {
   AppAppointmentsRoute: typeof AppAppointmentsRoute
   AppAttendanceRoute: typeof AppAttendanceRoute
+  AppBillRoute: typeof AppBillRoute
   AppBrandAppsRoute: typeof AppBrandAppsRoute
   AppCampaignsRoute: typeof AppCampaignsRoute
   AppCommissionsRoute: typeof AppCommissionsRoute
@@ -1504,6 +1544,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAppointmentsRoute: AppAppointmentsRoute,
   AppAttendanceRoute: AppAttendanceRoute,
+  AppBillRoute: AppBillRoute,
   AppBrandAppsRoute: AppBrandAppsRoute,
   AppCampaignsRoute: AppCampaignsRoute,
   AppCommissionsRoute: AppCommissionsRoute,
@@ -1565,6 +1606,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   NearbyRoute: NearbyRouteWithChildren,
   PlatformRoute: PlatformRoute,
+  PrivacyRoute: PrivacyRoute,
   RegisterRoute: RegisterRoute,
   WalkInRoute: WalkInRoute,
   QrLocationIdRoute: QrLocationIdRoute,

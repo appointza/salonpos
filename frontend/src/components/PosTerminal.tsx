@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Search, UserCheck, Plus, Minus, Trash2, Receipt, Send, X, CalendarCheck, CreditCard } from "lucide-react";
+import { Search, UserCheck, Plus, Minus, Trash2, Receipt, Send, X, CalendarCheck, CreditCard, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { ServiceThumb } from "@/components/ServiceThumb";
 import { Button } from "@/components/ui/button";
@@ -39,10 +39,12 @@ import { PosCouponInput } from "@/components/PosCouponInput";
 import { hydrateScratchPrize, hydrateWheelPrize, resolvePrizeService, type PrizeClaim } from "@/pages/PrizeWheel/prize-discount";
 import { formatPrizeValue, prizeTypeLabel } from "@/pages/PrizeWheel/prize-help";
 import { useT } from "@/i18n/LanguageContext";
+import { invoiceDisplayId, itemGstRate, useBillSettings } from "@/pages/Settings/bill-settings";
+import { formatBillDate, printSalonBill, type PrintBillInput } from "@/pages/Bill/print-bill";
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
-function billLinesFromAppointment(prefill: Row, catalog: Row[], staffRows: Row[]): BillLine[] {
+function billLinesFromAppointment(prefill: Row, catalog: Row[], staffRows: Row[], defaultGst = 18): BillLine[] {
   const lines = resolveAppointmentServiceRows(prefill, catalog);
   const staffName = String(prefill["staff"] ?? "");
   const staffId = String(prefill["staffId"] || staffIdFromName(staffRows, staffName) || "");
@@ -51,7 +53,7 @@ function billLinesFromAppointment(prefill: Row, catalog: Row[], staffRows: Row[]
     kind: "service" as const,
     name: String(s["name"]),
     price: Number(s["price"] ?? 0),
-    gstRate: Number(s["gstRate"] ?? 18),
+    gstRate: itemGstRate(s, defaultGst),
     qty: 1,
     commission: Number(s["commission"] ?? 10),
     staff: staffName,
@@ -83,6 +85,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const stock = useStockService();
   const { send, isConfigured } = useWhatsAppSender();
   const t = useT();
+  const { settings: billSettings } = useBillSettings();
 
   const [phone, setPhone] = useState("");
   const [lookupStatus, setLookupStatus] = useState<"idle" | "loading" | "found" | "missing">("idle");
@@ -106,7 +109,9 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const [stylist, setStylist] = useState(prefillStaffId);
   const [serviceQuery, setServiceQuery] = useState("");
   const [tab, setTab] = useState<"services" | "products">("services");
-  const [cart, setCart] = useState<BillLine[]>(() => (prefill ? billLinesFromAppointment(prefill, catalog, staff) : []));
+  const [cart, setCart] = useState<BillLine[]>(() =>
+    prefill ? billLinesFromAppointment(prefill, catalog, staff, billSettings.defaultGstRate) : [],
+  );
   const [discount, setDiscount] = useState(0);
   const [redeem, setRedeem] = useState(0);
   const [rewards, setRewards] = useState<RewardRefs>({});
@@ -115,6 +120,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   const [bill, setBill] = useState<Row | null>(null);
   const [posting, setPosting] = useState(false);
   const postingRef = useRef(false);
+  const lastPrintRef = useRef<PrintBillInput | null>(null);
   const [waOpen, setWaOpen] = useState(false);
   const [waNumber, setWaNumber] = useState("");
 
@@ -175,7 +181,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
 
   useEffect(() => {
     if (!prefill || cart.length > 0) return;
-    const next = billLinesFromAppointment(prefill, catalog, staff);
+    const next = billLinesFromAppointment(prefill, catalog, staff, billSettings.defaultGstRate);
     if (!next.length) return;
     setCart(next);
   }, [prefill, catalog, staff, cart.length]);
@@ -325,7 +331,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
           kind,
           name: String(item["name"] ?? "Item"),
           price: Number(kind === "service" ? (item["price"] ?? 0) : (item["sellPrice"] ?? 0)),
-          gstRate: Number(item["gstRate"] ?? 18),
+          gstRate: itemGstRate(item, billSettings.defaultGstRate),
           qty: 1,
           commission: rate,
           staff: String(person?.["name"] ?? ""),
@@ -405,8 +411,13 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   function receiptText(inv: Row) {
     const lines = cart.map((l) => `• ${l.name} x${l.qty} — ${money(l.price * l.qty)}`).join("\n");
     return [
-      `*${org.name}* — ${location?.name ?? scopeLabel}`,
-      `Receipt ${String(inv.id)}`,
+      billSettings.legalName ? `*${billSettings.legalName}* — ${location?.name ?? scopeLabel}` : location?.name ?? scopeLabel,
+      billSettings.tagline || "",
+      billSettings.gstin ? `GSTIN ${billSettings.gstin}` : "",
+      billSettings.address || "",
+      billSettings.landmark || "",
+      [billSettings.city, billSettings.pincode].filter(Boolean).join("-"),
+      `Receipt ${invoiceDisplayId(inv.id, billSettings.invoicePrefix)}`,
       "",
       lines,
       "",
@@ -420,7 +431,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
       `*Total: ${money(totals.total)}*`,
       `Paid via ${payment}`,
       "",
-      `Thank you, ${String(customer?.["name"] ?? "guest")}! ${org.website}`,
+      billSettings.footer || "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -496,12 +507,38 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         ...(prefill ? { appointmentId: String(prefill.id) } : {}),
       });
       if (result.error || !result.invoice) return void toast.error(result.error ?? "Checkout blocked");
-      const { invoice, earned } = result;
+      const { invoice, earned, pointsAfter } = result;
+      const payload: PrintBillInput = {
+        settings: billSettings,
+        salonName: org.name,
+        logo: org.logo,
+        billNo: invoiceDisplayId(invoice.id, billSettings.invoicePrefix),
+        date: formatBillDate(String(invoice["date"] ?? "")),
+        lines: cart.map((l) => {
+          const exclusive = l.price * l.qty;
+          const share = exclusive / Math.max(1, quote.subtotal);
+          return { name: l.name, qty: l.qty, gstRate: l.gstRate, amount: share * quote.total };
+        }),
+        payment,
+        cashReceived: quote.total,
+      };
+      lastPrintRef.current = payload;
+      const printed = printSalonBill(payload);
       onBilled?.();
-      newSale();
-      toast.success("Bill generated", {
-        description: `${String(invoice.id)} · ${money(totals.total)} · +${earned} loyalty pts. Screen cleared for the next bill.`,
+      setBill(invoice);
+      setWaNumber(normalizePhone(String(customer["phone"] ?? phone)));
+      setPointsSummary({
+        before: Math.max(0, pointsAfter - earned + pointsRedeemed),
+        earned,
+        redeemed: pointsRedeemed,
+        after: pointsAfter,
       });
+      toast.success("Bill generated", {
+        description: printed
+          ? `${payload.billNo} · ${money(totals.total)} · +${earned} pts. Choose the printer in the print dialog.`
+          : `${payload.billNo} · print dialog did not open.`,
+      });
+      if (!printed) toast.error("Could not open the print dialog");
     } finally {
       postingRef.current = false;
       setPosting(false);
@@ -524,6 +561,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
   }
 
   function newSale() {
+    lastPrintRef.current = null;
     setBill(null);
     setCart([]);
     setCustomer(null);
@@ -1143,7 +1181,7 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
         {bill ? (
           <div className="sticky bottom-0 z-10 -mx-4 mt-2 space-y-2 border-t border-border bg-card px-4 py-3 lg:static lg:mx-0 lg:mt-0 lg:border-0 lg:p-0">
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-              Bill <span className="font-mono">{String(bill.id)}</span> generated.
+              Bill <span className="font-mono">{invoiceDisplayId(bill.id, billSettings.invoicePrefix)}</span> generated.
             </div>
             {pointsSummary ? (
               <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
@@ -1170,6 +1208,17 @@ export function PosTerminal({ prefill, onBilled }: { prefill?: Row | null; onBil
                 </dl>
               </div>
             ) : null}
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => {
+                const payload = lastPrintRef.current;
+                const ok = payload ? printSalonBill(payload) : false;
+                if (!ok) toast.error("Could not open the print dialog");
+              }}
+            >
+              <Printer /> Print bill
+            </Button>
             <Button className="w-full" onClick={() => setWaOpen(true)}>
               <Send /> Send on WhatsApp
             </Button>

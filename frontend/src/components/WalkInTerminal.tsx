@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Layers, MapPin, RotateCcw, Sparkles, UserRound } from "lucide-react";
+import { Layers, MapPin, MessageSquareHeart, RotateCcw, Sparkles, Star, UserRound } from "lucide-react";
 import { salonLogoUrl } from "@/brand";
 import { KriosLogo } from "@/components/KriosLogo";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScratchCard } from "@/components/ScratchCard";
 import { SpinWheel } from "@/components/SpinWheel";
@@ -42,6 +43,7 @@ import {
 import { uniquePrizeCatalog } from "@/pages/PrizeWheel/prize-help";
 import { useData, type Row } from "@/store";
 import { customerService } from "@/services/customer.service";
+import { feedbackService } from "@/services/feedback.service";
 import { organizationService } from "@/services/organization.service";
 import { scratchPrizeService } from "@/services/scratchPrize.service";
 import { wheelSegmentService } from "@/services/wheelSegment.service";
@@ -52,7 +54,7 @@ import {
   processWheelSpinResult,
 } from "@/pages/PrizeWheel/wheel-service";
 
-type Step = "details" | "reward" | "done";
+type Step = "details" | "reward" | "feedback" | "done";
 
 export function WalkInTerminal({
   publicMode = false,
@@ -167,6 +169,10 @@ export function WalkInTerminal({
   const [scratchPrize, setScratchPrize] = useState("");
   const [scratchStarted, setScratchStarted] = useState(false);
   const [rewardNotes, setRewardNotes] = useState("");
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
   const [codeCheck, setCodeCheck] = useState<WalkInCodeResult | null>(null);
   const [codeChecking, setCodeChecking] = useState(false);
 
@@ -307,6 +313,10 @@ export function WalkInTerminal({
     setScratchPrize("");
     setScratchStarted(false);
     setRewardNotes("");
+    setFeedbackRating(0);
+    setFeedbackComment("");
+    setFeedbackSent(false);
+    setFeedbackSaving(false);
   }
 
   async function checkIn() {
@@ -360,7 +370,7 @@ export function WalkInTerminal({
     if (existingToday) {
       setCheckinId(String(existingToday.id));
       setRewardNotes(String(existingToday["rewardEarned"] ?? "Already checked in today"));
-      setStep(rewardMode ? "reward" : "done");
+      setStep(rewardMode ? "reward" : "feedback");
       toast.info("You are already checked in today");
       return;
     }
@@ -412,8 +422,50 @@ export function WalkInTerminal({
     });
     setCheckinId(String(savedCheckin.id));
     setRewardNotes(result.notes);
-    setStep(rewardMode ? "reward" : "done");
+    setStep(rewardMode ? "reward" : "feedback");
     toast.success(publicMode ? "You are checked in!" : "Walk-in checked in", { description: result.notes });
+  }
+
+  async function submitFeedback() {
+    if (feedbackSent || feedbackSaving) {
+      setStep("done");
+      return;
+    }
+    if (feedbackRating < 1) return void toast.error("Tap a star rating first");
+    setFeedbackSaving(true);
+    const prizeNote = [wheelPrize, scratchPrize].filter(Boolean).join(" · ");
+    const comment = [feedbackComment.trim(), prizeNote ? `Reward: ${prizeNote}` : ""].filter(Boolean).join("\n");
+    const row = {
+      id: 0,
+      customer: name.trim() || "Walk-in guest",
+      invoice: "",
+      staff: staffLabel,
+      outlet: outletName || activeOrg.name,
+      date: new Date().toISOString().slice(0, 10),
+      rating: feedbackRating,
+      nps: Math.min(10, Math.max(0, feedbackRating * 2)),
+      channel: "Walk-in",
+      status: "New",
+      comment,
+    };
+    try {
+      if (publicMode) {
+        await feedbackService.insertPublic({
+          ...row,
+          orgId: Number(activeOrgId) || 0,
+          locationId: Number(effLocationId) || 0,
+        });
+      } else {
+        await create("feedback", row, activeOrgId);
+      }
+      setFeedbackSent(true);
+      setStep("done");
+      toast.success("Thanks for your feedback");
+    } catch {
+      /* toast from store */
+    } finally {
+      setFeedbackSaving(false);
+    }
   }
 
   const stamp = programOfType(programs, "Stamp Card");
@@ -553,7 +605,7 @@ export function WalkInTerminal({
                 setCustomerId(String(matchedCustomer.id));
                 setCheckedIn(matchedCustomer);
                 setName(String(matchedCustomer["name"] ?? name));
-                setStep(rewardMode ? "reward" : "done");
+                setStep(rewardMode ? "reward" : "feedback");
                 return;
               }
               void checkIn();
@@ -565,7 +617,7 @@ export function WalkInTerminal({
         </div>
       ) : null}
 
-      {(step === "reward" || step === "done") && customerId ? (
+      {(step === "reward" || step === "feedback" || step === "done") && customerId ? (
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div>
@@ -585,7 +637,7 @@ export function WalkInTerminal({
         </div>
       ) : null}
 
-      {(step === "reward" || step === "done") && showWheelGame ? (
+      {(step === "reward" || step === "feedback" || step === "done") && showWheelGame ? (
         wheelSegments.length > 0 ? (
         <div className="rounded-xl border border-violet-500/20 bg-gradient-to-b from-card to-violet-500/5 p-5 shadow-sm">
           <h2 className="font-display text-lg flex items-center gap-2">
@@ -648,7 +700,7 @@ export function WalkInTerminal({
                       });
                     }
                   }
-                  setStep("done");
+                  setStep("feedback");
                   toast.success(`You won: ${result.label}`, {
                     description: offerAvailWithinMessage(rewardDist.offerValidityDays, result.label),
                   });
@@ -664,7 +716,7 @@ export function WalkInTerminal({
       )
       ) : null}
 
-      {(step === "reward" || step === "done") && showScratchGame ? (
+      {(step === "reward" || step === "feedback" || step === "done") && showScratchGame ? (
         scratchPrizes.length > 0 ? (
         <div className="rounded-xl border border-amber-500/20 bg-gradient-to-b from-card to-amber-500/5 p-5 shadow-sm">
           <h2 className="font-display text-lg flex items-center gap-2">
@@ -720,7 +772,7 @@ export function WalkInTerminal({
                   if (result.duplicate) {
                     setScratchPrize(result.label);
                     setScratchStarted(true);
-                    setStep("done");
+                    setStep("feedback");
                     toast.message("Already scratched today");
                     return result.label;
                   }
@@ -743,7 +795,7 @@ export function WalkInTerminal({
                 }}
                 onRevealed={(label) => {
                   setScratchPrize(label);
-                  setStep("done");
+                  setStep("feedback");
                   toast.success(`You earned: ${label}`, {
                     description: offerAvailWithinMessage(rewardDist.offerValidityDays, label),
                   });
@@ -770,6 +822,59 @@ export function WalkInTerminal({
           Scratch card is on for this salon, but no prizes are set up yet. Add them under Guest prizes.
         </div>
       )
+      ) : null}
+
+      {step === "reward" ? (
+        <Button type="button" className="w-full" onClick={() => setStep("feedback")}>
+          Continue to feedback
+        </Button>
+      ) : null}
+
+      {step === "feedback" ? (
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="font-display flex items-center gap-2 text-lg">
+            <MessageSquareHeart className="size-5 text-primary" />
+            How was your visit?
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Rate {outletName || activeOrg.name}. This is saved on the salon Feedback screen.
+          </p>
+          <div className="mt-4 flex justify-center gap-1">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                aria-label={`${star} star${star === 1 ? "" : "s"}`}
+                className="rounded-md p-1 text-muted-foreground transition-colors hover:text-amber-500"
+                onClick={() => setFeedbackRating(star)}
+              >
+                <Star
+                  className={`size-8 ${feedbackRating >= star ? "fill-amber-400 text-amber-400" : ""}`}
+                />
+              </button>
+            ))}
+          </div>
+          <Label className="mt-4 mb-1.5">Anything we should know? (optional)</Label>
+          <Textarea
+            value={feedbackComment}
+            onChange={(e) => setFeedbackComment(e.target.value)}
+            placeholder="Service, wait time, staff…"
+            rows={3}
+          />
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" className="flex-1" onClick={() => void submitFeedback()} disabled={feedbackSaving}>
+              {feedbackSaving ? "Saving…" : "Send feedback"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStep("done")}
+              disabled={feedbackSaving}
+            >
+              Skip
+            </Button>
+          </div>
+        </div>
       ) : null}
 
       {step === "done" ? (

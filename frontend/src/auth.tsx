@@ -1,5 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { EntityId } from "@/ids";
+import {
+  readWorkspaceSession,
+  writeWorkspaceSession,
+  WORKSPACE_SESSION_EVENT,
+  WORKSPACE_SESSION_KEY,
+  type WorkspaceSession,
+} from "@/session";
 import { authTokenStore } from "@/utils/auth-token.util";
 
 export type Role = "SUPER_ADMIN" | "ADMIN" | "STAFF" | "STYLIST";
@@ -76,15 +83,9 @@ function withStaffLink(user: SessionUser): SessionUser {
   return user;
 }
 
-const SESSION_KEY = "salon-crm-session-v1";
-
 export function getStoredSession(): SessionUser | null {
-  try {
-    const raw = window.localStorage.getItem(SESSION_KEY);
-    return raw ? withStaffLink(JSON.parse(raw) as SessionUser) : null;
-  } catch {
-    return null;
-  }
+  const session = readWorkspaceSession();
+  return session ? withStaffLink(session as SessionUser) : null;
 }
 
 export const DEFAULT_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -143,30 +144,32 @@ type Ctx = {
 
 const AuthContext = createContext<Ctx | null>(null);
 
-function read<T>(key: string, fallback: T): T {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function write(key: string, value: unknown) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* ignore */
-  }
+function persistUser(next: SessionUser | null) {
+  writeWorkspaceSession(next as WorkspaceSession | null);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [orgs, setOrgs] = useState<Organization[]>([]);
-  const [user, setUser] = useState<SessionUser | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(() => getStoredSession());
 
   useEffect(() => {
-    const session = read<SessionUser | null>(SESSION_KEY, null);
-    setUser(session ? withStaffLink(session) : null);
+    const sync = () => setUser(getStoredSession());
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === WORKSPACE_SESSION_KEY) sync();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    window.addEventListener(WORKSPACE_SESSION_EVENT, sync);
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("pageshow", sync);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(WORKSPACE_SESSION_EVENT, sync);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("pageshow", sync);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   const signIn = useCallback(
@@ -183,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         locationId: profile?.locationId,
       });
       setUser(next);
-      write(SESSION_KEY, next);
+      persistUser(next);
       return next;
     },
     [],
@@ -193,14 +196,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser((prev) => {
       if (!prev) return prev;
       const next = { ...prev, ...partial };
-      write(SESSION_KEY, next);
+      persistUser(next);
       return next;
     });
   }, []);
 
   const signOut = useCallback(() => {
     setUser(null);
-    write(SESSION_KEY, null);
+    persistUser(null);
     authTokenStore.clear();
   }, []);
 
@@ -208,7 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOrgs((prev) => [org, ...prev.filter((o) => o.orgId !== org.orgId)]);
     const session: SessionUser = { id: 0, orgId: org.orgId, role: "ADMIN", ...admin };
     setUser(session);
-    write(SESSION_KEY, session);
+    persistUser(session);
   }, []);
 
   const toggleChecklist = useCallback(

@@ -49,12 +49,17 @@ The same Vite app is wrapped with Capacitor. Native builds load the **production
 
 ```sh
 cd frontend
-npm run cap:android   # Android Studio
-npm run cap:ios       # Xcode — requires a Mac
+npm run cap:android          # Open Android Studio
+npm run cap:android:release  # Signed release APK (requires android/keystore.properties)
+npm run cap:android:bundle   # Signed App Bundle (.aab) for Google Play
+npm run cap:ios              # Xcode — requires a Mac
 ```
 
 - Android can be built on this Windows machine with Android Studio + JDK 17.
-- iOS project files are generated here; compiling and App Store upload must be done on a Mac.
+- Release APK: `android/app/build/outputs/apk/release/app-release.apk`
+- Play Store bundle: `android/app/build/outputs/bundle/release/app-release.aab` (also under `releases/` when built locally).
+- Copy `android/keystore.properties.example` to `android/keystore.properties` and place your keystore at `android/krios-release.keystore` before release builds.
+- iOS project files are generated here; compiling and App Store upload must be done on a Mac (`npm run cap:ios`).
 - After web changes, run `npm run cap:sync` again so `android/` and `ios/` pick up `dist/`.
 
 App id: `com.krios`.

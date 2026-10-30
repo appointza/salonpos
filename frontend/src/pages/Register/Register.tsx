@@ -2,7 +2,7 @@ import type { EntityId } from "@/ids";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Building2, Check, ChevronLeft, ChevronRight, Plus, Sparkles, Trash2, Upload, User } from "lucide-react";
+import { Building2, Check, ChevronLeft, ChevronRight, Plus, Trash2, Upload, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +33,7 @@ import { userService } from "@/services/user.service";
 import { isAxiosError } from "axios";
 import { persistBookingRules } from "@/pages/Book/booking-rules";
 import { salonLogoUrl } from "@/brand";
+import { BrandLockup } from "@/components/BrandLockup";
 import { ORG_LOGO_MAX_BYTES, readOrgLogoFile } from "@/pages/Settings/org-logo";
 
 const title = "Create an account — Luxe Salon CRM";
@@ -557,15 +558,15 @@ export function RegisterPage() {
     <div className="min-h-dvh bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-3 sm:px-6 sm:py-4">
-          <Link to="/" className="flex min-w-0 items-center gap-2">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Sparkles className="size-4" />
-            </span>
-            <span className="font-display truncate text-lg">Luxe Salon</span>
-          </Link>
-          <Link to="/login" className="shrink-0 text-sm text-muted-foreground hover:text-foreground">
-            <span className="hidden sm:inline">Already registered? </span>Log in
-          </Link>
+          <BrandLockup compact />
+          <div className="flex shrink-0 items-center gap-3 text-sm text-muted-foreground">
+            <Link to="/privacy" className="hover:text-foreground">
+              Privacy
+            </Link>
+            <Link to="/login" className="hover:text-foreground">
+              <span className="hidden sm:inline">Already registered? </span>Log in
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -573,7 +574,7 @@ export function RegisterPage() {
         {!draft.intent && (
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-8">
             <StepShell
-              title="How will you use Luxe Salon?"
+              title="How will you use Kriosapp?"
               hint="Choose the account that fits you. You can always log in from the same sign-in page later."
             >
               <div className="grid gap-4 sm:grid-cols-2">

@@ -219,6 +219,129 @@
   50% { opacity: 0.35; }
 }
 
+@keyframes spin-wheel-idle {
+  to { transform: rotate(360deg); }
+}
+
+.spin-wheel-idle {
+  animation: spin-wheel-idle 16s linear infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.krios-wheel-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.krios-wheel-frame {
+  border-radius: 26px;
+  background: linear-gradient(160deg, #3d1f4a, #2a1433);
+  padding: 28px 20px 24px;
+}
+
+.krios-wheel-wrap {
+  position: relative;
+  width: min(260px, 78vw);
+  height: min(260px, 78vw);
+  display: grid;
+  place-items: center;
+}
+
+.krios-wheel-disk {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 7px solid #fff;
+  box-shadow: 0 14px 40px -12px rgba(0, 0, 0, 0.6);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+.krios-wheel-label {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  padding: 0 0.15rem;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.krios-wheel-pointer {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  z-index: 3;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 18px solid #fff;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25));
+}
+
+.krios-wheel-hub {
+  position: absolute;
+  z-index: 2;
+  width: 22%;
+  height: 22%;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+.krios-wheel-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.krios-wheel-hit:disabled {
+  cursor: default;
+}
+
+.krios-wheel-status {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.krios-wheel-hint {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin-wheel-idle {
+    animation: none;
+  }
+}
+
 .scratch-foil-shimmer {
   animation: scratch-shimmer 2.4s ease-in-out infinite;
 }
@@ -250,6 +373,19 @@ html.native-app body {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
+}
+
+@media print {
+  nav,
+  header,
+  aside,
+  .print\:hidden {
+    display: none !important;
+  }
+  .bill-preview {
+    box-shadow: none !important;
+    max-width: 80mm !important;
+  }
 }
 
 @media (max-width: 639px) {

@@ -1,40 +1,47 @@
 import { useCallback, useEffect, useState } from "react";
+import {
+  CUSTOMER_SESSION_EVENT,
+  CUSTOMER_SESSION_KEY,
+  readCustomerSession,
+  writeCustomerSession,
+  type StoredCustomerSession,
+} from "@/session";
 
-export type CustomerSession = { userId?: number; name: string; phone: string; since: string };
-
-const KEY = "salon-customer-session-v1";
+export type CustomerSession = StoredCustomerSession;
 
 export function useCustomerSession() {
-  const [customer, setCustomer] = useState<CustomerSession | null>(null);
-  const [ready, setReady] = useState(false);
+  const [customer, setCustomer] = useState<CustomerSession | null>(() => readCustomerSession());
+  const [ready] = useState(true);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(KEY);
-      if (raw) setCustomer(JSON.parse(raw) as CustomerSession);
-    } catch {
-      /* ignore */
-    }
-    setReady(true);
+    const sync = () => setCustomer(readCustomerSession());
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === CUSTOMER_SESSION_KEY) sync();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    window.addEventListener(CUSTOMER_SESSION_EVENT, sync);
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("pageshow", sync);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(CUSTOMER_SESSION_EVENT, sync);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("pageshow", sync);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   const signIn = useCallback((name: string, phone: string, userId?: number) => {
     const next: CustomerSession = { userId, name, phone, since: new Date().toISOString() };
-    try {
-      window.localStorage.setItem(KEY, JSON.stringify(next));
-    } catch {
-      /* ignore */
-    }
+    writeCustomerSession(next);
     setCustomer(next);
     return next;
   }, []);
 
   const signOut = useCallback(() => {
-    try {
-      window.localStorage.removeItem(KEY);
-    } catch {
-      /* ignore */
-    }
+    writeCustomerSession(null);
     setCustomer(null);
   }, []);
 

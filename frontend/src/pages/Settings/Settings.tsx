@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { CalendarClock, CheckCircle2, Gift, ImagePlus, Languages, MapPin, MessageSquare, Palette, PlugZap, Scissors, Sparkles, Trash2, UserPlus } from "lucide-react";
+import { CalendarClock, CheckCircle2, Gift, ImagePlus, Languages, MapPin, MessageSquare, Palette, PlugZap, Receipt, Scissors, Shield, Sparkles, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +33,9 @@ import { ORG_LOGO_MAX_BYTES, readOrgLogoFile } from "@/pages/Settings/org-logo";
 import { ReferralPanel } from "@/pages/Loyalty/ReferralPanel";
 import { LanguageSwitcher } from "@/i18n/LanguageSwitcher";
 import { useT } from "@/i18n/LanguageContext";
+import { useAuth } from "@/auth";
+import { DeleteAccountButton } from "@/pages/Legal/DeleteAccountButton";
+import { BillEditor } from "@/pages/Bill/BillEditor";
 
 const FIELDS: { name: keyof WhatsAppSettings; label: string; placeholder: string }[] = [
   { name: "displayNumber", label: "WhatsApp business number", placeholder: "+91 90000 00000" },
@@ -55,7 +58,9 @@ type SettingsId =
   | "booking"
   | "maps"
   | "whatsapp"
-  | "messages";
+  | "messages"
+  | "bill"
+  | "account";
 
 const SETTINGS_NAV: {
   heading: string;
@@ -68,6 +73,10 @@ const SETTINGS_NAV: {
       { id: "assets", label: "Assets", icon: ImagePlus },
       { id: "branding", label: "Logo & branding", icon: Palette },
     ],
+  },
+  {
+    heading: "Billing",
+    items: [{ id: "bill", label: "Bill", icon: Receipt }],
   },
   {
     heading: "Loyalty",
@@ -96,10 +105,25 @@ const SETTINGS_NAV: {
       { id: "messages", label: "Message log", icon: MessageSquare },
     ],
   },
+  {
+    heading: "Privacy",
+    items: [{ id: "account", label: "Privacy & account", icon: Shield }],
+  },
 ];
+
+function isSettingsId(value: string | undefined): value is SettingsId {
+  return SETTINGS_NAV.some((group) => group.items.some((item) => item.id === value));
+}
 
 export function Page() {
   const t = useT();
+  const navigate = useNavigate();
+  const tab = useRouterState({
+    select: (s) => {
+      const raw = (s.location.search as { tab?: unknown }).tab;
+      return typeof raw === "string" ? raw : undefined;
+    },
+  });
   const { settings, save, isConfigured } = useWhatsAppSettings();
   const { settings: loyalty, save: saveLoyalty } = useLoyaltySettings();
   const { config: rewardConfig, save: saveRewards } = useRewardDistribution();
@@ -107,6 +131,7 @@ export function Page() {
   const { settings: displaySettings, save: saveDisplaySettings } = useServiceDisplaySettings();
   const { settings: gameSettings, save: saveGames } = usePublicBookingSettings();
   const { org, orgId, upsertTenant } = useTenant();
+  const { user, signOut } = useAuth();
   const { allRows, update: updateRow } = useData();
   const orgRow = (allRows["organizations"] ?? []).find((r) => String(r["orgId"]) === String(orgId));
   const { rows: messages } = useCollection("whatsappMessages");
@@ -119,7 +144,7 @@ export function Page() {
   const [bookingForm, setBookingForm] = useState<BookingRules>(rules);
   const [displayForm, setDisplayForm] = useState<ServiceDisplaySettings>(displaySettings);
   const [guestGame, setGuestGame] = useState<WalkInRewardMode>(resolveWalkInRewardMode(gameSettings) ?? "wheel");
-  const [section, setSection] = useState<SettingsId>("language");
+  const [section, setSection] = useState<SettingsId>(isSettingsId(tab) ? tab : "language");
   const [logoUrl, setLogoUrl] = useState(String(org.logo || orgRow?.["logo"] || ""));
   const [logoBusy, setLogoBusy] = useState(false);
   const [assetBusy, setAssetBusy] = useState(false);
@@ -133,13 +158,28 @@ export function Page() {
   useEffect(() => setDisplayForm(displaySettings), [displaySettings]);
   useEffect(() => setGuestGame(resolveWalkInRewardMode(gameSettings) ?? gameSettings.walkInReward), [gameSettings]);
   useEffect(() => {
-    setLogoUrl(String(org.logo || orgRow?.["logo"] || ""));
-  }, [org.logo, orgRow]);
+    if (isSettingsId(tab)) setSection(tab);
+  }, [tab]);
+  const rowLogo = String(orgRow?.["logo"] || "");
+  useEffect(() => {
+    setLogoUrl(String(org.logo || rowLogo));
+  }, [org.logo, rowLogo]);
+  const locationPlaceKey = locationRows.map((loc) => `${String(loc.id)}:${String(loc["placeId"] ?? "")}`).join("|");
   useEffect(() => {
     const next: Record<string, string> = {};
-    for (const loc of locationRows) next[String(loc.id)] = String(loc["placeId"] ?? "");
-    setPlaceIds(next);
-  }, [locationRows]);
+    if (locationPlaceKey) {
+      for (const part of locationPlaceKey.split("|")) {
+        const cut = part.indexOf(":");
+        if (cut < 0) continue;
+        next[part.slice(0, cut)] = part.slice(cut + 1);
+      }
+    }
+    setPlaceIds((prev) => {
+      const keys = Object.keys(next);
+      if (keys.length === Object.keys(prev).length && keys.every((k) => prev[k] === next[k])) return prev;
+      return next;
+    });
+  }, [locationPlaceKey]);
 
   const previewSpend = 1000;
   const previewEarn = earnPoints(previewSpend, loyaltyForm);
@@ -165,7 +205,10 @@ export function Page() {
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setSection(item.id)}
+                      onClick={() => {
+                        setSection(item.id);
+                        void navigate({ to: "/settings", search: { tab: item.id } });
+                      }}
                       className={cn(
                         "flex shrink-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap",
                         "lg:w-full",
@@ -413,6 +456,49 @@ export function Page() {
               ) : null}
             </div>
           </div>
+        </div>
+      </section>
+      ) : null}
+      {section === "bill" ? (
+      <section className="p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          <Receipt className="size-5 text-primary" />
+          <h2 className="font-display text-lg">{t("Bill")}</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t("Edit the salon bill that prints after POS: logo, GSTIN, address, GST split and footer.")}
+        </p>
+        <Separator className="my-4" />
+        <BillEditor />
+      </section>
+      ) : null}
+      {section === "account" ? (
+      <section className="p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          <Shield className="size-5 text-primary" />
+          <h2 className="font-display text-lg">{t("Privacy & account")}</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          How Kriosapp uses your data, and how to permanently delete this sign-in.
+        </p>
+        <Separator className="my-4" />
+        <p className="text-sm">
+          <Link to="/privacy" className="text-primary underline-offset-4 hover:underline">
+            Privacy Policy
+          </Link>
+        </p>
+        <p className="mt-6 text-sm text-muted-foreground">
+          Deleting your account signs you out and blocks this email or phone from signing in again.
+        </p>
+        <div className="mt-3">
+          <DeleteAccountButton
+            userId={Number(user?.id) || 0}
+            phone={user?.phone}
+            onDeleted={() => {
+              signOut();
+              void navigate({ to: "/login" });
+            }}
+          />
         </div>
       </section>
       ) : null}

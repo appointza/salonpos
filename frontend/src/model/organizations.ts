@@ -36,6 +36,7 @@ export class OrganizationRes {
   bookingRules: string = "";
   referralRules: string = "";
   growthClaimPool: string = "";
+  billSettings: string = "";
 }
 
 export class CreateOrganizationReq {
@@ -69,6 +70,7 @@ export class CreateOrganizationReq {
   bookingRules: string = "";
   referralRules: string = "";
   growthClaimPool: string = "";
+  billSettings: string = "";
 }
 
 export class CreateOrganizationRes extends OrganizationRes {}
@@ -105,6 +107,7 @@ export class UpdateOrganizationReq {
   bookingRules: string = "";
   referralRules: string = "";
   growthClaimPool: string = "";
+  billSettings: string = "";
 }
 
 export class UpdateOrganizationRes extends OrganizationRes {}

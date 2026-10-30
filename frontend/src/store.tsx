@@ -1,6 +1,7 @@
 import type { EntityId } from "@/ids";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { hydrateBookingRules } from "@/pages/Book/booking-rules";
+import { hydrateBillSettings } from "@/pages/Settings/bill-settings";
 import { hydratePublicBookingSettings } from "@/pages/Book/public-booking-settings";
 import { hydrateReferralRules } from "@/pages/Loyalty/referral-settings";
 import { hydrateServiceDisplaySettings } from "@/pages/Services/service-display-settings";
@@ -85,7 +86,9 @@ async function loadAllFromApi(orgId: number): Promise<Db> {
       }
     }),
   );
-  return hydrateServiceDisplaySettings(hydrateBookingRules(hydratePublicBookingSettings(hydrateReferralRules(db))));
+  return hydrateBillSettings(
+    hydrateServiceDisplaySettings(hydrateBookingRules(hydratePublicBookingSettings(hydrateReferralRules(db)))),
+  );
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {

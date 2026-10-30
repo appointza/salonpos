@@ -3,6 +3,7 @@ import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-route
 import { CalendarCheck, ClipboardList, LogOut, MapPin, Menu, Sparkles, TicketPercent, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCustomerSession } from "@/pages/Login/customer-session";
+import { DeleteAccountButton } from "@/pages/Legal/DeleteAccountButton";
 import { cn } from "@/utils/utils";
 
 const NAV = [
@@ -92,6 +93,20 @@ export function CustomerNearbyLayout() {
             <LogOut className="size-4" />
             Sign out
           </Button>
+          <Link to="/privacy" className="mt-3 block text-center text-xs text-muted-foreground hover:text-foreground">
+            Privacy Policy
+          </Link>
+          <div className="mt-2 flex justify-center">
+            <DeleteAccountButton
+              compact
+              userId={customer.userId}
+              phone={customer.phone}
+              onDeleted={() => {
+                signOut();
+                void navigate({ to: "/login" });
+              }}
+            />
+          </div>
         </div>
       </div>
     );

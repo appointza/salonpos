@@ -73,5 +73,12 @@ namespace Krios.Controllers.Krios
             var result = new ActionRes<AuthUpdateLanguageRes> { item = await authService.UpdateLanguage(req.item) };
             return Ok(result);
         }
+
+        [HttpPost("DeleteAccount")]
+        public async Task<ActionResult<ActionRes<AuthDeleteAccountRes>>> DeleteAccount(ActionReq<AuthDeleteAccountReq> req)
+        {
+            var result = new ActionRes<AuthDeleteAccountRes> { item = await authService.DeleteAccount(req.item) };
+            return Ok(result);
+        }
     }
 }

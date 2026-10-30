@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarDays, FileText, Receipt, UserRound, Users } from "lucide-react";
+import { CalendarDays, FileText, Gift, Receipt, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { pageTitle } from "@/brand";
 import { publicSlug, useTenant } from "@/tenant";
@@ -54,6 +54,15 @@ export function Page() {
           <FileText className="size-5 text-primary" />
           <p className="mt-3 font-medium">Invoices</p>
           <p className="mt-1 text-sm text-muted-foreground">Review GST invoices, payments and refunds.</p>
+        </Link>
+
+        <Link
+          to="/growth/claim"
+          className="rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/5"
+        >
+          <Gift className="size-5 text-primary" />
+          <p className="mt-3 font-medium">Claim points</p>
+          <p className="mt-1 text-sm text-muted-foreground">Look up a guest by mobile and credit offer points.</p>
         </Link>
 
         <a

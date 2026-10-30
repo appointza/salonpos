@@ -340,14 +340,15 @@ namespace Krios.Services.Krios
 
         private async Task InsertMainFranchise(IDb db, OrganizationRegistrationReq req, long orgId, long locationId)
         {
+            await FranchiseService.EnsureAddressColumn(db);
             var outletName = MainOutletName(req);
             const string query = @"
                 INSERT INTO franchises (
-                    ""orgId"", ""locationId"", name, type, city, owner, phone, gstin, royalty, ""goLive"", status,
+                    ""orgId"", ""locationId"", name, type, address, city, owner, phone, gstin, royalty, ""goLive"", status,
                     createdby, createdon, updatedby, updatedon
                 )
                 VALUES (
-                    @orgId, @locationId, @name, @type, @city, @owner, @phone, @gstin, @royalty, @goLive, @status,
+                    @orgId, @locationId, @name, @type, @address, @city, @owner, @phone, @gstin, @royalty, @goLive, @status,
                     @createdby, @createdon, @updatedby, @updatedon
                 );
             ";
@@ -358,6 +359,7 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = locationId;
             db.AddParameter(cmd, "name", DbTypes.Types.String).Value = outletName;
             db.AddParameter(cmd, "type", DbTypes.Types.String).Value = "Company Owned";
+            db.AddParameter(cmd, "address", DbTypes.Types.String).Value = req.address?.Trim() ?? "";
             db.AddParameter(cmd, "city", DbTypes.Types.String).Value = req.city?.Trim() ?? "";
             db.AddParameter(cmd, "owner", DbTypes.Types.String).Value = req.adminName.Trim();
             db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = req.phone?.Trim() ?? "";

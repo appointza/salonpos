@@ -1,7 +1,8 @@
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { BrandLockup } from "@/components/BrandLockup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -119,12 +120,7 @@ export function ForgotPasswordPage() {
         <div className="mb-4 flex justify-end">
           <LanguageSwitcher compact />
         </div>
-        <Link to="/" className="mb-8 flex items-center justify-center gap-2">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="size-4" />
-          </span>
-          <span className="font-display text-lg font-semibold">Krios</span>
-        </Link>
+        <BrandLockup className="mb-8 justify-center" />
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
           {step === "identify" ? (
@@ -223,6 +219,10 @@ export function ForgotPasswordPage() {
           <p className="mt-6 text-center text-sm text-muted-foreground">
             <Link to="/login" className="text-primary hover:underline">
               Back to sign in
+            </Link>
+            <span className="mx-2">·</span>
+            <Link to="/privacy" className="hover:text-foreground hover:underline">
+              Privacy Policy
             </Link>
           </p>
         </div>

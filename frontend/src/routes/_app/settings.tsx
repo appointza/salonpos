@@ -5,6 +5,9 @@ const title = "Settings — Luxe Salon CRM";
 const description = "Configure loyalty point conversion and the Meta WhatsApp Business API.";
 
 export const Route = createFileRoute("/_app/settings")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tab: typeof search.tab === "string" ? search.tab : undefined,
+  }),
   head: () => ({
     meta: [
       { title },

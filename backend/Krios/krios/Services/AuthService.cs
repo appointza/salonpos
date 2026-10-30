@@ -214,6 +214,88 @@ namespace Krios.Services.Krios
             return new AuthUpdateLanguageRes { language = language };
         }
 
+        public async Task<AuthDeleteAccountRes> DeleteAccount(AuthDeleteAccountReq req)
+        {
+            if (!string.Equals((req.confirmation ?? "").Trim(), "DELETE", StringComparison.OrdinalIgnoreCase))
+                throw new AppException(AppException.ErrorCodes.BadRequest, "Type DELETE to confirm account deletion.");
+
+            var phone = PhoneUtil.Normalize(req.phone);
+            if (req.userId <= 0 && phone.Length < 10)
+                throw new AppException(AppException.ErrorCodes.BadRequest, "Account is required.");
+
+            using IDb db = await dbprovider.GetDb();
+            await db.Connect();
+            await UserLanguageSchema.EnsureColumn(db);
+
+            var today = DateTime.UtcNow.Date;
+            var deleted = false;
+
+            if (req.userId > 0)
+            {
+                const string byId = @"
+                    UPDATE users
+                    SET status = 'Inactive',
+                        name = 'Deleted user',
+                        email = 'deleted-' || id::text || '@invalid.local',
+                        phone = '',
+                        passwordhash = '',
+                        updatedby = 'self-delete',
+                        updatedon = @updatedon
+                    WHERE id = @id AND status <> 'Inactive';
+                ";
+                var cmd = db.GetCommand(byId);
+                db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = req.userId;
+                db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = today;
+                if (await db.ExecuteNonQuery(cmd) > 0) deleted = true;
+            }
+
+            if (phone.Length >= 10)
+            {
+                const string byPhone = @"
+                    UPDATE users
+                    SET status = 'Inactive',
+                        name = 'Deleted user',
+                        email = 'deleted-' || id::text || '@invalid.local',
+                        phone = '',
+                        passwordhash = '',
+                        updatedby = 'self-delete',
+                        updatedon = @updatedon
+                    WHERE status <> 'Inactive'
+                      AND role = 'CUSTOMER'
+                      AND (
+                        RIGHT(regexp_replace(COALESCE(phone, ''), '\D', '', 'g'), 10) = @phone
+                        OR lower(email) = lower(@email)
+                      );
+                ";
+                var cmd = db.GetCommand(byPhone);
+                db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = phone;
+                db.AddParameter(cmd, "email", DbTypes.Types.String).Value = CustomerEmail(phone);
+                db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = today;
+                if (await db.ExecuteNonQuery(cmd) > 0) deleted = true;
+
+                const string guests = @"
+                    UPDATE customers
+                    SET name = 'Deleted guest',
+                        phone = '',
+                        email = '',
+                        notes = '',
+                        ""isWhatsapp"" = 'No',
+                        updatedby = 'self-delete',
+                        updatedon = @updatedon
+                    WHERE RIGHT(regexp_replace(COALESCE(phone, ''), '\D', '', 'g'), 10) = @phone;
+                ";
+                var guestCmd = db.GetCommand(guests);
+                db.AddParameter(guestCmd, "phone", DbTypes.Types.String).Value = phone;
+                db.AddParameter(guestCmd, "updatedon", DbTypes.Types.Date).Value = today;
+                if (await db.ExecuteNonQuery(guestCmd) > 0) deleted = true;
+            }
+
+            if (!deleted)
+                throw new AppException(AppException.ErrorCodes.UserNotFound, "Account not found or already deleted.");
+
+            return new AuthDeleteAccountRes { deleted = true };
+        }
+
         public async Task<UserLoginRes> SetupCustomerPassword(AuthSetupCustomerPasswordReq req)
         {
             var phone = PhoneUtil.Normalize(req.phone);

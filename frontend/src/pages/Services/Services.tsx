@@ -231,7 +231,7 @@ export function Page() {
         ...servicesModule,
         subtitle: isStylist ? "Services you can book and deliver. Catalogue edits are for managers." : servicesModule.subtitle,
       }}
-      newButtonLabel="New service"
+      newButtonLabel="Create service"
       readOnly={isStylist}
       canCreate={!isStylist}
       canDelete={!isStylist}

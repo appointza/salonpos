@@ -1,7 +1,8 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Building2, Sparkles, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, UserRound } from "lucide-react";
+import { BrandLockup } from "@/components/BrandLockup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -215,12 +216,7 @@ export function LoginPage() {
         <div className="mb-4 flex justify-end">
           <LanguageSwitcher compact />
         </div>
-        <Link to="/" className="mb-8 flex items-center justify-center gap-2">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="size-4" />
-          </span>
-          <span className="font-display text-xl">Luxe Salon</span>
-        </Link>
+        <BrandLockup className="mb-8 justify-center" />
 
         <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
           {step === "identify" ? (
@@ -454,6 +450,11 @@ export function LoginPage() {
             New salon business?{" "}
             <Link to="/register" className="text-primary hover:underline">
               Register your organisation
+            </Link>
+          </p>
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            <Link to="/privacy" className="hover:text-foreground hover:underline">
+              Privacy Policy
             </Link>
           </p>
         </div>

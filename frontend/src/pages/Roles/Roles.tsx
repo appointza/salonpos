@@ -175,7 +175,7 @@ export function Page() {
           ...rolesModule,
           subtitle: "Control which screens each role can view and edit. Built-in roles are created automatically.",
         }}
-        newButtonLabel="New role"
+        newButtonLabel="Create role"
         displayValue={(field, row) => {
           if (field.name === "view" || field.name === "edit") {
             const list = splitPaths(row[field.name]);

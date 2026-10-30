@@ -60,6 +60,7 @@ namespace Krios
             if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
                 builder.WebHost.UseUrls(listenUrl);
 
+            builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
             builder.Services.Configure<ApplicationEnvironment>(builder.Configuration.GetSection("ApplicationSettings"));
             builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("Mail"));
             var appSettings = builder.Configuration.GetSection("ApplicationSettings").Get<ApplicationEnvironment>();

@@ -161,17 +161,14 @@ axiosInstance.interceptors.response.use(
 
       try {
         const token = await refreshAccessToken();
-        authTokenStore.set({
-          ...authTokenStore.get()!,
-          access_token: token,
-        });
+        const current = authTokenStore.get();
+        if (current) authTokenStore.set({ ...current, access_token: token });
         processQueue(null, token);
         originalRequest.headers.Authorization = `Bearer ${token}`;
         return axiosInstance(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        authTokenStore.clear();
-        return Promise.reject(refreshError);
+        return Promise.reject(applyApiErrorMessage(refreshError));
       } finally {
         isRefreshing = false;
       }

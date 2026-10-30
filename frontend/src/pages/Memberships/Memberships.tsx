@@ -206,7 +206,7 @@ export function Page() {
       {tab === "plans" ? (
         <CrudPage
           module={membershipPlansModule}
-          newButtonLabel="New plan"
+          newButtonLabel="Create plan"
           inlineEditable={["status", "price"]}
           renderFormField={(field, editing, setEditing) => {
             if (field.name === "includedMatch") {
@@ -263,7 +263,7 @@ export function Page() {
       ) : tab === "members" ? (
         <CrudPage
           module={membershipsModule}
-          newButtonLabel="Add member"
+          newButtonLabel="Create member"
           inlineEditable={["status"]}
           prepareNew={(row) => ({
             ...row,

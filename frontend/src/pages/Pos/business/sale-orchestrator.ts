@@ -11,6 +11,7 @@ import { quoteUnifiedSale } from "@/pages/Pos/business/discount-engine";
 import { emitBusinessEvent } from "@/pages/Pos/business/event-bus";
 import type { BusinessStore, SaleCommand, SaleResult, TenantCtx } from "@/pages/Pos/business/types";
 import { completeAppointment } from "@/pages/Pos/business/appointment-service";
+import { normalizeInvoicePrefix, parseBillSettings } from "@/pages/Settings/bill-settings";
 
 export type StockOps = {
   assertCanIssue: (lines: BillLine[]) => string | null;
@@ -58,7 +59,9 @@ export function completeSale(
     return { invoice: null, quote, earned: 0, pointsAfter: Number(customer["points"] ?? 0), error: stockErr };
   }
 
-  const invoiceId = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const orgRow = (store.db["organizations"] ?? []).find((r) => String(r["orgId"]) === String(tenant.orgId));
+  const prefix = normalizeInvoicePrefix(parseBillSettings(orgRow?.["billSettings"])?.invoicePrefix);
+  const invoiceId = `${prefix}-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
   const invoice = {
     id: invoiceId,
     customerId: String(customer.id),
@@ -81,7 +84,7 @@ export function completeSale(
     pointsRedeemed: redeem,
     pointsValue: Math.round(quote.loyaltyValue),
     pointsEarned: quote.pointsToEarn,
-    gstRate: lines[0]?.gstRate ?? 18,
+    gstRate: lines[0]?.gstRate ?? parseBillSettings(orgRow?.["billSettings"])?.defaultGstRate ?? 18,
     tax: Math.round(quote.tax),
     total: Math.round(quote.total),
     payment,

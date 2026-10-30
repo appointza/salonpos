@@ -6,6 +6,7 @@ export class FranchiseRes {
   locationId: number = 0;
   name: string = "";
   type: string = "";
+  address: string = "";
   city: string = "";
   owner: string = "";
   phone: string = "";
@@ -24,6 +25,7 @@ export class CreateFranchiseReq {
   locationId: number = 0;
   name: string = "";
   type: string = "";
+  address: string = "";
   city: string = "";
   owner: string = "";
   phone: string = "";
@@ -41,6 +43,7 @@ export class UpdateFranchiseReq {
   locationId: number = 0;
   name: string = "";
   type: string = "";
+  address: string = "";
   city: string = "";
   owner: string = "";
   phone: string = "";

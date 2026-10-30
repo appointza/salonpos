@@ -91,9 +91,20 @@ namespace Krios.Services.Krios
             var cmd = db.GetCommand(query);
             Bind(cmd, db, entity, includeId: false);
 
-            using var reader = await db.Execute(cmd);
-            if (await reader.ReadAsync())
-                entity.id = Convert.ToInt64(reader["id"]);
+            using (var reader = await db.Execute(cmd))
+            {
+                if (await reader.ReadAsync())
+                    entity.id = Convert.ToInt64(reader["id"]);
+            }
+
+            if (entity.id > 0 && entity.locationId <= 0)
+            {
+                entity.locationId = entity.id;
+                var sync = db.GetCommand(@"UPDATE locations SET ""locationId"" = @locationId WHERE id = @id");
+                db.AddParameter(sync, "locationId", DbTypes.Types.Long).Value = entity.locationId;
+                db.AddParameter(sync, "id", DbTypes.Types.Long).Value = entity.id;
+                await db.ExecuteNonQuery(sync);
+            }
         }
 
         public async Task<Location> Update(Location entity)

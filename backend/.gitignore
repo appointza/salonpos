@@ -456,3 +456,7 @@ $RECYCLE.BIN/
 ## Firebase Service Account Keys (Sensitive - Never commit!)
 *firebase-adminsdk*.json
 appointza-a0d00-firebase-adminsdk-*.json
+
+# Local SMTP / Gmail app password — never commit
+appsettings.Local.json
+**/appsettings.Local.json

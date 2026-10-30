@@ -45,7 +45,7 @@ namespace Krios.Services.Krios
                     status, createdby, createdon, updatedby, updatedon,
                     ""earnUnitRupees"", ""pointsPerUnit"", ""loyaltyMinSpend"",
                     ""rewardWheelWeights"", ""rewardScratchWeights"", ""rewardCustomerTierWeights"",
-                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"", ""bookingRules"", ""referralRules"", ""growthClaimPool""
+                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"", ""bookingRules"", ""referralRules"", ""growthClaimPool"", ""billSettings""
                 FROM organizations
             ";
 
@@ -100,7 +100,7 @@ namespace Krios.Services.Krios
                     status, createdby, createdon, updatedby, updatedon,
                     ""earnUnitRupees"", ""pointsPerUnit"", ""loyaltyMinSpend"",
                     ""rewardWheelWeights"", ""rewardScratchWeights"", ""rewardCustomerTierWeights"",
-                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"", ""bookingRules"", ""referralRules"", ""growthClaimPool""
+                    ""publicBookingShowPrizeWheel"", ""publicBookingShowScratchCard"", ""bookingRules"", ""referralRules"", ""growthClaimPool"", ""billSettings""
                 )
                 VALUES (
                     @orgId, @locationId, @name, @slug, @domain, @website,
@@ -110,7 +110,7 @@ namespace Krios.Services.Krios
                     @status, @createdby, @createdon, @updatedby, @updatedon,
                     @earnUnitRupees, @pointsPerUnit, @loyaltyMinSpend,
                     @rewardWheelWeights, @rewardScratchWeights, @rewardCustomerTierWeights,
-                    @publicBookingShowPrizeWheel, @publicBookingShowScratchCard, @bookingRules, @referralRules, @growthClaimPool
+                    @publicBookingShowPrizeWheel, @publicBookingShowScratchCard, @bookingRules, @referralRules, @growthClaimPool, @billSettings
                 )
                 RETURNING id;
             ";
@@ -202,7 +202,8 @@ namespace Krios.Services.Krios
                     ""publicBookingShowScratchCard"" = @publicBookingShowScratchCard,
                     ""bookingRules"" = @bookingRules,
                     ""referralRules"" = @referralRules,
-                    ""growthClaimPool"" = @growthClaimPool
+                    ""growthClaimPool"" = @growthClaimPool,
+                    ""billSettings"" = @billSettings
                 WHERE id = @id
             ";
 
@@ -278,6 +279,7 @@ namespace Krios.Services.Krios
                 bookingRules = ReadString(reader, "bookingRules"),
                 referralRules = ReadString(reader, "referralRules"),
                 growthClaimPool = ReadString(reader, "growthClaimPool"),
+                billSettings = ReadString(reader, "billSettings"),
             };
         }
 
@@ -320,6 +322,7 @@ namespace Krios.Services.Krios
             db.AddParameter(cmd, "bookingRules", DbTypes.Types.String).Value = org.bookingRules ?? "";
             db.AddParameter(cmd, "referralRules", DbTypes.Types.String).Value = org.referralRules ?? "";
             db.AddParameter(cmd, "growthClaimPool", DbTypes.Types.String).Value = org.growthClaimPool ?? "";
+            db.AddParameter(cmd, "billSettings", DbTypes.Types.String).Value = org.billSettings ?? "";
         }
 
         private static async Task EnsureLogoColumn(IDb db)
@@ -327,6 +330,8 @@ namespace Krios.Services.Krios
             if (logoColumnReady) return;
             var cmd = db.GetCommand(@"ALTER TABLE organizations ADD COLUMN IF NOT EXISTS logo TEXT;");
             await db.ExecuteNonQuery(cmd);
+            var bill = db.GetCommand(@"ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ""billSettings"" TEXT;");
+            await db.ExecuteNonQuery(bill);
             logoColumnReady = true;
         }
 

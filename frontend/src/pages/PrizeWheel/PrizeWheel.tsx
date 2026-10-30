@@ -70,7 +70,7 @@ export function PrizeWheelPage() {
             Guest game: {guestGame}
           </Link>
         )}
-        newButtonLabel="New prize"
+        newButtonLabel="Create prize"
         selectOptions={(field) => (field.name === "colorHex" ? [...PRIZE_COLOURS] : undefined)}
         displayValue={(field, row) => {
           if (field.name === "colorHex") return prizeColourName(row["colorHex"]);

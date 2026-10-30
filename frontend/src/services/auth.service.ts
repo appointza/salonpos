@@ -8,6 +8,8 @@ import {
   AuthSetupCustomerPasswordReq,
   AuthUpdateLanguageReq,
   AuthUpdateLanguageRes,
+  AuthDeleteAccountReq,
+  AuthDeleteAccountRes,
 } from "@/model/auth";
 import type { UserChangePasswordReq, UserLoginReq, UserLoginRes } from "@/model/users";
 import { KriosBaseService } from "@/services/krios-base.service";
@@ -77,6 +79,10 @@ export class AuthService extends KriosBaseService<never> {
 
   async updateLanguage(req: AuthUpdateLanguageReq): Promise<AuthUpdateLanguageRes> {
     return this.postAction<AuthUpdateLanguageReq, AuthUpdateLanguageRes>("UpdateLanguage", req, true);
+  }
+
+  async deleteAccount(req: AuthDeleteAccountReq): Promise<AuthDeleteAccountRes> {
+    return this.postAction<AuthDeleteAccountReq, AuthDeleteAccountRes>("DeleteAccount", req, true);
   }
 }
 

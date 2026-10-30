@@ -161,7 +161,7 @@ export function Page() {
           ...shiftsModule,
           subtitle: isStylist ? "Your published shifts only." : shiftsModule.subtitle,
         }}
-        newButtonLabel="New shift"
+        newButtonLabel="Create shift"
         displayValue={(field, row) => {
           if (field.name === "staffId") return staffName(staff, row["staffId"]);
           return undefined;

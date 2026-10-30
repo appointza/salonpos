@@ -36,6 +36,16 @@ export class AuthUpdateLanguageRes {
   language: string = "";
 }
 
+export class AuthDeleteAccountReq {
+  userId: number = 0;
+  phone: string = "";
+  confirmation: string = "";
+}
+
+export class AuthDeleteAccountRes {
+  deleted = false;
+}
+
 export class AuthSetupCustomerPasswordReq {
   phone: string = "";
   otp: string = "";

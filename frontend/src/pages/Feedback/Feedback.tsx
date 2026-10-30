@@ -19,7 +19,7 @@ const feedbackModule: ModuleDef = {
     { name: "date", label: "Date", type: "date", table: true },
     { name: "rating", label: "Rating (1-5)", type: "number", table: true },
     { name: "nps", label: "NPS (0-10)", type: "number" },
-    { name: "channel", label: "Channel", type: "select", options: ["WhatsApp", "SMS", "Email", "App"] },
+    { name: "channel", label: "Channel", type: "select", options: ["WhatsApp", "SMS", "Email", "App", "Walk-in"] },
     {
       name: "status",
       label: "Status",

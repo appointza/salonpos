@@ -176,129 +176,6 @@ export function AdminDashboard() {
         }
       />
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(260px,22rem)_1fr]">
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-tight">Outlet check-in QR</h2>
-            <QrCode className="size-5 text-muted-foreground" />
-          </div>
-          <div className="mt-5 flex justify-center">
-            <div className="rounded-xl border border-border bg-background p-3">
-              <img src={qrSrc} alt={`QR code for ${checkinUrl}`} width={220} height={220} className="h-auto w-full max-w-[220px]" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
-            <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" title={checkinUrl}>
-              {checkinUrl}
-            </p>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 shrink-0"
-              onClick={() => {
-                void navigator.clipboard.writeText(checkinUrl);
-                toast.success("Check-in link copied");
-              }}
-              aria-label="Copy check-in link"
-            >
-              <Copy className="size-4" />
-            </Button>
-          </div>
-          <Button variant="outline" className="mt-4 w-full" onClick={() => void downloadQr()}>
-            <Download /> Download Print File
-          </Button>
-        </div>
-
-        <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] tracking-[0.16em] text-muted-foreground uppercase">Active items</p>
-                <ClipboardList className="size-4 text-muted-foreground" />
-              </div>
-              <p className="font-display mt-4 text-4xl tracking-tight">{activeItems}</p>
-            </div>
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] tracking-[0.16em] text-muted-foreground uppercase">Categories</p>
-                <List className="size-4 text-muted-foreground" />
-              </div>
-              <p className="font-display mt-4 text-4xl tracking-tight">{categories}</p>
-            </div>
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] tracking-[0.16em] text-muted-foreground uppercase">Today's check-ins</p>
-                <Eye className="size-4 text-muted-foreground" />
-              </div>
-              <p className="font-display mt-4 text-4xl tracking-tight">{todayCheckins}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{returning} returning on approved visits</p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-            <h2 className="text-base font-semibold tracking-tight">Quick Actions</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {[
-                { to: "/services", icon: ClipboardList, color: "bg-orange-100 text-orange-600", title: "Manage Menu", text: "Add, edit, or remove items across categories." },
-                { to: "/settings", icon: Palette, color: "bg-blue-100 text-blue-600", title: "Change Style", text: "Modify colors, logo, and branding globally." },
-                { to: "/services", icon: Upload, color: "bg-muted text-muted-foreground", title: "Import Menu", text: "Upload CSV or PDF to generate items automatically." },
-                { to: "/loyalty", icon: QrCode, color: "bg-violet-100 text-violet-700", title: "Loyalty & QR", text: "Programs, wheel prizes, and outlet QR codes." },
-                { to: "/campaigns", icon: MessageCircle, color: "bg-emerald-100 text-emerald-700", title: "WA Ordering", text: "Customers order directly via WhatsApp.", badge: waOn ? "ON" : "OFF" },
-              ].map((action) => (
-                <Link
-                  key={action.title}
-                  to={action.to}
-                  className="relative rounded-xl border border-border p-4 transition-colors hover:bg-accent"
-                >
-                  {"badge" in action && action.badge && (
-                    <Badge variant="secondary" className="absolute top-3 right-3 text-[10px]">
-                      {action.badge}
-                    </Badge>
-                  )}
-                  <span className={`inline-flex size-9 items-center justify-center rounded-lg ${action.color}`}>
-                    <action.icon className="size-4" />
-                  </span>
-                  <p className="mt-3 text-sm font-semibold">{action.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{action.text}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {org && (
-        <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold">Finish your setup</h2>
-              <p className="text-xs text-muted-foreground">
-                {org.completed.length} of {CHECKLIST.length + 3} setup items complete
-              </p>
-            </div>
-            <Badge variant="secondary">
-              {org.plan} plan · {org.slots.duration} min slots · {slots.length} slots/day
-            </Badge>
-          </div>
-          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-            {CHECKLIST.map((c) => {
-              const done = org.completed.includes(c.key);
-              return (
-                <li key={c.key} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
-                  <button type="button" className="flex items-center gap-2 text-left" onClick={() => toggleChecklist(c.key)}>
-                    {done ? <CheckCircle2 className="size-4 text-primary" /> : <Circle className="size-4 text-muted-foreground" />}
-                    <span className={done ? "text-muted-foreground line-through" : ""}>{c.label}</span>
-                  </button>
-                  <Link to={c.to} className="text-xs text-primary hover:underline">
-                    Open
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Select value={period} onValueChange={(v) => setPeriod(v as ReportPeriod)}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
@@ -374,6 +251,129 @@ export function AdminDashboard() {
             <Link to="/appointments" className="mt-4 inline-flex items-center gap-1 text-sm text-primary hover:underline">
               Open bookings <ArrowRight className="size-3.5" />
             </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] tracking-[0.16em] text-muted-foreground uppercase">Active items</p>
+              <ClipboardList className="size-4 text-muted-foreground" />
+            </div>
+            <p className="font-display mt-4 text-4xl tracking-tight">{activeItems}</p>
+          </div>
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] tracking-[0.16em] text-muted-foreground uppercase">Categories</p>
+              <List className="size-4 text-muted-foreground" />
+            </div>
+            <p className="font-display mt-4 text-4xl tracking-tight">{categories}</p>
+          </div>
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] tracking-[0.16em] text-muted-foreground uppercase">Today's check-ins</p>
+              <Eye className="size-4 text-muted-foreground" />
+            </div>
+            <p className="font-display mt-4 text-4xl tracking-tight">{todayCheckins}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{returning} returning on approved visits</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="text-base font-semibold tracking-tight">Quick Actions</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { to: "/services", icon: ClipboardList, color: "bg-orange-100 text-orange-600", title: "Manage Menu", text: "Add, edit, or remove items across categories." },
+              { to: "/settings", icon: Palette, color: "bg-blue-100 text-blue-600", title: "Change Style", text: "Modify colors, logo, and branding globally." },
+              { to: "/services", icon: Upload, color: "bg-muted text-muted-foreground", title: "Import Menu", text: "Upload CSV or PDF to generate items automatically." },
+              { to: "/loyalty", icon: QrCode, color: "bg-violet-100 text-violet-700", title: "Loyalty & QR", text: "Programs, wheel prizes, and outlet QR codes." },
+              { to: "/campaigns", icon: MessageCircle, color: "bg-emerald-100 text-emerald-700", title: "WA Ordering", text: "Customers order directly via WhatsApp.", badge: waOn ? "ON" : "OFF" },
+            ].map((action) => (
+              <Link
+                key={action.title}
+                to={action.to}
+                className="relative rounded-xl border border-border p-4 transition-colors hover:bg-accent"
+              >
+                {"badge" in action && action.badge && (
+                  <Badge variant="secondary" className="absolute top-3 right-3 text-[10px]">
+                    {action.badge}
+                  </Badge>
+                )}
+                <span className={`inline-flex size-9 items-center justify-center rounded-lg ${action.color}`}>
+                  <action.icon className="size-4" />
+                </span>
+                <p className="mt-3 text-sm font-semibold">{action.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{action.text}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {org && (
+        <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold">Finish your setup</h2>
+              <p className="text-xs text-muted-foreground">
+                {org.completed.length} of {CHECKLIST.length + 3} setup items complete
+              </p>
+            </div>
+            <Badge variant="secondary">
+              {org.plan} plan · {org.slots.duration} min slots · {slots.length} slots/day
+            </Badge>
+          </div>
+          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+            {CHECKLIST.map((c) => {
+              const done = org.completed.includes(c.key);
+              return (
+                <li key={c.key} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
+                  <button type="button" className="flex items-center gap-2 text-left" onClick={() => toggleChecklist(c.key)}>
+                    {done ? <CheckCircle2 className="size-4 text-primary" /> : <Circle className="size-4 text-muted-foreground" />}
+                    <span className={done ? "text-muted-foreground line-through" : ""}>{c.label}</span>
+                  </button>
+                  <Link to={c.to} className="text-xs text-primary hover:underline">
+                    Open
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-base font-semibold tracking-tight">Outlet check-in QR</h2>
+          <QrCode className="size-5 text-muted-foreground" />
+        </div>
+        <div className="mt-5 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+          <div className="rounded-xl border border-border bg-background p-3">
+            <img src={qrSrc} alt={`QR code for ${checkinUrl}`} width={220} height={220} className="h-auto w-full max-w-[220px]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
+              <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" title={checkinUrl}>
+                {checkinUrl}
+              </p>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0"
+                onClick={() => {
+                  void navigator.clipboard.writeText(checkinUrl);
+                  toast.success("Check-in link copied");
+                }}
+                aria-label="Copy check-in link"
+              >
+                <Copy className="size-4" />
+              </Button>
+            </div>
+            <Button variant="outline" className="mt-4" onClick={() => void downloadQr()}>
+              <Download /> Download Print File
+            </Button>
           </div>
         </div>
       </section>

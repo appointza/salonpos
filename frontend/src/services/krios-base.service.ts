@@ -68,6 +68,11 @@ export class KriosBaseService<TEntity extends { id?: number }> {
     return this.postAction<TEntity, TEntity>("Insert", req);
   }
 
+  /** Public write — no auth header (walk-in / guest pages). */
+  async insertPublic(req: TEntity): Promise<TEntity> {
+    return this.postAction<TEntity, TEntity>("Insert", req, true);
+  }
+
   async update(req: TEntity): Promise<TEntity> {
     return this.postAction<TEntity, TEntity>("Update", req);
   }
