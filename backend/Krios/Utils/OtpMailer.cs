@@ -45,6 +45,46 @@ namespace Krios.Utils
             logger.LogInformation("Sent password-reset OTP email to {Email}", MaskEmail(toEmail));
         }
 
+        public async Task Send(string toEmail, string subject, string body)
+        {
+            if (!IsConfigured)
+                throw new InvalidOperationException("Mail is not configured.");
+            if (!IsDeliverableEmail(toEmail))
+                throw new InvalidOperationException("Mail destination is not valid.");
+
+            var from = string.IsNullOrWhiteSpace(settings.From)
+                ? (string.IsNullOrWhiteSpace(settings.User) ? "noreply@localhost" : settings.User)
+                : settings.From;
+
+            using var message = new MailMessage(from, toEmail.Trim())
+            {
+                Subject = subject,
+                Body = body,
+            };
+
+            using var client = new SmtpClient(settings.Host, settings.Port > 0 ? settings.Port : 587)
+            {
+                EnableSsl = settings.EnableSsl,
+            };
+            if (!string.IsNullOrWhiteSpace(settings.User))
+                client.Credentials = new NetworkCredential(settings.User.Trim(), (settings.Password ?? "").Replace(" ", ""));
+
+            await client.SendMailAsync(message);
+            logger.LogInformation("Sent mail to {Email} subject {Subject}", MaskEmail(toEmail), subject);
+        }
+
+        public string ChildSafetyInbox
+        {
+            get
+            {
+                var dedicated = (settings.ChildSafetyTo ?? "").Trim();
+                if (IsDeliverableEmail(dedicated)) return dedicated;
+                var from = (settings.From ?? "").Trim();
+                if (IsDeliverableEmail(from)) return from;
+                return (settings.User ?? "").Trim();
+            }
+        }
+
         public static bool IsDeliverableEmail(string? email)
         {
             var value = (email ?? "").Trim();

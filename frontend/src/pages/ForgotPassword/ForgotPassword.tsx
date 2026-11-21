@@ -13,6 +13,7 @@ import { normalizePhone } from "@/pages/Login/phone";
 import { authService } from "@/services/auth.service";
 import { LanguageSwitcher } from "@/i18n/LanguageSwitcher";
 import { apiErrorMessage } from "@/utils/api-error";
+import { cleanEmail, cleanIdentifier, cleanOtp, cleanPassword } from "@/utils/credentials";
 import type { UserLoginRes } from "@/model/users";
 
 type Step = "identify" | "verify";
@@ -24,7 +25,7 @@ export function ForgotPasswordPage() {
   const search = useSearch({ from: "/forgot-password" });
 
   const [step, setStep] = useState<Step>("identify");
-  const [identifier, setIdentifier] = useState(search.identifier ?? "");
+  const [identifier, setIdentifier] = useState(() => cleanIdentifier(search.identifier ?? ""));
   const [profile, setProfile] = useState<AuthIdentifyRes | null>(null);
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
@@ -33,10 +34,11 @@ export function ForgotPasswordPage() {
   const [busy, setBusy] = useState(false);
 
   async function sendCode(next: AuthIdentifyRes, raw: string) {
+    const cleanRaw = cleanIdentifier(raw);
     const res = await authService.sendOtp({
-      identifier: raw,
-      phone: next.phone || normalizePhone(raw),
-      email: next.email,
+      identifier: cleanRaw,
+      phone: next.phone || normalizePhone(cleanRaw),
+      email: cleanEmail(next.email ?? ""),
     });
     setOtpHint(res.hint || (res.maskedEmail ? `Code sent to ${res.maskedEmail}` : "Check your email for the code."));
     toast.success("Verification code sent", {
@@ -46,7 +48,7 @@ export function ForgotPasswordPage() {
 
   async function startReset(e: React.FormEvent) {
     e.preventDefault();
-    const raw = identifier.trim();
+    const raw = cleanIdentifier(identifier);
     if (!raw) return void toast.error("Enter your mobile number or business email");
 
     setBusy(true);
@@ -81,29 +83,33 @@ export function ForgotPasswordPage() {
 
   async function submitNewPassword(e: React.FormEvent) {
     e.preventDefault();
-    if (otp.replace(/\D/g, "").length < 6) return void toast.error("Enter the 6-digit code");
-    if (password.length < 6) return void toast.error("Password must be at least 6 characters");
-    if (password !== confirmPassword) return void toast.error("Passwords do not match");
+    const code = cleanOtp(otp);
+    const pwd = cleanPassword(password);
+    const confirmPwd = cleanPassword(confirmPassword);
+    if (code.length < 6) return void toast.error("Enter the 6-digit code");
+    if (pwd.length < 6) return void toast.error("Password must be at least 6 characters");
+    if (pwd !== confirmPwd) return void toast.error("Passwords do not match");
 
     setBusy(true);
     try {
-      const phone = profile?.phone || normalizePhone(identifier);
-      const email = profile?.email || (identifier.includes("@") ? identifier.trim() : "");
+      const cleanId = cleanIdentifier(identifier);
+      const phone = profile?.phone || normalizePhone(cleanId);
+      const email = cleanEmail(profile?.email || (cleanId.includes("@") ? cleanId : ""));
       if (profile?.accountType === "organization") {
         const res = await authService.resetOrganizationPassword({
           phone,
           email,
-          otp: otp.trim(),
-          password,
+          otp: code,
+          password: pwd,
         });
         finishOrgSession(res);
         return;
       }
       const res = await authService.setupCustomerPassword({
         phone,
-        otp: otp.trim(),
-        password,
-        name: profile?.name || "",
+        otp: code,
+        password: pwd,
+        name: profile?.name?.trim() || "",
       });
       signInCustomer(res.name || "Customer", phone, res.userId);
       toast.success(`Password updated. Welcome, ${res.name || "guest"}`);
@@ -136,9 +142,10 @@ export function ForgotPasswordPage() {
                   <Input
                     id="reset-id"
                     value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
+                    onChange={(e) => setIdentifier(cleanIdentifier(e.target.value))}
                     placeholder="98765 43210 or you@salon.com"
                     autoComplete="username"
+                    inputMode="email"
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={busy}>
@@ -164,7 +171,7 @@ export function ForgotPasswordPage() {
                   <Input
                     id="reset-otp"
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
+                    onChange={(e) => setOtp(cleanOtp(e.target.value))}
                     placeholder="6-digit code"
                     inputMode="numeric"
                     autoComplete="one-time-code"
@@ -176,7 +183,7 @@ export function ForgotPasswordPage() {
                     id="reset-password"
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => setPassword(cleanPassword(e.target.value))}
                     autoComplete="new-password"
                   />
                 </div>
@@ -186,7 +193,7 @@ export function ForgotPasswordPage() {
                     id="reset-confirm"
                     type="password"
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) => setConfirmPassword(cleanPassword(e.target.value))}
                     autoComplete="new-password"
                   />
                 </div>
@@ -202,7 +209,7 @@ export function ForgotPasswordPage() {
                     if (!profile) return;
                     setBusy(true);
                     try {
-                      await sendCode(profile, identifier.trim());
+                      await sendCode(profile, cleanIdentifier(identifier));
                     } catch (err) {
                       toast.error(apiErrorMessage(err, "Could not resend code"));
                     } finally {
@@ -223,6 +230,10 @@ export function ForgotPasswordPage() {
             <span className="mx-2">·</span>
             <Link to="/privacy" className="hover:text-foreground hover:underline">
               Privacy Policy
+            </Link>
+            <span className="mx-2">·</span>
+            <Link to="/child-safety" className="hover:text-foreground hover:underline">
+              Child safety
             </Link>
           </p>
         </div>

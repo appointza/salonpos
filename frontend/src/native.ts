@@ -2,12 +2,14 @@ import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
+import { hydratePersistedAuth } from "@/persist-auth";
 
 export function isNativeApp() {
   return Capacitor.isNativePlatform();
 }
 
 export async function bootNativeShell() {
+  await hydratePersistedAuth();
   if (!isNativeApp()) return;
   document.documentElement.classList.add("native-app");
   try {

@@ -28,6 +28,7 @@
     "@capacitor/core": "^7.4.3",
     "@capacitor/ios": "^7.4.3",
     "@capacitor/keyboard": "^7.0.3",
+    "@capacitor/preferences": "^7.0.4",
     "@capacitor/splash-screen": "^7.0.3",
     "@capacitor/status-bar": "^7.0.3",
     "@hookform/resolvers": "^5.2.2",

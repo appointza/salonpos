@@ -1,5 +1,6 @@
 import { CrudPage, type ModuleDef } from "@/components/CrudPage";
 import type { Row } from "@/store";
+import { cleanEmail, cleanPassword } from "@/utils/credentials";
 
 const title = "Staff — Luxe Salon CRM";
 const description = "Maintain staff records with salary, commission rates and monthly targets.";
@@ -45,13 +46,23 @@ export function Page() {
       prepareEdit={(row) => ({ ...row, password: "" })}
       prepareNew={(row) => ({ ...row, password: "" })}
       validate={(row: Row, isNew) => {
-        const phone = String(row["phone"] ?? "").trim();
-        const email = String(row["email"] ?? "").trim();
-        const password = String(row["password"] ?? "");
+        const phone = String(row["phone"] ?? "").replace(/\s+/g, "");
+        const email = cleanEmail(String(row["email"] ?? ""));
+        const password = cleanPassword(String(row["password"] ?? ""));
         if (!phone && !email) return "Enter a phone or email so this person can sign in";
         if (isNew && password.length < 6) return "Set a password of at least 6 characters";
         if (!isNew && password && password.length < 6) return "Password must be at least 6 characters";
         return null;
+      }}
+      prepareSave={(row) => {
+        const password = cleanPassword(String(row["password"] ?? ""));
+        return {
+          ...row,
+          name: String(row["name"] ?? "").trim(),
+          phone: String(row["phone"] ?? "").replace(/\s+/g, ""),
+          email: cleanEmail(String(row["email"] ?? "")),
+          password,
+        };
       }}
     />
   );

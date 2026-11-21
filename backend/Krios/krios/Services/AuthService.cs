@@ -33,7 +33,7 @@ namespace Krios.Services.Krios
 
         public async Task<AuthIdentifyRes> Identify(AuthIdentifyReq req)
         {
-            var raw = (req.identifier ?? "").Trim();
+            var raw = CredentialUtil.NormalizeIdentifier(req.identifier);
             if (string.IsNullOrWhiteSpace(raw))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Enter your mobile number or business email.");
 
@@ -49,8 +49,8 @@ namespace Krios.Services.Krios
                 {
                     accountType = "organization",
                     hasPassword = HasPassword(user.passwordhash),
-                    name = user.name,
-                    email = user.email,
+                    name = user.name.Trim(),
+                    email = CredentialUtil.NormalizeEmail(user.email),
                     phone = PhoneUtil.Normalize(user.phone),
                     maskedPhone = PhoneUtil.Mask(user.phone),
                     orgId = user.orgId,
@@ -73,8 +73,8 @@ namespace Krios.Services.Krios
                     {
                         accountType = "organization",
                         hasPassword = HasPassword(orgUser.passwordhash),
-                        name = orgUser.name,
-                        email = orgUser.email,
+                        name = orgUser.name.Trim(),
+                        email = CredentialUtil.NormalizeEmail(orgUser.email),
                         phone = phone,
                         maskedPhone = PhoneUtil.Mask(phone),
                         orgId = orgUser.orgId,
@@ -89,8 +89,8 @@ namespace Krios.Services.Krios
                     {
                         accountType = "customer",
                         hasPassword = HasPassword(customerUser.passwordhash),
-                        name = customerUser.name,
-                        email = customerUser.email,
+                        name = customerUser.name.Trim(),
+                        email = CredentialUtil.NormalizeEmail(customerUser.email),
                         phone = phone,
                         maskedPhone = PhoneUtil.Mask(phone),
                     };
@@ -121,12 +121,12 @@ namespace Krios.Services.Krios
 
         public async Task<AuthSendOtpRes> SendOtp(AuthSendOtpReq req)
         {
-            var raw = (req.identifier ?? req.email ?? req.phone ?? "").Trim();
+            var raw = CredentialUtil.NormalizeIdentifier(req.identifier ?? req.email ?? req.phone);
             if (string.IsNullOrWhiteSpace(raw))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Enter your mobile number or business email.");
 
             string phone = PhoneUtil.Normalize(raw.Contains('@') ? req.phone : raw);
-            string email = raw.Contains('@') ? raw.Trim() : (req.email ?? "").Trim();
+            string email = raw.Contains('@') ? CredentialUtil.NormalizeEmail(raw) : CredentialUtil.NormalizeEmail(req.email);
 
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
@@ -140,7 +140,7 @@ namespace Krios.Services.Krios
 
             if (user != null)
             {
-                if (!string.IsNullOrWhiteSpace(user.email)) email = user.email.Trim();
+                if (!string.IsNullOrWhiteSpace(user.email)) email = CredentialUtil.NormalizeEmail(user.email);
                 if (!string.IsNullOrWhiteSpace(user.phone)) phone = PhoneUtil.Normalize(user.phone);
             }
 
@@ -264,7 +264,7 @@ namespace Krios.Services.Krios
                       AND role = 'CUSTOMER'
                       AND (
                         RIGHT(regexp_replace(COALESCE(phone, ''), '\D', '', 'g'), 10) = @phone
-                        OR lower(email) = lower(@email)
+                        OR lower(regexp_replace(COALESCE(email, ''), '\s+', '', 'g')) = lower(@email)
                       );
                 ";
                 var cmd = db.GetCommand(byPhone);
@@ -301,12 +301,12 @@ namespace Krios.Services.Krios
             var phone = PhoneUtil.Normalize(req.phone);
             if (phone.Length < 10)
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Enter a valid mobile number.");
-            if (string.IsNullOrWhiteSpace(req.otp))
+            var otp = CredentialUtil.NormalizeOtp(req.otp);
+            if (string.IsNullOrWhiteSpace(otp))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Enter the verification code.");
-            if (string.IsNullOrWhiteSpace(req.password) || req.password.Length < 6)
-                throw new AppException(AppException.ErrorCodes.BadRequest, "Password must be at least 6 characters.");
+            var password = CredentialUtil.ValidateNewPassword(req.password);
 
-            if (!VerifyOtp(phone, req.otp.Trim()))
+            if (!VerifyOtp(phone, otp))
                 throw new AppException(AppException.ErrorCodes.InvalidCredential, "Verification code did not match.");
 
             using IDb db = await dbprovider.GetDb();
@@ -318,13 +318,13 @@ namespace Krios.Services.Krios
             if (string.IsNullOrWhiteSpace(name))
                 name = "Customer";
 
-            var hash = cryptography.CalculateSHA256Hash(req.password);
+            var hash = cryptography.CalculateSHA256Hash(password);
             var existing = await GetCustomerUserByPhone(db, phone);
             if (existing != null)
             {
                 await UpdateCustomerUserPassword(db, existing.id, name, hash);
                 memoryCache.Remove(OtpCacheKey(phone));
-                return BuildCustomerLoginRes(existing.id, existing.email, name, phone, existing.language);
+                return BuildCustomerLoginRes(existing.id, CredentialUtil.NormalizeEmail(existing.email), name, phone, existing.language);
             }
 
             var userId = await InsertCustomerUser(db, phone, name, hash);
@@ -345,35 +345,34 @@ namespace Krios.Services.Krios
             if (user == null)
                 throw new AppException(AppException.ErrorCodes.InvalidCredential, "No customer account for this mobile. Verify with OTP first.");
 
-            var hash = cryptography.CalculateSHA256Hash(req.password);
-            if (!string.Equals(user.passwordhash, hash, StringComparison.OrdinalIgnoreCase))
+            if (!CredentialUtil.PasswordMatches(cryptography, user.passwordhash, req.password))
                 throw new AppException(AppException.ErrorCodes.InvalidCredential, "Invalid mobile number or password.");
 
             await TouchLastLogin(db, user.id);
-            return BuildCustomerLoginRes(user.id, user.email, user.name, phone, user.language);
+            return BuildCustomerLoginRes(user.id, CredentialUtil.NormalizeEmail(user.email), user.name.Trim(), phone, user.language);
         }
 
         public async Task<UserLoginRes> ResetOrganizationPassword(AuthResetOrganizationPasswordReq req)
         {
             var phone = PhoneUtil.Normalize(req.phone);
-            var email = (req.email ?? "").Trim();
+            var email = CredentialUtil.NormalizeEmail(req.email);
             if (phone.Length < 10 && !email.Contains('@'))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Enter your mobile number or business email.");
-            if (string.IsNullOrWhiteSpace(req.otp))
+            var otp = CredentialUtil.NormalizeOtp(req.otp);
+            if (string.IsNullOrWhiteSpace(otp))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Enter the verification code.");
-            if (string.IsNullOrWhiteSpace(req.password) || req.password.Length < 6)
-                throw new AppException(AppException.ErrorCodes.BadRequest, "Password must be at least 6 characters.");
+            var password = CredentialUtil.ValidateNewPassword(req.password);
 
-            if (!VerifyOtp(phone, req.otp.Trim(), email))
+            if (!VerifyOtp(phone, otp, email))
                 throw new AppException(AppException.ErrorCodes.InvalidCredential, "Verification code did not match.");
 
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
 
             User? user = null;
-            if (!string.IsNullOrWhiteSpace(req.email))
+            if (!string.IsNullOrWhiteSpace(email))
             {
-                user = await GetUserByEmail(db, req.email.Trim());
+                user = await GetUserByEmail(db, email);
                 if (user != null && string.Equals(user.role, "CUSTOMER", StringComparison.OrdinalIgnoreCase))
                     user = null;
             }
@@ -382,9 +381,15 @@ namespace Krios.Services.Krios
             if (user == null)
                 throw new AppException(AppException.ErrorCodes.UserNotFound, "No workspace account found for this login.");
 
-            var hash = cryptography.CalculateSHA256Hash(req.password);
+            var hash = cryptography.CalculateSHA256Hash(password);
             await UpdateWorkspaceUserPassword(db, user.id, hash);
-            memoryCache.Remove(OtpCacheKey(phone));
+            if (phone.Length >= 10)
+                memoryCache.Remove(OtpCacheKey(phone));
+            if (!string.IsNullOrWhiteSpace(email))
+                memoryCache.Remove(OtpCacheKey(email.ToLowerInvariant()));
+            var userEmail = CredentialUtil.NormalizeEmail(user.email);
+            if (!string.IsNullOrWhiteSpace(userEmail))
+                memoryCache.Remove(OtpCacheKey(userEmail.ToLowerInvariant()));
             await TouchLastLogin(db, user.id);
 
             var org = await GetOrganization(db, user.orgId);
@@ -392,8 +397,8 @@ namespace Krios.Services.Krios
             return new UserLoginRes
             {
                 userId = user.id,
-                email = user.email,
-                name = user.name,
+                email = userEmail,
+                name = user.name.Trim(),
                 role = user.role,
                 organizationId = orgId,
                 orgId = orgId,
@@ -415,14 +420,16 @@ namespace Krios.Services.Krios
 
         private bool VerifyOtp(string phone, string otp, string? email = null)
         {
+            var code = CredentialUtil.NormalizeOtp(otp);
+            if (string.IsNullOrEmpty(code)) return false;
             if (phone.Length >= 10
                 && memoryCache.TryGetValue(OtpCacheKey(phone), out string? byPhone)
-                && string.Equals(byPhone, otp, StringComparison.Ordinal))
+                && string.Equals(byPhone, code, StringComparison.Ordinal))
                 return true;
-            var mail = (email ?? "").Trim().ToLowerInvariant();
+            var mail = CredentialUtil.NormalizeEmail(email).ToLowerInvariant();
             return mail.Length > 0
                 && memoryCache.TryGetValue(OtpCacheKey(mail), out string? byEmail)
-                && string.Equals(byEmail, otp, StringComparison.Ordinal);
+                && string.Equals(byEmail, code, StringComparison.Ordinal);
         }
 
         private static bool HasPassword(string? hash) => !string.IsNullOrWhiteSpace(hash);
@@ -468,11 +475,11 @@ namespace Krios.Services.Krios
                        u.permissions, u.""lastLogin"", u.status, u.passwordhash, u.phone, u.language,
                        u.createdby, u.createdon, u.updatedby, u.updatedon
                 FROM staff s
-                INNER JOIN users u ON lower(u.email) = lower(s.email)
+                INNER JOIN users u ON lower(regexp_replace(COALESCE(u.email, ''), '\s+', '', 'g')) = lower(regexp_replace(COALESCE(s.email, ''), '\s+', '', 'g'))
                 WHERE s.status <> 'Inactive'
                   AND u.status <> 'Inactive'
                   AND u.role <> 'CUSTOMER'
-                  AND COALESCE(s.email, '') <> ''
+                  AND regexp_replace(COALESCE(s.email, ''), '\s+', '', 'g') <> ''
                   AND RIGHT(regexp_replace(COALESCE(s.phone, ''), '\D', '', 'g'), 10) = @phone
                 ORDER BY u.id
                 LIMIT 1;
@@ -492,7 +499,7 @@ namespace Krios.Services.Krios
                   AND role = 'CUSTOMER'
                   AND (
                     RIGHT(regexp_replace(COALESCE(phone, ''), '\D', '', 'g'), 10) = @phone
-                    OR lower(email) = lower(@email)
+                    OR lower(regexp_replace(COALESCE(email, ''), '\s+', '', 'g')) = lower(@email)
                   )
                 ORDER BY id
                 LIMIT 1;
@@ -512,12 +519,12 @@ namespace Krios.Services.Krios
                        permissions, ""lastLogin"", status, passwordhash, phone, language,
                        createdby, createdon, updatedby, updatedon
                 FROM users
-                WHERE lower(email) = lower(@email)
+                WHERE lower(regexp_replace(COALESCE(email, ''), '\s+', '', 'g')) = lower(@email)
                   AND status <> 'Inactive'
                 LIMIT 1;
             ";
             var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email.Trim();
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = CredentialUtil.NormalizeEmail(email);
             using var reader = await db.Execute(cmd);
             return await reader.ReadAsync() ? MapUser(reader) : null;
         }

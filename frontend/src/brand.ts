@@ -5,6 +5,7 @@ export const BRAND_LOGO = "/krios-logo.png";
 export const BRAND_DESCRIPTION = "Salon & business growth platform.";
 export const DEFAULT_ORG_SLUG = "krios-salon-group";
 export const DEFAULT_APP_ORIGIN = "https://kriosapp.com";
+export const CHILD_SAFETY_EMAIL = "vetriselvan_m@cloudrastiko.com";
 
 function isAssetId(value: string) {
   return /^\d+$/.test(value) && Number(value) > 0;

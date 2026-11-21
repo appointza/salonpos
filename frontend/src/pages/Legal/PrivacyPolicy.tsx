@@ -11,8 +11,8 @@ export function PrivacyPolicyPage() {
             <img src={BRAND_LOGO} alt="Kriosapp" width={32} height={32} className="size-8 object-contain" />
             <span className="font-display text-lg">Kriosapp</span>
           </Link>
-          <Link to="/login" className="text-sm text-muted-foreground hover:text-foreground">
-            Sign in
+          <Link to="/child-safety" className="text-sm text-muted-foreground hover:text-foreground">
+            Child safety
           </Link>
         </div>
       </header>
@@ -78,6 +78,18 @@ export function PrivacyPolicyPage() {
           </section>
 
           <section>
+            <h2 className="font-display text-lg">Child safety</h2>
+            <p className="mt-2 text-muted-foreground">
+              We prohibit child sexual abuse and exploitation. How to report, how we review, and our safety contact are
+              on the{" "}
+              <Link to="/child-safety" className="text-primary underline-offset-4 hover:underline">
+                Child Safety Standards
+              </Link>{" "}
+              page.
+            </p>
+          </section>
+
+          <section>
             <h2 className="font-display text-lg">Contact</h2>
             <p className="mt-2 text-muted-foreground">
               Questions about privacy or deletion:{" "}
@@ -94,9 +106,14 @@ export function PrivacyPolicyPage() {
           <span className="inline-flex items-center gap-1">
             <Sparkles className="size-3.5" /> Kriosapp
           </span>
-          <Link to="/" className="hover:text-foreground">
-            Home
-          </Link>
+          <span className="flex gap-4">
+            <Link to="/child-safety" className="hover:text-foreground">
+              Child safety
+            </Link>
+            <Link to="/" className="hover:text-foreground">
+              Home
+            </Link>
+          </span>
         </div>
       </footer>
     </div>

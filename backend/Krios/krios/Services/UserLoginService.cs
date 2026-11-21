@@ -17,18 +17,18 @@ namespace Krios.Services.Krios
 
         public async Task<UserLoginRes> Login(UserLoginReq req)
         {
-            if (string.IsNullOrWhiteSpace(req.email) || string.IsNullOrWhiteSpace(req.password))
+            var email = CredentialUtil.NormalizeEmail(req.email);
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(req.password))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Email and password are required.");
 
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
 
-            var user = await GetUserByEmail(db, req.email.Trim());
+            var user = await GetUserByEmail(db, email);
             if (user == null)
                 throw new AppException(AppException.ErrorCodes.InvalidCredential, "Invalid email or password.");
 
-            string passwordHash = cryptography.CalculateSHA256Hash(req.password);
-            if (!string.Equals(user.passwordhash, passwordHash, StringComparison.OrdinalIgnoreCase))
+            if (!CredentialUtil.PasswordMatches(cryptography, user.passwordhash, req.password))
                 throw new AppException(AppException.ErrorCodes.InvalidCredential, "Invalid email or password.");
 
             if (string.Equals(user.status, "Inactive", StringComparison.OrdinalIgnoreCase))
@@ -45,26 +45,29 @@ namespace Krios.Services.Krios
 
         public async Task<UserLoginRes> ChangePassword(UserChangePasswordReq req)
         {
-            if (string.IsNullOrWhiteSpace(req.email) || string.IsNullOrWhiteSpace(req.currentPassword))
+            var email = CredentialUtil.NormalizeEmail(req.email);
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(req.currentPassword))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Email and current password are required.");
-            if (string.IsNullOrWhiteSpace(req.newPassword) || req.newPassword.Length < 6)
-                throw new AppException(AppException.ErrorCodes.BadRequest, "New password must be at least 6 characters.");
+            var newPassword = CredentialUtil.ValidateNewPassword(req.newPassword, 6, "New password must be at least 6 characters.");
 
             using IDb db = await dbprovider.GetDb();
             await db.Connect();
 
-            var user = await GetUserByEmail(db, req.email.Trim());
+            var user = await GetUserByEmail(db, email);
             if (user == null)
                 throw new AppException(AppException.ErrorCodes.InvalidCredential, "Invalid email or password.");
 
-            var currentHash = cryptography.CalculateSHA256Hash(req.currentPassword);
-            if (!string.Equals(user.passwordhash, currentHash, StringComparison.OrdinalIgnoreCase))
+            if (!CredentialUtil.PasswordMatches(cryptography, user.passwordhash, req.currentPassword))
                 throw new AppException(AppException.ErrorCodes.InvalidCredential, "Current password is incorrect.");
 
-            var newHash = cryptography.CalculateSHA256Hash(req.newPassword);
-            await UpdateUserProfileRow(db, user.id, user.email, user.name, newHash);
+            var newHash = cryptography.CalculateSHA256Hash(newPassword);
+            var cleanEmail = CredentialUtil.NormalizeEmail(user.email);
+            var cleanName = user.name.Trim();
+            await UpdateUserProfileRow(db, user.id, cleanEmail, cleanName, newHash);
             await TouchLastLogin(db, user.id);
 
+            user.email = cleanEmail;
+            user.name = cleanName;
             var org = await GetOrganization(db, user.orgId);
             var resolvedOrgId = ResolveOrgId(user.orgId, org);
             return ToLoginRes(user, org, resolvedOrgId, mustChangePassword: false);
@@ -75,8 +78,8 @@ namespace Krios.Services.Krios
             return new UserLoginRes
             {
                 userId = user.id,
-                email = user.email,
-                name = user.name,
+                email = CredentialUtil.NormalizeEmail(user.email),
+                name = user.name.Trim(),
                 role = user.role,
                 organizationId = resolvedOrgId,
                 orgId = resolvedOrgId,
@@ -102,17 +105,16 @@ namespace Krios.Services.Krios
             if (user == null)
                 throw new AppException(AppException.ErrorCodes.UserNotFound, "User not found.");
 
-            string currentHash = cryptography.CalculateSHA256Hash(req.currentPassword);
-            if (!string.Equals(user.passwordhash, currentHash, StringComparison.OrdinalIgnoreCase))
+            if (!CredentialUtil.PasswordMatches(cryptography, user.passwordhash, req.currentPassword))
                 throw new AppException(AppException.ErrorCodes.InvalidCredential, "Current password is incorrect.");
 
-            string targetEmail = user.email;
+            string targetEmail = CredentialUtil.NormalizeEmail(user.email);
             if (!string.IsNullOrWhiteSpace(req.newEmail))
             {
-                targetEmail = req.newEmail.Trim();
+                targetEmail = CredentialUtil.NormalizeEmail(req.newEmail);
                 if (targetEmail.Length < 3 || targetEmail.IndexOf('@') < 1)
                     throw new AppException(AppException.ErrorCodes.BadRequest, "Enter a valid email address.");
-                if (!targetEmail.Equals(user.email, StringComparison.OrdinalIgnoreCase)
+                if (!targetEmail.Equals(CredentialUtil.NormalizeEmail(user.email), StringComparison.OrdinalIgnoreCase)
                     && await EmailTakenByAnotherUser(db, targetEmail, user.id))
                 {
                     throw new AppException(AppException.ErrorCodes.BadRequest, "That email is already in use.");
@@ -122,12 +124,11 @@ namespace Krios.Services.Krios
             string targetPasswordHash = user.passwordhash;
             if (!string.IsNullOrWhiteSpace(req.newPassword))
             {
-                if (req.newPassword.Length < 6)
-                    throw new AppException(AppException.ErrorCodes.BadRequest, "New password must be at least 6 characters.");
-                targetPasswordHash = cryptography.CalculateSHA256Hash(req.newPassword);
+                var nextPassword = CredentialUtil.ValidateNewPassword(req.newPassword, 6, "New password must be at least 6 characters.");
+                targetPasswordHash = cryptography.CalculateSHA256Hash(nextPassword);
             }
 
-            string targetName = string.IsNullOrWhiteSpace(req.newName) ? user.name : req.newName.Trim();
+            string targetName = string.IsNullOrWhiteSpace(req.newName) ? user.name.Trim() : req.newName.Trim();
             await UpdateUserProfileRow(db, user.id, targetEmail, targetName, targetPasswordHash);
             if (!string.IsNullOrWhiteSpace(req.newPassword))
                 await TouchLastLogin(db, user.id);
@@ -156,13 +157,13 @@ namespace Krios.Services.Krios
                        permissions, ""lastLogin"", status, passwordhash, language,
                        createdby, createdon, updatedby, updatedon
                 FROM users
-                WHERE lower(email) = lower(@email)
+                WHERE lower(regexp_replace(COALESCE(email, ''), '\s+', '', 'g')) = lower(@email)
                   AND status <> 'Inactive'
                 LIMIT 1;
             ";
 
             var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = CredentialUtil.NormalizeEmail(email);
 
             using var reader = await db.Execute(cmd);
             return await reader.ReadAsync() ? MapUser(reader) : null;
@@ -192,13 +193,13 @@ namespace Krios.Services.Krios
         {
             const string query = @"
                 SELECT id FROM users
-                WHERE lower(email) = lower(@email)
+                WHERE lower(regexp_replace(COALESCE(email, ''), '\s+', '', 'g')) = lower(@email)
                   AND id <> @exclude_id
                   AND status <> 'Inactive'
                 LIMIT 1;
             ";
             var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = CredentialUtil.NormalizeEmail(email);
             db.AddParameter(cmd, "exclude_id", DbTypes.Types.Long).Value = excludeUserId;
 
             using var reader = await db.Execute(cmd);

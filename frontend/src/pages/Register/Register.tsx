@@ -35,6 +35,7 @@ import { persistBookingRules } from "@/pages/Book/booking-rules";
 import { salonLogoUrl } from "@/brand";
 import { BrandLockup } from "@/components/BrandLockup";
 import { ORG_LOGO_MAX_BYTES, readOrgLogoFile } from "@/pages/Settings/org-logo";
+import { cleanEmail, cleanOtp, cleanPassword, isValidEmail, stripSpaces } from "@/utils/credentials";
 
 const title = "Create an account — Luxe Salon CRM";
 const description =
@@ -311,11 +312,14 @@ export function RegisterPage() {
   function validate(): string | null {
     if (step === 0) {
       const a = draft.admin;
-      if (!a.name.trim() || !a.email.trim() || !a.phone.trim()) return "Full name, email and mobile number are required.";
-      if (!/^\S+@\S+\.\S+$/.test(a.email)) return "Enter a valid email address.";
-      if (a.password.length < 6) return "Password must be at least 6 characters.";
-      if (a.password !== a.confirm) return "Passwords do not match.";
-      if (draft.otp.replace(/\D/g, "").length !== 6) return "Enter the 6-digit verification code (demo: any 6 digits).";
+      const email = cleanEmail(a.email);
+      const password = cleanPassword(a.password);
+      const confirm = cleanPassword(a.confirm);
+      if (!a.name.trim() || !email || !a.phone.trim()) return "Full name, email and mobile number are required.";
+      if (!isValidEmail(email)) return "Enter a valid email address.";
+      if (password.length < 6) return "Password must be at least 6 characters.";
+      if (password !== confirm) return "Passwords do not match.";
+      if (cleanOtp(draft.otp).length !== 6) return "Enter the 6-digit verification code (demo: any 6 digits).";
     }
     if (step === 2) {
       if (!draft.org.name.trim()) return "Organization name is required.";
@@ -361,23 +365,27 @@ export function RegisterPage() {
 
   async function finishCustomer() {
     const c = draft.customer;
+    const email = cleanEmail(c.email);
+    const otp = cleanOtp(c.otp);
+    const password = cleanPassword(c.password);
+    const confirm = cleanPassword(c.confirm);
     if (!c.name.trim() || !c.phone.trim()) {
       toast.error("Full name and mobile number are required.");
       return;
     }
-    if (c.email.trim() && !/^\S+@\S+\.\S+$/.test(c.email)) {
+    if (email && !isValidEmail(email)) {
       toast.error("Enter a valid email address.");
       return;
     }
-    if (c.otp.replace(/\D/g, "").length < 6) {
+    if (otp.length < 6) {
       toast.error("Enter the 6-digit verification code sent to your mobile.");
       return;
     }
-    if (c.password.length < 6) {
+    if (password.length < 6) {
       toast.error("Password must be at least 6 characters.");
       return;
     }
-    if (c.password !== c.confirm) {
+    if (password !== confirm) {
       toast.error("Passwords do not match.");
       return;
     }
@@ -397,11 +405,11 @@ export function RegisterPage() {
 
       const res = await authService.setupCustomerPassword({
         phone,
-        otp: c.otp.trim(),
-        password: c.password,
+        otp,
+        password,
         name: c.name.trim(),
       });
-      signInCustomer(res.name || c.name.trim(), c.phone.trim(), res.userId);
+      signInCustomer(res.name || c.name.trim(), phone, res.userId);
       try {
         window.localStorage.removeItem(DRAFT_KEY);
       } catch {
@@ -418,11 +426,14 @@ export function RegisterPage() {
 
   async function finish() {
     if (saving) return;
-    if (draft.admin.password.length < 6) {
+    const adminEmail = cleanEmail(draft.admin.email);
+    const adminPassword = cleanPassword(draft.admin.password);
+    const adminConfirm = cleanPassword(draft.admin.confirm);
+    if (adminPassword.length < 6) {
       toast.error("Password must be at least 6 characters.");
       return;
     }
-    if (draft.admin.password !== draft.admin.confirm) {
+    if (adminPassword !== adminConfirm) {
       toast.error("Passwords do not match.");
       return;
     }
@@ -430,30 +441,30 @@ export function RegisterPage() {
     setSaving(true);
     try {
       const res = await organizationService.register({
-        organizationName: draft.org.name,
+        organizationName: draft.org.name.trim(),
         businessType: draft.org.businessType,
         domain: draft.profile.domain ?? "",
         website: draft.profile.website ?? "",
         brandColor: draft.profile.brandColor || "#2f5bff",
         logo: draft.profile.logo ?? "",
-        adminName: draft.admin.name,
-        adminEmail: draft.admin.email,
-        adminPassword: draft.admin.password,
-        phone: draft.admin.phone,
-        city: draft.address.city,
+        adminName: draft.admin.name.trim(),
+        adminEmail,
+        adminPassword,
+        phone: stripSpaces(draft.admin.phone),
+        city: draft.address.city.trim(),
         address: draft.address.line,
-        outletName: draft.outlet.name.trim() || draft.org.name,
+        outletName: draft.outlet.name.trim() || draft.org.name.trim(),
       });
 
       const login = await userService.login({
-        email: draft.admin.email.trim(),
-        password: draft.admin.password,
+        email: adminEmail,
+        password: adminPassword,
       });
       const apiRole = (login.role?.toUpperCase().replace(/\s+/g, "_") || "ADMIN") as Role;
       signIn(login.email, apiRole, {
         id: login.userId || res.adminUserId,
-        name: login.name || draft.admin.name,
-        phone: draft.admin.phone,
+        name: login.name || draft.admin.name.trim(),
+        phone: stripSpaces(draft.admin.phone),
         orgId: login.organizationId || res.organizationId,
         locationId: login.locationId || res.locationId,
       });
@@ -475,7 +486,7 @@ export function RegisterPage() {
             city: draft.address.city ?? "",
             address: draft.address.line ?? "",
             phone: draft.admin.phone,
-            email: draft.admin.email,
+            email: adminEmail,
             timezone: "Asia/Kolkata",
             status: "Active",
             lat: 0,
@@ -501,9 +512,9 @@ export function RegisterPage() {
           commission: 0,
           outlet: draft.org.name,
           active: svc.status || "Active",
-          createdby: draft.admin.email,
+          createdby: adminEmail,
           createdon: today,
-          updatedby: draft.admin.email,
+          updatedby: adminEmail,
           updatedon: today,
           type: "Service",
           comboItems: "",
@@ -518,26 +529,26 @@ export function RegisterPage() {
           name: member.name,
           role: member.role,
           outlet: draft.org.name,
-          phone: member.phone,
-          email: member.email,
+          phone: stripSpaces(member.phone),
+          email: cleanEmail(member.email),
           joinDate: today,
           baseSalary: 0,
           commissionRate: 0,
           target: 0,
           status: member.status || "Active",
-          createdby: draft.admin.email,
+          createdby: adminEmail,
           createdon: today,
-          updatedby: draft.admin.email,
+          updatedby: adminEmail,
           updatedon: today,
         });
       }
 
       saveAccount({
-        identifier: draft.admin.email,
+        identifier: adminEmail,
         type: "organization",
-        name: draft.admin.name,
-        email: draft.admin.email,
-        phone: draft.admin.phone,
+        name: draft.admin.name.trim(),
+        email: adminEmail,
+        phone: stripSpaces(draft.admin.phone),
         role: "ADMIN",
       });
       try {
@@ -562,6 +573,9 @@ export function RegisterPage() {
           <div className="flex shrink-0 items-center gap-3 text-sm text-muted-foreground">
             <Link to="/privacy" className="hover:text-foreground">
               Privacy
+            </Link>
+            <Link to="/child-safety" className="hover:text-foreground">
+              Child safety
             </Link>
             <Link to="/login" className="hover:text-foreground">
               <span className="hidden sm:inline">Already registered? </span>Log in
@@ -622,13 +636,13 @@ export function RegisterPage() {
                   label="Mobile number"
                   required
                   value={draft.customer.phone}
-                  onChange={(v) => set("customer", { ...draft.customer, phone: v })}
+                  onChange={(v) => set("customer", { ...draft.customer, phone: stripSpaces(v) })}
                 />
                 <Field
                   label="Email address"
                   type="email"
                   value={draft.customer.email}
-                  onChange={(v) => set("customer", { ...draft.customer, email: v })}
+                  onChange={(v) => set("customer", { ...draft.customer, email: cleanEmail(v) })}
                   placeholder="optional"
                 />
                 <div className="sm:col-span-2 flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -637,7 +651,7 @@ export function RegisterPage() {
                       label="Verification code"
                       required
                       value={draft.customer.otp}
-                      onChange={(v) => set("customer", { ...draft.customer, otp: v })}
+                      onChange={(v) => set("customer", { ...draft.customer, otp: cleanOtp(v) })}
                       placeholder="123456"
                     />
                   </div>
@@ -667,14 +681,14 @@ export function RegisterPage() {
                   required
                   type="password"
                   value={draft.customer.password}
-                  onChange={(v) => set("customer", { ...draft.customer, password: v })}
+                  onChange={(v) => set("customer", { ...draft.customer, password: cleanPassword(v) })}
                 />
                 <Field
                   label="Confirm password"
                   required
                   type="password"
                   value={draft.customer.confirm}
-                  onChange={(v) => set("customer", { ...draft.customer, confirm: v })}
+                  onChange={(v) => set("customer", { ...draft.customer, confirm: cleanPassword(v) })}
                 />
               </div>
             </StepShell>
@@ -726,12 +740,12 @@ export function RegisterPage() {
             <StepShell title="Create your admin account" hint="You will be the organization ADMIN with full access. Demo mode: enter any 6-digit code to verify.">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Full name" required value={draft.admin.name} onChange={(v) => set("admin", { ...draft.admin, name: v })} />
-                <Field label="Email address" required type="email" value={draft.admin.email} onChange={(v) => set("admin", { ...draft.admin, email: v })} />
-                <Field label="Mobile number" required value={draft.admin.phone} onChange={(v) => set("admin", { ...draft.admin, phone: v })} />
+                <Field label="Email address" required type="email" value={draft.admin.email} onChange={(v) => set("admin", { ...draft.admin, email: cleanEmail(v) })} />
+                <Field label="Mobile number" required value={draft.admin.phone} onChange={(v) => set("admin", { ...draft.admin, phone: stripSpaces(v) })} />
                 <div />
-                <Field label="Password" required type="password" value={draft.admin.password} onChange={(v) => set("admin", { ...draft.admin, password: v })} />
-                <Field label="Confirm password" required type="password" value={draft.admin.confirm} onChange={(v) => set("admin", { ...draft.admin, confirm: v })} />
-                <Field label="Verification code" required value={draft.otp} onChange={(v) => set("otp", v)} placeholder="123456" />
+                <Field label="Password" required type="password" value={draft.admin.password} onChange={(v) => set("admin", { ...draft.admin, password: cleanPassword(v) })} />
+                <Field label="Confirm password" required type="password" value={draft.admin.confirm} onChange={(v) => set("admin", { ...draft.admin, confirm: cleanPassword(v) })} />
+                <Field label="Verification code" required value={draft.otp} onChange={(v) => set("otp", cleanOtp(v))} placeholder="123456" />
                 <div className="flex items-end">
                   <button type="button" className="text-sm text-primary hover:underline" onClick={() => toast.success("Verification code resent")}>
                     Resend code

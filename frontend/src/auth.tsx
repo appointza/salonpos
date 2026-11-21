@@ -7,7 +7,8 @@ import {
   WORKSPACE_SESSION_KEY,
   type WorkspaceSession,
 } from "@/session";
-import { authTokenStore } from "@/utils/auth-token.util";
+import { authTokenStore, TOKEN_KEY } from "@/utils/auth-token.util";
+import { hasPersistedRaw } from "@/persist-auth";
 
 export type Role = "SUPER_ADMIN" | "ADMIN" | "STAFF" | "STYLIST";
 
@@ -153,21 +154,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(() => getStoredSession());
 
   useEffect(() => {
-    const sync = () => setUser(getStoredSession());
+    const applyStored = (allowClear: boolean) => {
+      const next = getStoredSession();
+      setUser((prev) => {
+        if (next) return withStaffLink(next);
+        if (!allowClear && prev && (hasPersistedRaw(WORKSPACE_SESSION_KEY) || authTokenStore.getAccessToken())) {
+          return prev;
+        }
+        return null;
+      });
+    };
+    const onSessionEvent = () => applyStored(true);
     const onStorage = (event: StorageEvent) => {
-      if (!event.key || event.key === WORKSPACE_SESSION_KEY) sync();
+      if (!event.key || event.key === WORKSPACE_SESSION_KEY || event.key === TOKEN_KEY) {
+        applyStored(true);
+      }
     };
     const onVisible = () => {
-      if (document.visibilityState === "visible") sync();
+      if (document.visibilityState === "visible") applyStored(false);
     };
-    window.addEventListener(WORKSPACE_SESSION_EVENT, sync);
+    window.addEventListener(WORKSPACE_SESSION_EVENT, onSessionEvent);
     window.addEventListener("storage", onStorage);
-    window.addEventListener("pageshow", sync);
+    window.addEventListener("pageshow", onVisible);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
-      window.removeEventListener(WORKSPACE_SESSION_EVENT, sync);
+      window.removeEventListener(WORKSPACE_SESSION_EVENT, onSessionEvent);
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("pageshow", sync);
+      window.removeEventListener("pageshow", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
@@ -202,9 +215,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
-    setUser(null);
-    persistUser(null);
     authTokenStore.clear();
+    persistUser(null);
+    setUser(null);
   }, []);
 
   const completeOnboarding = useCallback<Ctx["completeOnboarding"]>((org, admin) => {

@@ -63,10 +63,10 @@ namespace Krios.Services.Krios
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Organization name is required.");
             if (string.IsNullOrWhiteSpace(req.adminName))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Admin name is required.");
-            if (string.IsNullOrWhiteSpace(req.adminEmail))
+            req.adminEmail = CredentialUtil.NormalizeEmail(req.adminEmail);
+            if (string.IsNullOrWhiteSpace(req.adminEmail) || !req.adminEmail.Contains('@'))
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Admin email is required.");
-            if (string.IsNullOrWhiteSpace(req.adminPassword))
-                throw new AppException(AppException.ErrorCodes.BadRequest, "Admin password is required.");
+            req.adminPassword = CredentialUtil.ValidateNewPassword(req.adminPassword, 6, "Admin password is required.");
         }
 
         private static string NormalizeSlug(string name)
@@ -98,9 +98,9 @@ namespace Krios.Services.Krios
 
         private static async Task<bool> EmailExists(IDb db, string email)
         {
-            const string query = @"SELECT 1 FROM users WHERE lower(email) = lower(@email) AND status <> 'Inactive' LIMIT 1";
+            const string query = @"SELECT 1 FROM users WHERE lower(regexp_replace(COALESCE(email, ''), '\s+', '', 'g')) = lower(@email) AND status <> 'Inactive' LIMIT 1";
             var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = CredentialUtil.NormalizeEmail(email);
             using var reader = await db.Execute(cmd);
                 return await reader.ReadAsync();
         }
@@ -391,21 +391,23 @@ namespace Krios.Services.Krios
             ";
 
             var today = DateTime.UtcNow.Date;
+            var cleanEmail = CredentialUtil.NormalizeEmail(req.adminEmail);
+            var cleanPhone = PhoneUtil.Normalize(req.phone);
             var cmd = db.GetCommand(query);
             db.AddParameter(cmd, "orgId", DbTypes.Types.Long).Value = orgId;
             db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = locationId;
             db.AddParameter(cmd, "name", DbTypes.Types.String).Value = req.adminName.Trim();
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = req.adminEmail.Trim();
-            db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = req.phone?.Trim() ?? "";
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = cleanEmail;
+            db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = string.IsNullOrWhiteSpace(cleanPhone) ? (req.phone?.Trim() ?? "") : cleanPhone;
             db.AddParameter(cmd, "role", DbTypes.Types.String).Value = "ADMIN";
             db.AddParameter(cmd, "outlet", DbTypes.Types.String).Value = MainOutletName(req);
             db.AddParameter(cmd, "permissions", DbTypes.Types.String).Value = "";
             db.AddParameter(cmd, "lastLogin", DbTypes.Types.String).Value = "";
             db.AddParameter(cmd, "status", DbTypes.Types.String).Value = "Active";
             db.AddParameter(cmd, "passwordhash", DbTypes.Types.String).Value = cryptography.CalculateSHA256Hash(req.adminPassword);
-            db.AddParameter(cmd, "createdby", DbTypes.Types.String).Value = req.adminEmail.Trim();
+            db.AddParameter(cmd, "createdby", DbTypes.Types.String).Value = cleanEmail;
             db.AddParameter(cmd, "createdon", DbTypes.Types.Date).Value = today;
-            db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value = req.adminEmail.Trim();
+            db.AddParameter(cmd, "updatedby", DbTypes.Types.String).Value = cleanEmail;
             db.AddParameter(cmd, "updatedon", DbTypes.Types.Date).Value = today;
 
             using var reader = await db.Execute(cmd);

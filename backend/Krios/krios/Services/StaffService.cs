@@ -217,11 +217,11 @@ namespace Krios.Services.Krios
                 db.AddParameter(cmd, "id", DbTypes.Types.Long).Value = entity.id;
             db.AddParameter(cmd, "orgId", DbTypes.Types.Long).Value = entity.orgId;
             db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = entity.locationId;
-            db.AddParameter(cmd, "name", DbTypes.Types.String).Value = entity.name ?? "";
+            db.AddParameter(cmd, "name", DbTypes.Types.String).Value = (entity.name ?? "").Trim();
             db.AddParameter(cmd, "role", DbTypes.Types.String).Value = entity.role ?? "";
             db.AddParameter(cmd, "outlet", DbTypes.Types.String).Value = entity.outlet ?? "";
-            db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = entity.phone ?? "";
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = entity.email ?? "";
+            db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = (entity.phone ?? "").Trim();
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = CredentialUtil.NormalizeEmail(entity.email);
             db.AddParameter(cmd, "joinDate", DbTypes.Types.Date).Value = entity.joinDate ?? DateTime.UtcNow.Date;
             db.AddParameter(cmd, "baseSalary", DbTypes.Types.Long).Value = entity.baseSalary;
             db.AddParameter(cmd, "commissionRate", DbTypes.Types.Decimal).Value = entity.commissionRate;
@@ -243,21 +243,20 @@ namespace Krios.Services.Krios
 
         private async Task UpsertLoginUser(IDb db, Staff staff)
         {
-            var password = (staff.password ?? "").Trim();
+            var rawPassword = (staff.password ?? "").Trim();
             var phone = PhoneUtil.Normalize(staff.phone);
-            var email = (staff.email ?? "").Trim();
+            var email = CredentialUtil.NormalizeEmail(staff.email);
             if (string.IsNullOrWhiteSpace(email) && phone.Length >= 10)
                 email = $"{phone}@salon.staff";
 
-            if (string.IsNullOrWhiteSpace(password))
+            if (string.IsNullOrWhiteSpace(rawPassword))
             {
                 if (staff.id > 0)
                     await SyncLoginUserProfile(db, staff, email, phone, hash: null);
                 return;
             }
 
-            if (password.Length < 6)
-                throw new AppException(AppException.ErrorCodes.BadRequest, "Password must be at least 6 characters.");
+            var password = CredentialUtil.ValidateNewPassword(rawPassword);
             if (string.IsNullOrWhiteSpace(email) && phone.Length < 10)
                 throw new AppException(AppException.ErrorCodes.BadRequest, "Email or mobile is required to set a login password.");
 
@@ -334,8 +333,8 @@ namespace Krios.Services.Krios
         {
             db.AddParameter(cmd, "orgId", DbTypes.Types.Long).Value = staff.orgId;
             db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = staff.locationId;
-            db.AddParameter(cmd, "name", DbTypes.Types.String).Value = staff.name ?? "";
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email;
+            db.AddParameter(cmd, "name", DbTypes.Types.String).Value = (staff.name ?? "").Trim();
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = CredentialUtil.NormalizeEmail(email);
             db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = phone;
             db.AddParameter(cmd, "role", DbTypes.Types.String).Value = role;
             db.AddParameter(cmd, "outlet", DbTypes.Types.String).Value = staff.outlet ?? "";
@@ -354,14 +353,14 @@ namespace Krios.Services.Krios
                 WHERE status <> 'Inactive'
                   AND role <> 'CUSTOMER'
                   AND (
-                    (@email <> '' AND lower(email) = lower(@email))
+                    (@email <> '' AND lower(regexp_replace(COALESCE(email, ''), '\s+', '', 'g')) = lower(@email))
                     OR (@phone <> '' AND RIGHT(regexp_replace(COALESCE(phone, ''), '\D', '', 'g'), 10) = @phone)
                   )
-                ORDER BY CASE WHEN @email <> '' AND lower(email) = lower(@email) THEN 0 ELSE 1 END, id
+                ORDER BY CASE WHEN @email <> '' AND lower(regexp_replace(COALESCE(email, ''), '\s+', '', 'g')) = lower(@email) THEN 0 ELSE 1 END, id
                 LIMIT 1;
             ";
             var cmd = db.GetCommand(query);
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = email ?? "";
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = CredentialUtil.NormalizeEmail(email);
             db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = phone ?? "";
             using var reader = await db.Execute(cmd);
             if (!await reader.ReadAsync()) return null;

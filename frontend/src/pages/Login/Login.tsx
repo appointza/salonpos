@@ -14,6 +14,7 @@ import { authService } from "@/services/auth.service";
 import { LanguageSwitcher } from "@/i18n/LanguageSwitcher";
 import { useT } from "@/i18n/LanguageContext";
 import { apiErrorMessage } from "@/utils/api-error";
+import { cleanEmail, cleanIdentifier, cleanOtp, cleanPassword } from "@/utils/credentials";
 import type { UserLoginRes } from "@/model/users";
 
 type Step = "identify" | "org-password" | "org-change-password" | "customer-password" | "customer-setup";
@@ -36,7 +37,7 @@ export function LoginPage() {
 
   async function handleIdentify(e: React.FormEvent) {
     e.preventDefault();
-    const raw = identifier.trim();
+    const raw = cleanIdentifier(identifier);
     if (!raw) return void toast.error("Enter your mobile number or business email");
 
     setBusy(true);
@@ -75,15 +76,15 @@ export function LoginPage() {
   }
 
   function forgotPasswordHref() {
-    const raw = identifier.trim() || profile?.email || profile?.phone || "";
+    const raw = cleanIdentifier(identifier) || cleanEmail(profile?.email || "") || profile?.phone || "";
     return raw ? `/forgot-password?identifier=${encodeURIComponent(raw)}` : "/forgot-password";
   }
 
   async function sendOtp(phone: string) {
     const res = await authService.sendOtp({
-      identifier: identifier.trim() || phone,
+      identifier: cleanIdentifier(identifier) || phone,
       phone,
-      email: profile?.email || "",
+      email: cleanEmail(profile?.email || ""),
     });
     setOtpHint(res.hint || "Check your email for the verification code.");
     toast.success("Verification code sent", {
@@ -98,12 +99,14 @@ export function LoginPage() {
 
   async function loginOrganization(e: React.FormEvent) {
     e.preventDefault();
-    if (!profile?.email) return void toast.error("Missing workspace email");
-    if (password.length < 4) return void toast.error("Enter your password");
+    const email = cleanEmail(profile?.email || "");
+    const pwd = cleanPassword(password);
+    if (!email) return void toast.error("Missing workspace email");
+    if (pwd.length < 4) return void toast.error("Enter your password");
 
     setBusy(true);
     try {
-      const res = await authService.loginOrganization({ email: profile.email, password });
+      const res = await authService.loginOrganization({ email, password: pwd });
       if (res.mustChangePassword) {
         setStep("org-change-password");
         setConfirmPassword("");
@@ -120,16 +123,19 @@ export function LoginPage() {
 
   async function changeOrgPassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!profile?.email) return void toast.error("Missing workspace email");
-    if (confirmPassword.length < 6) return void toast.error("New password must be at least 6 characters");
-    if (confirmPassword === password) return void toast.error("Choose a different password from the one you were given");
+    const email = cleanEmail(profile?.email || "");
+    const currentPwd = cleanPassword(password);
+    const newPwd = cleanPassword(confirmPassword);
+    if (!email) return void toast.error("Missing workspace email");
+    if (newPwd.length < 6) return void toast.error("New password must be at least 6 characters");
+    if (newPwd === currentPwd) return void toast.error("Choose a different password from the one you were given");
 
     setBusy(true);
     try {
       const res = await authService.changePassword({
-        email: profile.email,
-        currentPassword: password,
-        newPassword: confirmPassword,
+        email,
+        currentPassword: currentPwd,
+        newPassword: newPwd,
       });
       finishOrgSession(res);
     } catch (err) {
@@ -154,12 +160,13 @@ export function LoginPage() {
 
   async function loginCustomer(e: React.FormEvent) {
     e.preventDefault();
-    const phone = profile?.phone || normalizePhone(identifier);
-    if (password.length < 4) return void toast.error("Enter your password");
+    const phone = profile?.phone || normalizePhone(cleanIdentifier(identifier));
+    const pwd = cleanPassword(password);
+    if (pwd.length < 4) return void toast.error("Enter your password");
 
     setBusy(true);
     try {
-      const res = await authService.loginCustomer({ phone, password });
+      const res = await authService.loginCustomer({ phone, password: pwd });
       finishCustomerSession(res.name, phone, res.userId);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Invalid mobile or password"));
@@ -170,18 +177,21 @@ export function LoginPage() {
 
   async function setupCustomerPassword(e: React.FormEvent) {
     e.preventDefault();
-    const phone = profile?.phone || normalizePhone(identifier);
-    if (otp.replace(/\D/g, "").length < 6) return void toast.error("Enter the 6-digit code");
-    if (password.length < 6) return void toast.error("Password must be at least 6 characters");
-    if (password !== confirmPassword) return void toast.error("Passwords do not match");
+    const phone = profile?.phone || normalizePhone(cleanIdentifier(identifier));
+    const code = cleanOtp(otp);
+    const pwd = cleanPassword(password);
+    const confirmPwd = cleanPassword(confirmPassword);
+    if (code.length < 6) return void toast.error("Enter the 6-digit code");
+    if (pwd.length < 6) return void toast.error("Password must be at least 6 characters");
+    if (pwd !== confirmPwd) return void toast.error("Passwords do not match");
     const displayName = name.trim() || profile?.name?.trim() || "Customer";
 
     setBusy(true);
     try {
       const res = await authService.setupCustomerPassword({
         phone,
-        otp: otp.trim(),
-        password,
+        otp: code,
+        password: pwd,
         name: displayName,
       });
       finishCustomerSession(res.name || displayName, phone, res.userId);
@@ -233,9 +243,10 @@ export function LoginPage() {
                   <Input
                     id="login-id"
                     value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
+                    onChange={(e) => setIdentifier(cleanIdentifier(e.target.value))}
                     placeholder="98765 43210 or you@salon.com"
                     autoComplete="username"
+                    inputMode="email"
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={busy}>
@@ -277,7 +288,7 @@ export function LoginPage() {
                         id="org-password"
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => setPassword(cleanPassword(e.target.value))}
                         autoComplete="current-password"
                       />
                     </div>
@@ -314,7 +325,7 @@ export function LoginPage() {
                         id="org-new-password"
                         type="password"
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onChange={(e) => setConfirmPassword(cleanPassword(e.target.value))}
                         autoComplete="new-password"
                       />
                     </div>
@@ -344,7 +355,7 @@ export function LoginPage() {
                         id="customer-password"
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => setPassword(cleanPassword(e.target.value))}
                         autoComplete="current-password"
                       />
                     </div>
@@ -393,7 +404,7 @@ export function LoginPage() {
                       <Input
                         id="setup-otp"
                         value={otp}
-                        onChange={(e) => setOtp(e.target.value)}
+                        onChange={(e) => setOtp(cleanOtp(e.target.value))}
                         placeholder="123456"
                         inputMode="numeric"
                       />
@@ -404,7 +415,7 @@ export function LoginPage() {
                         id="setup-password"
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => setPassword(cleanPassword(e.target.value))}
                         autoComplete="new-password"
                       />
                     </div>
@@ -414,7 +425,7 @@ export function LoginPage() {
                         id="setup-confirm"
                         type="password"
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onChange={(e) => setConfirmPassword(cleanPassword(e.target.value))}
                         autoComplete="new-password"
                       />
                     </div>
@@ -455,6 +466,10 @@ export function LoginPage() {
           <p className="mt-3 text-center text-xs text-muted-foreground">
             <Link to="/privacy" className="hover:text-foreground hover:underline">
               Privacy Policy
+            </Link>
+            <span className="mx-2">·</span>
+            <Link to="/child-safety" className="hover:text-foreground hover:underline">
+              Child safety
             </Link>
           </p>
         </div>

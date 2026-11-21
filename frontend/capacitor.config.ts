@@ -8,16 +8,16 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
   },
   server: {
-    url: "https://kriosapp.com",
     androidScheme: "https",
     iosScheme: "https",
+    hostname: "kriosapp.com",
     allowNavigation: ["kriosapp.com", "*.kriosapp.com"],
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 400,
       launchAutoHide: true,
-      backgroundColor: "#0f172a",
+      backgroundColor: "#FFFFFF",
     },
     StatusBar: {
       style: "LIGHT",

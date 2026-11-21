@@ -4,6 +4,7 @@ import { CalendarCheck, ClipboardList, LogOut, MapPin, Menu, Sparkles, TicketPer
 import { Button } from "@/components/ui/button";
 import { useCustomerSession } from "@/pages/Login/customer-session";
 import { DeleteAccountButton } from "@/pages/Legal/DeleteAccountButton";
+import { ReportSafetyButton } from "@/pages/Legal/ReportSafetyButton";
 import { cn } from "@/utils/utils";
 
 const NAV = [
@@ -96,6 +97,16 @@ export function CustomerNearbyLayout() {
           <Link to="/privacy" className="mt-3 block text-center text-xs text-muted-foreground hover:text-foreground">
             Privacy Policy
           </Link>
+          <Link to="/child-safety" className="mt-1 block text-center text-xs text-muted-foreground hover:text-foreground">
+            Child safety
+          </Link>
+          <div className="mt-2 flex justify-center">
+            <ReportSafetyButton
+              compact
+              reporterId={customer?.userId ?? 0}
+              reporterContact={customer?.phone ?? ""}
+            />
+          </div>
           <div className="mt-2 flex justify-center">
             <DeleteAccountButton
               compact

@@ -35,6 +35,7 @@ import { LanguageSwitcher } from "@/i18n/LanguageSwitcher";
 import { useT } from "@/i18n/LanguageContext";
 import { useAuth } from "@/auth";
 import { DeleteAccountButton } from "@/pages/Legal/DeleteAccountButton";
+import { ReportSafetyButton } from "@/pages/Legal/ReportSafetyButton";
 import { BillEditor } from "@/pages/Bill/BillEditor";
 
 const FIELDS: { name: keyof WhatsAppSettings; label: string; placeholder: string }[] = [
@@ -486,7 +487,14 @@ export function Page() {
           <Link to="/privacy" className="text-primary underline-offset-4 hover:underline">
             Privacy Policy
           </Link>
+          <span className="mx-2 text-muted-foreground">·</span>
+          <Link to="/child-safety" className="text-primary underline-offset-4 hover:underline">
+            Child Safety Standards
+          </Link>
         </p>
+        <div className="mt-4">
+          <ReportSafetyButton reporterId={Number(user?.id) || 0} reporterContact={user?.email || user?.phone || ""} />
+        </div>
         <p className="mt-6 text-sm text-muted-foreground">
           Deleting your account signs you out and blocks this email or phone from signing in again.
         </p>

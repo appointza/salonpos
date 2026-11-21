@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OrgSlugRouteImport } from './routes/$orgSlug'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as BookRouteImport } from './routes/book'
+import { Route as ChildSafetyRouteImport } from './routes/child-safety'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NearbyRouteImport } from './routes/nearby'
@@ -99,6 +100,11 @@ const AppRoute = AppRouteImport.update({
 const BookRoute = BookRouteImport.update({
   id: '/book',
   path: '/book',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChildSafetyRoute = ChildSafetyRouteImport.update({
+  id: '/child-safety',
+  path: '/child-safety',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -446,6 +452,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$orgSlug': typeof OrgSlugRouteWithChildren
   '/book': typeof BookRoute
+  '/child-safety': typeof ChildSafetyRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/nearby': typeof NearbyRouteWithChildren
@@ -518,6 +525,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/book': typeof BookRoute
+  '/child-safety': typeof ChildSafetyRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/platform': typeof PlatformRoute
@@ -590,6 +598,7 @@ export interface FileRoutesById {
   '/$orgSlug': typeof OrgSlugRouteWithChildren
   '/_app': typeof AppRouteWithChildren
   '/book': typeof BookRoute
+  '/child-safety': typeof ChildSafetyRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/nearby': typeof NearbyRouteWithChildren
@@ -665,6 +674,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$orgSlug'
     | '/book'
+    | '/child-safety'
     | '/forgot-password'
     | '/login'
     | '/nearby'
@@ -737,6 +747,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/book'
+    | '/child-safety'
     | '/forgot-password'
     | '/login'
     | '/platform'
@@ -808,6 +819,7 @@ export interface FileRouteTypes {
     | '/$orgSlug'
     | '/_app'
     | '/book'
+    | '/child-safety'
     | '/forgot-password'
     | '/login'
     | '/nearby'
@@ -883,6 +895,7 @@ export interface RootRouteChildren {
   OrgSlugRoute: typeof OrgSlugRouteWithChildren
   AppRoute: typeof AppRouteWithChildren
   BookRoute: typeof BookRoute
+  ChildSafetyRoute: typeof ChildSafetyRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   NearbyRoute: typeof NearbyRouteWithChildren
@@ -921,6 +934,13 @@ declare module '@tanstack/react-router' {
       path: '/book'
       fullPath: '/book'
       preLoaderRoute: typeof BookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/child-safety': {
+      id: '/child-safety'
+      path: '/child-safety'
+      fullPath: '/child-safety'
+      preLoaderRoute: typeof ChildSafetyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -1602,6 +1622,7 @@ const rootRouteChildren: RootRouteChildren = {
   OrgSlugRoute: OrgSlugRouteWithChildren,
   AppRoute: AppRouteWithChildren,
   BookRoute: BookRoute,
+  ChildSafetyRoute: ChildSafetyRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   NearbyRoute: NearbyRouteWithChildren,

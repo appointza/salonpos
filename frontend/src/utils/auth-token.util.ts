@@ -1,4 +1,6 @@
-const TOKEN_KEY = "salon-crm-tokens-v1";
+import { TOKEN_COOKIE, TOKEN_STORAGE_KEY, readPersistedJson, writePersistedJson } from "@/persist-auth";
+
+export const TOKEN_KEY = TOKEN_STORAGE_KEY;
 
 export type AuthTokens = {
   access_token: string;
@@ -9,12 +11,9 @@ export type AuthTokens = {
 
 export const authTokenStore = {
   get(): AuthTokens | null {
-    try {
-      const raw = localStorage.getItem(TOKEN_KEY);
-      return raw ? (JSON.parse(raw) as AuthTokens) : null;
-    } catch {
-      return null;
-    }
+    const tokens = readPersistedJson<AuthTokens>(TOKEN_STORAGE_KEY, TOKEN_COOKIE);
+    if (!tokens?.access_token) return null;
+    return tokens;
   },
 
   getAccessToken(): string | null {
@@ -26,18 +25,10 @@ export const authTokenStore = {
   },
 
   set(tokens: AuthTokens) {
-    try {
-      localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
-    } catch {
-      /* ignore */
-    }
+    writePersistedJson(TOKEN_STORAGE_KEY, TOKEN_COOKIE, tokens);
   },
 
   clear() {
-    try {
-      localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      /* ignore */
-    }
+    writePersistedJson(TOKEN_STORAGE_KEY, TOKEN_COOKIE, null);
   },
 };

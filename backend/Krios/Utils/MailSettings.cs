@@ -7,6 +7,7 @@ namespace Krios.Utils
         public string User { get; set; } = "";
         public string Password { get; set; } = "";
         public string From { get; set; } = "";
+        public string ChildSafetyTo { get; set; } = "vetriselvan_m@cloudrastiko.com";
         public bool EnableSsl { get; set; } = true;
     }
 }

@@ -19,9 +19,10 @@ async function loadApiUrl() {
 }
 
 void (async () => {
-  const { bootNativeShell } = await import("@/native");
-  await bootNativeShell();
-  await loadApiUrl();
+  void import("@/native")
+    .then((m) => m.bootNativeShell())
+    .catch(() => undefined);
+  void loadApiUrl();
   const { App } = await import("@/App");
   createRoot(root).render(
     <StrictMode>

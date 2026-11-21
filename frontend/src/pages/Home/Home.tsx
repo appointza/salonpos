@@ -653,8 +653,8 @@ export function Home() {
                 <h3>Revenue through loyalty</h3>
                 <p>More returning clients means more recurring revenue.</p>
               </div>
-            </div>
           </div>
+        </div>
         </section>
 
         <section className="section" id="how-it-works" aria-labelledby="how-h">
@@ -905,7 +905,7 @@ export function Home() {
               <div className="hero-ctas">
                 <Link to="/register" className="btn btn-light">
                   Get Started
-                </Link>
+              </Link>
                 <a href={DEMO_MAIL} className="btn btn-outline-light">
                   Book a Demo
                 </a>
@@ -987,6 +987,7 @@ export function Home() {
             <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <LanguageSwitcher compact />
               <Link to="/privacy">Privacy</Link>
+              <Link to="/child-safety">Child safety</Link>
             </span>
           </div>
         </div>

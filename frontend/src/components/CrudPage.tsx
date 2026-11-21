@@ -32,6 +32,7 @@ import { useTenant } from "@/tenant";
 import { useListView } from "@/list-view";
 import { usePermissions } from "@/pages/Roles/permissions";
 import { useT } from "@/i18n/LanguageContext";
+import { cleanEmail, cleanPassword } from "@/utils/credentials";
 
 export type FieldType = "text" | "number" | "date" | "time" | "textarea" | "select" | "password";
 
@@ -704,12 +705,17 @@ export function CrudPage({
                         placeholder={f.type === "password" && !isNew ? "Leave blank to keep current" : undefined}
                         value={String(value)}
                         disabled={locked}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          let next: string | number = e.target.value;
+                          if (f.type === "number") next = Number(e.target.value);
+                          else if (f.name === "email") next = cleanEmail(e.target.value);
+                          else if (f.name === "password") next = cleanPassword(e.target.value);
+                          else if (f.name === "phone") next = e.target.value.replace(/\s+/g, "");
                           setEditing({
                             ...editing,
-                            [f.name]: f.type === "number" ? Number(e.target.value) : e.target.value,
-                          })
-                        }
+                            [f.name]: next,
+                          });
+                        }}
                       />
                     )}
                   </div>

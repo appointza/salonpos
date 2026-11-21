@@ -50,7 +50,7 @@ namespace Krios.Services.Krios
             if (req.locationId > 0)
                 qb.AddParameter(@"""locationId""", "=", "locationId", req.locationId, DbTypes.Types.Long);
             if (!string.IsNullOrWhiteSpace(req.email))
-                qb.AddParameter("email", "=", "email", req.email, DbTypes.Types.String);
+                qb.AddParameter("email", "=", "email", CredentialUtil.NormalizeEmail(req.email), DbTypes.Types.String);
             if (!string.IsNullOrWhiteSpace(req.role))
                 qb.AddParameter("role", "=", "role", req.role, DbTypes.Types.String);
             if (!string.IsNullOrWhiteSpace(req.status))
@@ -103,6 +103,8 @@ namespace Krios.Services.Krios
             var today = DateTime.UtcNow.Date;
             var actor = requeststate.usercontext.id > 0 ? requeststate.usercontext.id.ToString() : "system";
             user.status = string.IsNullOrWhiteSpace(user.status) ? "Active" : user.status;
+            user.name = (user.name ?? "").Trim();
+            user.email = CredentialUtil.NormalizeEmail(user.email);
             user.phone = PhoneUtil.Normalize(user.phone);
             if (string.IsNullOrWhiteSpace(user.email) && user.phone.Length >= 10)
                 user.email = $"{user.phone}@salon.staff";
@@ -153,6 +155,8 @@ namespace Krios.Services.Krios
                 WHERE id = @id
             ";
 
+            user.name = (user.name ?? "").Trim();
+            user.email = CredentialUtil.NormalizeEmail(user.email);
             user.phone = PhoneUtil.Normalize(user.phone);
             if (string.IsNullOrWhiteSpace(user.email) && user.phone.Length >= 10)
                 user.email = $"{user.phone}@salon.staff";
@@ -222,8 +226,8 @@ namespace Krios.Services.Krios
 
             db.AddParameter(cmd, "orgId", DbTypes.Types.Long).Value = user.orgId;
             db.AddParameter(cmd, "locationId", DbTypes.Types.Long).Value = user.locationId;
-            db.AddParameter(cmd, "name", DbTypes.Types.String).Value = user.name ?? "";
-            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = user.email ?? "";
+            db.AddParameter(cmd, "name", DbTypes.Types.String).Value = (user.name ?? "").Trim();
+            db.AddParameter(cmd, "email", DbTypes.Types.String).Value = CredentialUtil.NormalizeEmail(user.email);
             db.AddParameter(cmd, "phone", DbTypes.Types.String).Value = PhoneUtil.Normalize(user.phone);
             db.AddParameter(cmd, "role", DbTypes.Types.String).Value = user.role ?? "";
             db.AddParameter(cmd, "outlet", DbTypes.Types.String).Value = user.outlet ?? "";
@@ -240,16 +244,15 @@ namespace Krios.Services.Krios
 
         private void ApplyIncomingPassword(User user, bool isInsert)
         {
-            var plain = (user.password ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(plain))
+            var raw = (user.password ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw))
             {
                 if (isInsert)
                     throw new AppException(AppException.ErrorCodes.BadRequest, "Set a password of at least 6 characters.");
                 user.passwordhash = "";
                 return;
             }
-            if (plain.Length < 6)
-                throw new AppException(AppException.ErrorCodes.BadRequest, "Password must be at least 6 characters.");
+            var plain = CredentialUtil.ValidateNewPassword(raw);
             user.passwordhash = cryptography.CalculateSHA256Hash(plain);
             user.lastLogin = "";
             user.password = "";
